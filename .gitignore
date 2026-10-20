@@ -43,9 +43,9 @@ icons/
 nul
 # 截图目录：README 三张必须入库，其余忽略
 screenshots/*
-!screenshots/dgo-library.png
-!screenshots/dgo-subs.png
-!screenshots/dgo-home.png
+!screenshots/keepsake-library.png
+!screenshots/keepsake-subs.png
+!screenshots/keepsake-home.png
 
 # 测试与下载产物（不入库）
 test/
@@ -64,3 +64,5 @@ dgo-setup-sha.txt
 
 # 调试测试目录（含真实 cookie 副本/引擎二进制/源码逆向产物，绝不入库）
 _gdl_test/
+竞品借鉴点清单.md
+Keepsake竞品代码级对比报告.md

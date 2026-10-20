@@ -1,4 +1,4 @@
-# DGO
+# Keepsake
 
 订阅式媒体归档器——贴一次主页链接（B站 UP 主 / 推特 / 微博 / Pixiv / Instagram 等 15+ 图视频站，加上 yt-dlp 支持的 1000+ 单链接站点），作者之后新发的内容自动下载归档。源头删帖能检测到，并对照指出本地已存的是哪个文件。全流程本地运行，无账号、无上传、无追踪。
 
@@ -6,11 +6,11 @@
 
 | 媒体库 | 订阅归档 | 下载队列 |
 |:---:|:---:|:---:|
-| ![媒体库](screenshots/dgo-library.png) | ![订阅](screenshots/dgo-subs.png) | ![队列](screenshots/dgo-home.png) |
+| ![媒体库](screenshots/keepsake-library.png) | ![订阅](screenshots/keepsake-subs.png) | ![队列](screenshots/keepsake-home.png) |
 
-## 为什么是 DGO
+## 为什么是 Keepsake
 
-市面下载器解决「这一条我要」，DGO 解决「这个主页我全要」：
+市面下载器解决「这一条我要」，Keepsake 解决「这个主页我全要」（Keepsake 意为值得留住的纪念物——源头删了，你的收藏还在）：
 
 - 订阅归档：贴主页链接 → 首次全量回溯历史发布 → 之后每 10 分钟自动增量拉新
 - 删帖感知：源帖被删时订阅卡片提示，并对应指出本地已保存的是哪个文件（归档党的安全感）
@@ -28,7 +28,7 @@
 
 ## 首次运行说明（联网下载组件）
 
-出于第三方许可证合规（gallery-dl 为 GPL-3.0），DGO 安装包不捆绑 gallery-dl 与 FFmpeg，
+出于第三方许可证合规（gallery-dl 为 GPL-3.0），Keepsake 安装包不捆绑 gallery-dl 与 FFmpeg，
 首次运行时由软件自动从官方发布页下载到本机用户目录（一次性，约 1~2 分钟，视网速）。
 不联网完成这一步时，部分站点功能暂不可用，下载完成后自动恢复全功能。
 
@@ -59,7 +59,7 @@ GitHub 直连不通时自动切国内镜像。若仍失败，重启软件即可�
 
 ## 第三方组件
 
-DGO 自身代码为专有软件（见 [LICENSE](LICENSE)）；依赖的 yt-dlp / gallery-dl / FFmpeg / whisper.cpp 等
+Keepsake 自身代码为专有软件（见 [LICENSE](LICENSE)）；依赖的 yt-dlp / gallery-dl / FFmpeg / whisper.cpp 等
 开源组件的许可与分发方式见 [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md)。
 
 ---

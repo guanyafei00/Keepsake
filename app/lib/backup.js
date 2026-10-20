@@ -11,7 +11,7 @@ const SETTINGS_KEYS = ['outDir', 'notifyDone', 'notifyMode', 'aiUrl', 'aiKey', '
 
 function buildBundle({ settings, subs }) {
   return {
-    app: 'DGO', bundleVersion: BUNDLE_VERSION, at: new Date().toISOString(),
+    app: 'Keepsake', bundleVersion: BUNDLE_VERSION, at: new Date().toISOString(),
     // 明文 Key 风险提示（消费端应展示/保留该字段）
     _warning: '本文件含 AI API Key 明文，请妥善保管，不要分享',
     settings, subs,
@@ -41,7 +41,7 @@ function collect(paths) {
 //   extra = 包内订阅的 group/intervalMin/userPaused/autoTranscribe（调用方自行恢复）；
 // 返回摘要。全程逐条防御：单个坏元素只记 errors，绝不中断整体（
 async function apply(bundle, { settingsSetter, subsAdd, subsUrls }) {
-  if (!bundle || bundle.app !== 'DGO' || !bundle.bundleVersion) return { ok: false, reason: '不是有效的 DGO 迁移包' };
+  if (!bundle || !['Keepsake', 'DGO'].includes(bundle.app) || !bundle.bundleVersion) return { ok: false, reason: '不是有效的 Keepsake 迁移包（兼容旧版 DGO 包）' };
   const out = { settingsApplied: 0, subsAdded: 0, subsSkipped: 0, errors: [] };
   // 1) 设置覆盖合并（只动白名单键）
   const s = bundle.settings || {};

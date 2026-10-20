@@ -1,5 +1,5 @@
 // 文件日志（主进程关键事件落盘 userData/logs/，出问题有据可查
-// 策略：按天一个文件（dgo-YYYY-MM-DD.log），自动清理 7 天前的旧日志；
+// 策略：按天一个文件（keepsake-YYYY-MM-DD.log），自动清理 7 天前的旧日志；
 // 单条截断 500 字符防异常输出把日志撑爆；任何写入失败静默（日志绝不能反过来影响主流程）
 const fs = require('fs');
 const path = require('path');
@@ -25,7 +25,7 @@ function line(level, tag, msg) {
   const d = new Date();
   const p = n => String(n).padStart(2, '0');
   const text = `[${localDate(d)} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}] [${level}] [${tag}] ${String(msg).replace(/\s+/g, ' ').slice(0, 500)}\n`;
-  try { fs.appendFileSync(path.join(DIR, 'dgo-' + localDate(d) + '.log'), text); } catch (e) {}
+  try { fs.appendFileSync(path.join(DIR, 'keepsake-' + localDate(d) + '.log'), text); } catch (e) {}
 }
 
 const info = (tag, msg) => line('INFO', tag, msg);
@@ -37,7 +37,7 @@ function prune() {
   try {
     const cut = Date.now() - 7 * 24 * 3600 * 1000;
     for (const f of fs.readdirSync(DIR)) {
-      const m = /^dgo-(\d{4}-\d{2}-\d{2})\.log$/.exec(f);
+      const m = /^keepsake-(\d{4}-\d{2}-\d{2})\.log$/.exec(f) || /^dgo-(\d{4}-\d{2}-\d{2})\.log$/.exec(f);   // 兼容改名前的旧日志一并清理
       if (m && new Date(m[1] + 'T00:00:00').getTime() < cut) { try { fs.unlinkSync(path.join(DIR, f)); } catch (e) {} }
     }
   } catch (e) {}

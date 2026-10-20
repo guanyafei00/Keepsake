@@ -5,7 +5,7 @@
 <!-- CSP——渲染层失守后禁止加载远程脚本/连接外域（本应用全部走 IPC，无需外部资源；
      inline script/事件处理器依赖 unsafe-inline，本地 file:// 页面风险可控）-->
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; object-src 'none'; frame-src 'none'">
-<title>DGO — 媒体下载与订阅</title>
+<title>Keepsake — 媒体下载与订阅</title>
 <style>
   :root {
     --bg:#f5f6f8; --panel:#ffffff; --panel2:#f0f2f5; --line:#e4e7ec; --line-strong:#c3c9d4;
@@ -129,7 +129,7 @@
 <body>
 
 <aside class="sidebar">
-  <div class="logo"><span class="gem">D</span>DGO</div>
+  <div class="logo"><span class="gem">K</span>Keepsake</div>
   <div class="nav on" data-page="tasks" onclick="switchPage('tasks')">⬇ 任务队列 <span class="cnt" id="q-cnt">0</span></div>
   <div class="nav" data-page="rss" onclick="switchPage('rss')">📡 订阅 <span class="cnt" id="s-cnt">0</span></div>
   <div class="nav" data-page="lib" onclick="switchPage('lib')">📚 媒体库 <span class="cnt" id="l-cnt">0</span></div>
@@ -346,7 +346,7 @@
       <div class="desc">手动点「检查更新」；新版发布后每天启动时也会自动提醒（任务队列空闲时才装，不会打断下载）。更新源是一个 JSON 地址，格式：<code>{"version":"0.2.0","url":"新版安装包下载地址"}</code></div>
       <div class="row">
         <label>更新源 URL</label>
-        <input id="updateUrlInput" type="text" placeholder="https://example.com/dgo/update.json" style="flex:1">
+        <input id="updateUrlInput" type="text" placeholder="https://example.com/keepsake/update.json" style="flex:1">
         <button class="btn-mini" onclick="saveUpdateUrl()">💾 保存</button>
       </div>
       <div class="row" style="margin-bottom:0">
@@ -767,17 +767,17 @@ async function checkAppUpdate() {
   // 更新内容（notes 在签名清单内，防篡改）+ 两条升级路径：GitHub 手动下载（推荐，私有仓库期软件内下载可能 404）/ 软件内直接安装
   const notesHtml = r.notes ? `<div class="hint" style="margin:6px 0 8px;line-height:1.7">${esc(r.notes).replace(/\n/g, '<br>')}</div>` : '';
   el.innerHTML = `发现新版本 <b>${r.version}</b>（当前 ${r.current}）${notesHtml}
-    <span class="btn-mini" style="color:var(--acc2)" onclick="openSrc('${escAttr(r.page || 'https://github.com/guanyafei00/DGO/releases')}')" title="打开 GitHub 发布页，手动下载安装包">🔗 去 GitHub 下载</span>
+    <span class="btn-mini" style="color:var(--acc2)" onclick="openSrc('${escAttr(r.page || 'https://github.com/guanyafei00/Keepsake/releases')}')" title="打开 GitHub 发布页，手动下载安装包">🔗 去 GitHub 下载</span>
     <button type="button" class="btn-mini" style="color:var(--txt2)" onclick="applyAppUpdate()" title="软件内下载并静默安装（私有仓库期可能因无登录态失败）">⬇ 软件内安装</button>`;
 }
 async function applyAppUpdate() {
   const u = window._pendingAppUpdate;
   if (!u || !u.url) return toast('请先检查更新');
-  if (!confirm('下载新版本并静默安装？\n安装时 DGO 会自动退出，完成后重新打开即可。')) return;
+  if (!confirm('下载新版本并静默安装？\n安装时 Keepsake 会自动退出，完成后重新打开即可。')) return;
   toast('正在下载新版本…（几百 MB，请稍候）');
   const r = await window.fetchie.appApplyUpdate(u.url, u.sha256);
   if (!r.ok) return toast('更新失败：' + (r.reason || ''));
-  toast('安装已启动，DGO 即将退出…重新打开就是新版本');
+  toast('安装已启动，Keepsake 即将退出…重新打开就是新版本');
 }
 // ===== 引擎更新 =====
 async function loadEngines() {
@@ -1486,7 +1486,7 @@ loadLibrary(true).catch(() => {});
 try {
   if (!localStorage.getItem('dgo-onboarded')) {
     localStorage.setItem('dgo-onboarded', '1');
-    setTimeout(() => toast('欢迎使用 DGO 🐕 ①粘贴视频/图片链接点「加入队列」②文件自动存到设置里的下载目录③关窗会缩到右下角托盘继续下载'), 800);
+    setTimeout(() => toast('欢迎使用 Keepsake 💎 ①粘贴视频/图片链接点「加入队列」②文件自动存到设置里的下载目录③关窗会缩到右下角托盘继续下载'), 800);
   }
 } catch (e) {}
 </script>

@@ -1,6 +1,6 @@
 const { app, BrowserWindow, ipcMain, shell, Tray, Menu, Notification, dialog } = require('electron');
 // README 截图模式需在 app ready 前禁硬件加速（无 GPU/沙箱环境下 GPU 进程会崩）
-if (process.env.DGO_CAPTURE) app.disableHardwareAcceleration();
+if (process.env.KEEPSAKE_CAPTURE) app.disableHardwareAcceleration();
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
@@ -11,10 +11,10 @@ app.disableHardwareAcceleration();
 
 // autotest 数据隔离：测试绝不读写用户真实数据（曾把测试任务/订阅写进主人 %APPDATA%）
 if (process.env.FETCHIE_AUTOTEST) {
-  app.setPath('userData', path.join(os.tmpdir(), 'dgo-autotest-' + Date.now()));
+  app.setPath('userData', path.join(os.tmpdir(), 'keepsake-autotest-' + Date.now()));
 }
 // README 截图数据隔离：用仓库内演示数据（screenshots/demo-userdata），公开截图不暴露主人真实订阅
-if (process.env.DGO_CAPTURE) {
+if (process.env.KEEPSAKE_CAPTURE) {
   app.setPath('userData', path.join(__dirname, '..', 'screenshots', 'demo-userdata'));   // app/ 上一层就是工作区根
 }
 
@@ -92,9 +92,9 @@ function createTray() {
   if (tray) return;
   try {
     tray = new Tray(trayIcon());
-    tray.setToolTip('DGO — 媒体下载与订阅');
+    tray.setToolTip('Keepsake — 媒体下载与订阅');
     tray.setContextMenu(Menu.buildFromTemplate([
-      { label: '显示 DGO', click: () => { if (win) { win.show(); win.focus(); } } },
+      { label: '显示 Keepsake', click: () => { if (win) { win.show(); win.focus(); } } },
       { type: 'separator' },
       { label: '退出', click: () => { quitting = true; app.quit(); } }
     ]));
@@ -106,7 +106,7 @@ function createTray() {
 }
 
 function createWindow() {
-  const capture = !!process.env.DGO_CAPTURE;
+  const capture = !!process.env.KEEPSAKE_CAPTURE;
   win = new BrowserWindow({
     width: 1180, height: 800,
     minWidth: 940, minHeight: 640,   // 防止缩到极小破版
@@ -114,7 +114,7 @@ function createWindow() {
     webPreferences: { preload: path.join(__dirname, 'preload.js') }
   });
   win.loadFile('index.html');
-  // README 截图模式：DGO_CAPTURE=1 用演示数据自动切页截 3 张图后退出（数据隔离见文件头部）
+  // README 截图模式：KEEPSAKE_CAPTURE=1 用演示数据自动切页截 3 张图后退出（数据隔离见文件头部）
   // capturePage 在 in-process-gpu 下会挂死 → 兜底走 desktopCapturer 屏幕捕获（OS 层，不依赖 Chromium 合成器）
   if (capture) {
     const { desktopCapturer, screen } = require('electron');
@@ -153,7 +153,7 @@ function createWindow() {
         p,
         new Promise((_res, rej) => setTimeout(() => rej(new Error(tag + ' 超时' + ms + 'ms')), ms))
       ]);
-      const shots = [['dgo-library.png', 'lib'], ['dgo-subs.png', 'rss'], ['dgo-home.png', 'tasks']];
+      const shots = [['keepsake-library.png', 'lib'], ['keepsake-subs.png', 'rss'], ['keepsake-home.png', 'tasks']];
       (async () => {
         try {
           await new Promise(r2 => setTimeout(r2, 2500));   // 等首屏数据渲染
@@ -208,7 +208,7 @@ function createWindow() {
     if (act === 'minimize') { win.hide(); return; }   // 已记住「最小化」：直接隐藏
     const { response, checkboxChecked } = await dialog.showMessageBox(win, {
       type: 'question',
-      title: '关闭 DGO',
+      title: '关闭 Keepsake',
       message: '要最小化到托盘还是直接退出？',
       detail: '最小化到托盘：订阅检查与下载继续在后台运行；直接退出：结束所有任务。',
       buttons: ['最小化到托盘', '直接退出'],
@@ -221,7 +221,7 @@ function createWindow() {
       win.hide();
       if (checkboxChecked) { settings.set({ closeAction: 'minimize' }); }
       if (Notification.isSupported() && minimizeNotices++ < 2) {
-        const n = new Notification({ title: 'DGO 已最小化到托盘', body: '订阅检查与下载仍在后台运行，右键托盘图标可退出', silent: true });
+        const n = new Notification({ title: 'Keepsake 已最小化到托盘', body: '订阅检查与下载仍在后台运行，右键托盘图标可退出', silent: true });
         n.show();
       }
     } else {
@@ -267,11 +267,39 @@ app.whenReady().then(() => {
     }
   } catch (e) { console.log('[migrate] 迁移失败(不影响启动):', e.message); }
 
-  // 默认下载目录：系统「视频」文件夹下的 DGO（藏 AppData 用户找不到文件）。
+  // 改名迁移 v2：DGO → Keepsake（2026-10-20 品牌改名，同 Fetchie 模式）。
+  // 除配置文件外连 asr-models/engines（同盘 rename 瞬间完成，引擎免重新下载）与
+  // Local Storage（下载选项偏好）一并迁移；失败项各自吞掉不阻塞启动
+  try {
+    const legacyDGO = path.join(path.dirname(userData), 'DGO');
+    const doneMark2 = path.join(userData, '.keepsake-migrate-done');
+    if (fs.existsSync(legacyDGO) && !fs.existsSync(doneMark2)) {
+      let copied = 0;
+      for (const f of ['settings.json', 'cookies.txt', 'tasks.json', 'subs.json', 'site-state.json', 'remote-rules.json', 'pixiv-auth.json']) {
+        const s = path.join(legacyDGO, f), d = path.join(userData, f);
+        if (fs.existsSync(s) && !fs.existsSync(d)) {
+          try { fs.copyFileSync(s, d); copied++; } catch (e) { console.warn('[migrate] copy fail:', f, e.message); }
+        }
+      }
+      for (const dir of ['asr-models', 'engines', 'Local Storage']) {
+        const s = path.join(legacyDGO, dir), d = path.join(userData, dir);
+        if (fs.existsSync(s) && !fs.existsSync(d)) {
+          try { fs.renameSync(s, d); copied++; }   // 同盘改名瞬间完成
+          catch (e) { console.warn('[migrate] rename fail:', dir, e.message); }   // engines 失败可重新下载，不阻塞
+        }
+      }
+      try { fs.writeFileSync(doneMark2, String(Date.now())); } catch (e) {}
+      try { fs.renameSync(legacyDGO, legacyDGO + '.migrated-bak'); }   // 封存旧目录
+      catch (e) { try { fs.unlinkSync(path.join(legacyDGO, 'cookies.txt')); } catch (e2) {} }   // 改名不成至少删明文凭证
+      console.log('[migrate] DGO → Keepsake 数据迁移完成:', copied, '项');
+    }
+  } catch (e) { console.log('[migrate] 迁移失败(不影响启动):', e.message); }
+
+  // 默认下载目录：系统「视频」文件夹下的 Keepsake（藏 AppData 用户找不到文件）。
   // 已有 settings.json 的老用户不受影响（其 outDir 优先）。
   let videosDir = null;
   try { videosDir = app.getPath('videos'); } catch (e) {}
-  settings.configure({ file: path.join(userData, 'settings.json'), defaultOutDir: path.join(videosDir || userData, 'DGO') });
+  settings.configure({ file: path.join(userData, 'settings.json'), defaultOutDir: path.join(videosDir || userData, 'Keepsake') });
   log.init(path.join(userData, 'logs'));   // 关键事件落盘 userData/logs/，保留 7 天
   const sc = settings.get();
   ai.configure({ url: sc.aiUrl, key: sc.aiKey, model: sc.aiModel });   // BYOK：OpenAI 兼容接口
@@ -604,7 +632,7 @@ app.whenReady().then(() => {
     if (!mu.sha256) return { ok: false, reason: '更新清单未带 sha256，已拒绝安装（完整性无法验证）' };
     if (queue.active > 0 || [...queue.items.values()].some(x => ['queued', 'downloading'].includes(x.status)))
       return { ok: false, reason: '队列还有任务，完成或清空后再更新软件' };
-    const inst = path.join(os.tmpdir(), 'dgo-setup-' + Date.now() + '.exe');
+    const inst = path.join(os.tmpdir(), 'keepsake-setup-' + Date.now() + '.exe');
     await autoupdate.downloadPublic(mu.url, inst);
     const size = fs.existsSync(inst) ? fs.statSync(inst).size : 0;
     if (size < 10 * 1024 * 1024) { try { fs.unlinkSync(inst); } catch (e2) {} return { ok: false, reason: '安装包异常（' + Math.round(size / 1048576) + 'MB），已取消' }; }
@@ -648,9 +676,9 @@ app.whenReady().then(() => {
   ipcMain.handle('settings:export', async () => {
     try {
       const r = await dialog.showSaveDialog(win, {
-        title: '导出 DGO 迁移包',
-        defaultPath: 'DGO-迁移包-' + new Date().toISOString().slice(0, 10) + '.json',
-        filters: [{ name: 'DGO 迁移包', extensions: ['json'] }],
+        title: '导出 Keepsake 迁移包',
+        defaultPath: 'Keepsake-迁移包-' + new Date().toISOString().slice(0, 10) + '.json',
+        filters: [{ name: 'Keepsake 迁移包', extensions: ['json'] }],
       });
       if (r.canceled || !r.filePath) return { ok: false, reason: '已取消' };
       const bundle = backup.collect({ settingsFile: path.join(app.getPath('userData'), 'settings.json'), subsFile: path.join(app.getPath('userData'), 'subs.json') });
@@ -663,8 +691,8 @@ app.whenReady().then(() => {
   ipcMain.handle('settings:import', async () => {
     try {
       const r = await dialog.showOpenDialog(win, {
-        title: '导入 DGO 迁移包', properties: ['openFile'],
-        filters: [{ name: 'DGO 迁移包', extensions: ['json'] }],
+        title: '导入 Keepsake 迁移包', properties: ['openFile'],
+        filters: [{ name: 'Keepsake 迁移包', extensions: ['json'] }],
       });
       if (r.canceled || !r.filePaths || !r.filePaths[0]) return { ok: false, reason: '已取消' };
       const bundle = JSON.parse(fs.readFileSync(r.filePaths[0], 'utf-8'));
@@ -759,7 +787,7 @@ app.whenReady().then(() => {
   setTimeout(async () => {
     if (settings.get().appAutoUpdate === false) return;
     const r = await appCheckUpdate().catch(() => null);
-    if (r && r.ok && r.hasUpdate) toastMsg(`发现新版本 DGO ${r.version}（当前 ${r.current}）— 设置页可一键更新`);
+    if (r && r.ok && r.hasUpdate) toastMsg(`发现新版本 Keepsake ${r.version}（当前 ${r.current}）— 设置页可一键更新`);
   }, 30 * 1000);
 
 
@@ -1140,7 +1168,7 @@ app.whenReady().then(() => {
         + rows.map(r => r.map(esc).join(',')).join('\n') + '\n';
       const r = await dialog.showSaveDialog(win, {
         title: '导出删帖清单',
-        defaultPath: 'DGO-删帖清单-' + new Date().toISOString().slice(0, 10) + '.csv',
+        defaultPath: 'Keepsake-删帖清单-' + new Date().toISOString().slice(0, 10) + '.csv',
         filters: [{ name: 'CSV 表格', extensions: ['csv'] }],
       });
       if (r.canceled || !r.filePath) return { ok: false, reason: '已取消' };
@@ -1509,7 +1537,7 @@ app.whenReady().then(() => {
           const sf = path.join(udd, 'settings.json');
           if (!fs.existsSync(sf)) fs.writeFileSync(sf, '{}');   // 自测 userData 是全新临时目录，自给自足保证文件存在（subs.json 缺失 collect 自带容忍）
           const c = backup.collect({ settingsFile: sf, subsFile: path.join(udd, 'subs.json') });
-          if (!c.ok || c.bundle.app !== 'DGO' || !c.bundle._warning) throw new Error('collect 失败或缺 _warning');
+          if (!c.ok || c.bundle.app !== 'Keepsake' || !c.bundle._warning) throw new Error('collect 失败或缺 _warning');
           const beforeUrls = subs.list().map(su => su.url);
           const a = await backup.apply(JSON.parse(JSON.stringify(c.bundle)), {
             settingsSetter: p => {
@@ -1585,7 +1613,7 @@ app.whenReady().then(() => {
   console.error('[boot] startup failed:', e);
   try { log.error('app', '启动失败: ' + (e && e.stack || e)); } catch (e2) {}
   if (process.env.FETCHIE_AUTOTEST) app.exit(3);
-  else dialog.showErrorBox('DGO 启动失败', String(e && e.message || e).slice(0, 300) + '\n\n详细日志见 userData/logs/ 目录');
+  else dialog.showErrorBox('Keepsake 启动失败', String(e && e.message || e).slice(0, 300) + '\n\n详细日志见 userData/logs/ 目录');
 });
 
 app.on('window-all-closed', () => {

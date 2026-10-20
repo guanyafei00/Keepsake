@@ -1,5 +1,5 @@
 // 首启引擎引导（发布闸门②配套）：安装包不捆绑 gallery-dl（GPL-3.0）与 ffmpeg，
-// 用户首次运行时由本模块在线下载到引擎目录 —— DGO 自身代码保持专有、可收费。
+// 用户首次运行时由本模块在线下载到引擎目录 —— Keepsake 自身代码保持专有、可收费。
 //
 // 下载源实测（2026-10-08）：
 // - gallery-dl 官方二进制实际发布在 **Codeberg**（GitHub releases 只有源码包！
@@ -12,7 +12,7 @@ const path = require('path');
 const crypto = require('crypto');
 const { execFile, spawn } = require('child_process');
 
-const HDRS = { headers: { 'User-Agent': 'DGO/0.1 (github release bootstrap)' } };
+const HDRS = { headers: { 'User-Agent': 'Keepsake/0.1 (github release bootstrap)' } };
 
 // GitHub 资产国内镜像前缀（直连优先，镜像顺序无关紧要，逐个试）
 const MIRRORS = ['', 'https://ghproxy.net/', 'https://gh-proxy.com/', 'https://ghfast.top/'];
@@ -53,8 +53,8 @@ async function dl(urlOrList, dest) {
 
 // gallery-dl 官方 sha256 pin（版本→exe 哈希，抄自 Codeberg SHA256SUMS；离线可用，新版本靠 gdlExpected 拉 SHA256SUMS 自校验）
 const GDL_PIN = { '1.32.15': 'd6c8ac8ffdc9194e90787225e70d0a7c9eeed23dd41c9574e235632b6f9593a4' };
-// 自家 Release 兜底源（官方 gallery-dl.exe 原样上传到 DGO Release 资产即生效；github.com URL 自动吃镜像链）
-const SELF_GDL_URL = 'https://github.com/guanyafei00/DGO/releases/latest/download/gallery-dl.exe';
+// 自家 Release 兜底源（官方 gallery-dl.exe 原样上传到 Keepsake Release 资产即生效；github.com URL 自动吃镜像链）
+const SELF_GDL_URL = 'https://github.com/guanyafei00/Keepsake/releases/latest/download/gallery-dl.exe';
 
 // 期望哈希 fail-closed——pin 表优先，否则拉 Codeberg 官方 SHA256SUMS（覆盖未来新版本，无需发版更新 pin 表）
 const _sumsCache = {};   // tag → sha256
@@ -156,7 +156,7 @@ async function ensureEngines(binDir) {
           if (!expect) throw new Error('无法获取官方 SHA-256（pin 表无此版本且 SHA256SUMS 拉取失败），拒绝下载以防供应链投毒；可稍后重启重试，或在设置页「从本地文件安装」手动导入');
           const sources = [];
           if (tag) sources.push({ label: 'Codeberg官方', url: `https://codeberg.org/mikf/gallery-dl/releases/download/${tag}/gallery-dl.exe` });
-          sources.push({ label: 'DGORelease副本', url: SELF_GDL_URL });
+          sources.push({ label: 'KeepsakeRelease副本', url: SELF_GDL_URL });
           sources.push({ label: 'GitHub镜像', url: 'https://github.com/mikf/gallery-dl/releases/latest/download/gallery-dl.exe' });
           let lastErr, used = null;
           for (const s of sources) {

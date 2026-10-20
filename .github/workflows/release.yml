@@ -1,6 +1,6 @@
-# DGO 发布流水线：打 tag → 自动构建 win 安装包 → 生成 SHA256SUMS → 挂到 GitHub Release（草稿）
+# Keepsake 发布流水线：打 tag → 自动构建 win 安装包 → 生成 SHA256SUMS → 挂到 GitHub Release（草稿）
 # 发布前人工步骤（签名闸门③）：
-#   1. 本地算安装包 sha256：certutil -hashfile app/dist/DGO-Setup-x.y.z.exe SHA256
+#   1. 本地算安装包 sha256：certutil -hashfile app/dist/Keepsake-Setup-x.y.z.exe SHA256
 #   2. 签清单：node tools/sign_update.js x.y.z <Release资产下载URL> <sha256> > update.json
 #   3. 把 update.json 传到更新源（GitHub Pages / gist / 自有服务器）
 name: Release

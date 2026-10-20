@@ -6,7 +6,7 @@ const env = { ...process.env };
 delete env.ELECTRON_RUN_AS_NODE;
 delete env.HTTP_PROXY;
 delete env.HTTPS_PROXY;
-env.DGO_CAPTURE = '1';
+env.KEEPSAKE_CAPTURE = '1';
 // GPU/渲染参数用 DGO_FLAGS 传入（空格分隔），便于穷举：
 //   ""            纯净启动（依赖 main.js 的 disableHardwareAcceleration）
 //   "--single-process"  单进程模式（无独立 GPU/渲染进程，沙箱 GPU 崩溃时可绕开）

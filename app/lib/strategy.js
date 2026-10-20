@@ -174,7 +174,7 @@ function fetchRemoteRules(url, timeoutMs = 10000) {
     const timer = setTimeout(() => { req.destroy(new Error('timeout')); }, timeoutMs);
     let req;
     try {
-      req = https.get(url, { headers: { 'User-Agent': 'DGO/0.1 (+rules)' } }, res => {
+      req = https.get(url, { headers: { 'User-Agent': 'Keepsake/0.1 (+rules)' } }, res => {
         clearTimeout(timer);
         if (res.statusCode !== 200) { res.resume(); return reject(new Error('HTTP ' + res.statusCode)); }
         let d = '';

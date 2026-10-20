@@ -21,7 +21,7 @@ function signManifest(version, url, sha256, keyPath, notes, page) {
 const [version, url, sha256, notesPath, page] = process.argv.slice(2);
 if (require.main === module && (!version || !url)) {
   console.error('用法: node tools/sign_update.js <version> <url> [sha256] [notesFile|-] [pageUrl]');
-  console.error('示例: node tools/sign_update.js 0.1.1 "https://github.com/guanyafei00/DGO/releases/download/v0.1.1-beta/DGO-Setup-0.1.1.exe" <安装包sha256> notes.txt "https://github.com/guanyafei00/DGO/releases/tag/v0.1.1-beta"');
+  console.error('示例: node tools/sign_update.js 0.1.1 "https://github.com/guanyafei00/Keepsake/releases/download/v0.1.1-beta/DGO-Setup-0.1.1.exe" <安装包sha256> notes.txt "https://github.com/guanyafei00/Keepsake/releases/tag/v0.1.1-beta"');
   process.exit(1);
 }
 if (require.main === module) {

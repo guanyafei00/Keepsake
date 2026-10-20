@@ -1,9 +1,9 @@
 {
-  "name": "dgo",
-  "productName": "DGO",
+  "name": "keepsake",
+  "productName": "Keepsake",
   "version": "0.1.9",
-  "description": "DGO - Local AI media library - download videos & images from 1000+ sites",
-  "author": "DGO",
+  "description": "Keepsake - Local AI media library - download videos & images from 1000+ sites",
+  "author": "Keepsake",
   "license": "UNLICENSED",
   "private": true,
   "main": "main.js",
@@ -16,8 +16,8 @@
     "electron-builder": "^25.1.8"
   },
   "build": {
-    "appId": "com.guanyafei.dgo",
-    "productName": "DGO",
+    "appId": "com.guanyafei.keepsake",
+    "productName": "Keepsake",
     "files": [
       "main.js",
       "preload.js",
