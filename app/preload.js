@@ -43,6 +43,8 @@ contextBridge.exposeInMainWorld('fetchie', {
   settingsGet: () => ipcRenderer.invoke('settings:get'),
   settingsPickDir: () => ipcRenderer.invoke('settings:pickDir'),
   settingsSetProxy: (proxy) => ipcRenderer.invoke('settings:setProxy', { proxy }),
+  settingsSetCookieBrowser: (b) => ipcRenderer.invoke('settings:setCookieBrowser', { b }),
+  settingsSetCbz: (on) => ipcRenderer.invoke('settings:setCbz', { on }),
   appVersion: () => ipcRenderer.invoke('app:version'),
   appCheckUpdate: () => ipcRenderer.invoke('app:checkUpdate'),
   appApplyUpdate: (url, sha256) => ipcRenderer.invoke('app:applyUpdate', { url, sha256 }),

@@ -13,6 +13,10 @@ app.disableHardwareAcceleration();
 if (process.env.FETCHIE_AUTOTEST) {
   app.setPath('userData', path.join(os.tmpdir(), 'keepsake-autotest-' + Date.now()));
 }
+// E2E 数据隔离：Playwright 驱动真实窗口跑 UI 流程，同样不得触碰用户数据
+if (process.env.KEEPSAKE_E2E) {
+  app.setPath('userData', path.join(os.tmpdir(), 'keepsake-e2e-' + Date.now()));
+}
 // README 截图数据隔离：用仓库内演示数据（screenshots/demo-userdata），公开截图不暴露主人真实订阅
 if (process.env.KEEPSAKE_CAPTURE) {
   app.setPath('userData', path.join(__dirname, '..', 'screenshots', 'demo-userdata'));   // app/ 上一层就是工作区根
@@ -325,6 +329,11 @@ app.whenReady().then(() => {
   autoupdate.configure({ binDir: enginesDir, fallbackBinDir: binDir() });   // 更新写 userData/engines（可写），本地版本探测回退随包目录
   store.configure({ userData });
   subs.configure({ binDir: binDir(), cookiePath, file: path.join(userData, 'subs.json') });
+  // 浏览器登录态与 CBZ 开关：settings.json 单一来源，引擎参数层即时生效
+  const { setCookieBrowser, setAutoCbz } = require('./lib/queue');
+  setCookieBrowser(settings.get().cookieBrowser);
+  setAutoCbz(settings.get().autoCbz);
+  subs.setCookieBrowser(settings.get().cookieBrowser);
   library.configure({ outDir, sourceGet: p => source.get(p) });
   textindex.configure({ file: path.join(userData, 'text-index.json') });   // #70③：文稿全文检索索引
   asr.configure({
@@ -497,6 +506,12 @@ app.whenReady().then(() => {
     log.info('source', `来源记录 ${files.length} 个文件 ← ${it.url}`);
   };
 
+  // 图站任务 CBZ 打包完成提示（打包本身在 queue._maybeCbz 异步进行，这里只管播报）
+  queue.onCbz = (it, out) => {
+    if (win && !win.isDestroyed()) win.webContents.send('toast:event', { msg: '📦 已打包漫画册：' + path.basename(out) });
+    log.info('queue', 'CBZ 打包完成: ' + out);
+  };
+
   // 恢复上次未完成的任务：downloading 中断 → error（可重试），queued → 重新排队
   for (const raw of store.load()) {
     if (raw.status === 'downloading') { raw.status = 'queued'; raw.error = '应用退出中断，已自动重排'; raw.progress = 0; }
@@ -664,6 +679,19 @@ app.whenReady().then(() => {
     return { ok: true, minFreeMB: mbN };
   });
   // 并发数/限速设置（v0.1.9：队列参数进设置页，外部
+  // 浏览器登录态：设了浏览器 → 引擎 --cookies-from-browser 直读（免导出 cookies.txt）；清空回落 cookies.txt
+  ipcMain.handle('settings:setCookieBrowser', (e, { b }) => {
+    const r = settings.set({ cookieBrowser: String(b || '') });
+    setCookieBrowser(r.cookieBrowser);
+    subs.setCookieBrowser(r.cookieBrowser);
+    return { ok: true, cookieBrowser: r.cookieBrowser };
+  });
+  // 图站任务完成后自动打包 CBZ（漫画归档）
+  ipcMain.handle('settings:setCbz', (e, { on }) => {
+    const r = settings.set({ autoCbz: !!on });
+    setAutoCbz(r.autoCbz);
+    return { ok: true, autoCbz: r.autoCbz };
+  });
   ipcMain.handle('settings:setQueue', (e, { max, rate }) => {
     const maxN = Math.min(5, Math.max(1, Math.floor(Number(max) || 2)));
     const rateN = Math.min(100, Math.max(0, Math.floor(Number(rate) || 0)));

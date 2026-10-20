@@ -255,6 +255,22 @@
         <button class="btn-mini" onclick="openCookieDir()">📂 打开文件位置</button>
       </div>
       <div class="row" style="margin:12px 0 0">
+        <label>浏览器登录态</label>
+        <select id="cookieBrowserSel" onchange="saveCookieBrowser()" style="max-width:260px">
+          <option value="">不使用（用上面导入的 cookies.txt）</option>
+          <option value="chrome">自动读 Chrome</option>
+          <option value="edge">自动读 Edge</option>
+          <option value="firefox">自动读 Firefox</option>
+          <option value="brave">自动读 Brave</option>
+        </select>
+      </div>
+      <div class="note" style="margin:6px 0 0">选了浏览器后下载与订阅检查直接带该浏览器的登录态，<b>免手动导出 cookies.txt</b>（需浏览器已登录目标站点；Chrome 新版部分站点可能加密读不到，读不到时再回落手动导入）。改完即时生效。</div>
+      <div class="row" style="margin:12px 0 0">
+        <label>漫画册打包</label>
+        <input type="checkbox" id="autoCbzChk" onchange="saveAutoCbz(this.checked)">
+        <span class="note">图站（Pixiv/微博/Booru 等）任务完成后，把图片目录自动打包成 .cbz 漫画册（媒体库/阅读器可直接看）</span>
+      </div>
+      <div class="row" style="margin:12px 0 0">
         <label>Pixiv 授权</label>
         <div style="flex:1;display:flex;align-items:center;gap:8px">
           <button class="btn-mini" onclick="pixivAuthorize()">🎨 Pixiv 授权（一次性）</button>
@@ -529,6 +545,8 @@ function render() {
   const doneCard = t => {
     const openPath = t.filePath || t._destPath;
     if (openPath) _filePathMap.set(t.id, openPath);   // 路径经 map 查表，不走 onclick 内联（反斜杠转义地狱）
+    const cbzPath = t.cbz || '';
+    if (cbzPath) _filePathMap.set(t.id + '|cbz', cbzPath);
     return `
     <div class="task">
       <div class="t-thumb">${engIcon(t.engine)}<span class="eng">${engName(t.engine)}</span></div>
@@ -536,6 +554,7 @@ function render() {
         <div class="name">${esc(prettyTitle(t))}</div>
         <div class="meta" title="${t.error ? esc(t.error) : ''}">${t.error ? esc(translateError(t.error)) : (t.filePath ? esc(t.filePath) : '')}</div>
       </div>
+      ${cbzPath ? `<div class="x" onclick="openFileFolderById('${t.id}|cbz')" title="打开漫画册所在文件夹">📦</div>` : ''}
       ${openPath ? `<div class="x" onclick="openFileFolderById('${t.id}')" title="打开文件位置">📂</div>` : ''}
       <div class="x" onclick="retryTask('${t.id}')" title="重试">⟳</div>
       <div class="x" onclick="removeTask('${t.id}')" title="删除记录（不删磁盘文件）">🗑</div>
@@ -721,6 +740,8 @@ async function loadSettings() {
   $('minFreeInput').value = s.minFreeMB !== undefined ? s.minFreeMB : 1000;
   $('maxConcurrentSel').value = String(Math.min(5, Math.max(1, s.maxConcurrent || 2)));
   $('rateLimitInput').value = s.rateLimitMB || 0;
+  $('cookieBrowserSel').value = s.cookieBrowser || '';
+  $('autoCbzChk').checked = !!s.autoCbz;
   loadAiConfig();
   $('engineAutoChk').checked = s.engineAutoUpdate !== false;
   $('appVer').textContent = '当前 ' + await window.fetchie.appVersion();
@@ -842,6 +863,16 @@ async function saveEngineAuto(on) {
   toast(on ? '已开启引擎每日自动更新' : '已关闭引擎自动更新');
 }
 window.fetchie.onToast(d => toast(d.msg));
+// 浏览器登录态来源：引擎 --cookies-from-browser 直读，改完即时生效
+async function saveCookieBrowser() {
+  const r = await window.fetchie.settingsSetCookieBrowser($('cookieBrowserSel').value);
+  toast(r.cookieBrowser ? '已切换：自动读取 ' + r.cookieBrowser + ' 登录态 ✓' : '已关闭浏览器直读（用 cookies.txt）✓');
+}
+// 图站任务自动打包 CBZ
+async function saveAutoCbz(on) {
+  await window.fetchie.settingsSetCbz(on);
+  toast(on ? '已开启：图站下载完成自动打包 .cbz 漫画册 ✓' : '已关闭漫画册自动打包');
+}
 async function saveProxy() {
   const r = await window.fetchie.settingsSetProxy($('proxyInput').value);
   if (!r.ok) return toast(r.reason);

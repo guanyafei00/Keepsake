@@ -22,6 +22,11 @@ function configure({ file, defaultOutDir }) {
   // 下载限速 MB/s（0=不限；仅对视频下载生效——yt-dlp 与直连引擎；gallery-dl 图文站走请求间隔策略不限速）
   if (data.rateLimitMB === undefined) data.rateLimitMB = 0;
   else data.rateLimitMB = Math.min(100, Math.max(0, Math.floor(Number(data.rateLimitMB) || 0)));
+  // 浏览器登录态来源（''=不读浏览器，用 cookies.txt；chrome/edge/firefox/brave=引擎 --cookies-from-browser 直读该浏览器）。
+  // 引擎原生能力（yt-dlp 与 gallery-dl 均支持），本程序只拼参数不碰 cookie 解密——Chromium v20 app-bound 加密无解，交给引擎处理
+  if (!['', 'chrome', 'edge', 'firefox', 'brave'].includes(data.cookieBrowser)) data.cookieBrowser = '';
+  // 图站（gallery-dl）任务完成后自动把图片目录打包成 CBZ（漫画归档友好；0 依赖，用系统自带 bsdtar）
+  if (data.autoCbz === undefined) data.autoCbz = false; else data.autoCbz = !!data.autoCbz;
 }
 
 function get() { return { ...data }; }
@@ -32,6 +37,9 @@ function set(patch) {
   // 并发/限速归一化（与 configure 同规则，双保险）
   if (p.maxConcurrent !== undefined) p.maxConcurrent = Math.min(5, Math.max(1, Math.floor(Number(p.maxConcurrent) || 2)));
   if (p.rateLimitMB !== undefined) p.rateLimitMB = Math.min(100, Math.max(0, Math.floor(Number(p.rateLimitMB) || 0)));
+  // 浏览器来源/CBZ 开关归一化（与 configure 同规则，双保险）
+  if (p.cookieBrowser !== undefined && !['', 'chrome', 'edge', 'firefox', 'brave'].includes(p.cookieBrowser)) p.cookieBrowser = '';
+  if (p.autoCbz !== undefined) p.autoCbz = !!p.autoCbz;
   Object.assign(data, p);
   try { atomicWrite(FILE, JSON.stringify(data, null, 2)); } catch (e) { console.warn('[settings] save fail:', e.message); }
   return get();

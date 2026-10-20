@@ -20,6 +20,7 @@ let PROXY = null;
 let GDL_CFG = null;   // gallery-dl 配置：stdout/stderr 强制 UTF-8（否则韩/日/emoji 被内部替换成字面 '???',环境变量救不回）
 let PIXIV_AUTH = null;   // pixiv-auth.json：OAuth refresh_token 存放处（cookie 对 Pixiv 完全无效，见 lib/pixivauth.js）
 let PIXIV_CFG = null;    // gdl-pixiv.json：gallery-dl 的 refresh-token 配置（授权后由 pixivauth 写入）
+let COOKIE_BROWSER = ''; // 浏览器登录态来源（''=用 cookies.txt；chrome/edge/firefox/brave=引擎 --cookies-from-browser 直读，主程序经 setCookieBrowser 热更）
 let subs = [];
 
 function configure({ binDir, cookiePath, file }) {
@@ -44,6 +45,14 @@ function gdlBaseArgs() {
   if (PIXIV_CFG && fs.existsSync(PIXIV_CFG)) args.push('--config', PIXIV_CFG);
   return args;
 }
+function setCookieBrowser(b) { COOKIE_BROWSER = ['', 'chrome', 'edge', 'firefox', 'brave'].includes(b) ? b : ''; }
+
+// cookie 来源参数（gallery-dl 用）：浏览器直读优先，回落 cookies.txt
+function cookieArgs() {
+  if (COOKIE_BROWSER) return ['--cookies-from-browser', COOKIE_BROWSER];
+  return (COOKIE && fs.existsSync(COOKIE)) ? ['--cookies', COOKIE] : [];
+}
+
 // Pixiv 是否已 OAuth 授权（gallery-dl 的 Pixiv 通道只认 refresh-token，2026-10-17 实测）
 function pixivAuthorized() {
   try { return !!JSON.parse(fs.readFileSync(PIXIV_AUTH, 'utf-8')).refresh_token; } catch (e) { return false; }
@@ -221,7 +230,7 @@ async function xName(url) {
 function gdlName(url) {
   return new Promise(resolve => {
     const args = [...gdlBaseArgs(), '-K', '--range', '1-1'];
-    if (COOKIE && fs.existsSync(COOKIE)) args.push('--cookies', COOKIE);
+    args.push(...cookieArgs());
     if (PROXY) args.push('--proxy', PROXY);
     args.push(url);
     const dec = new TextDecoder('utf-8');
@@ -321,7 +330,8 @@ function fetchViaYtDlp(url, maxItems = 5) {
   return new Promise((resolve, reject) => {
     const args = ['--dump-single-json', '--flat-playlist', '--no-warnings', '--skip-download', '--encoding', 'utf-8'];
     if (maxItems > 0) args.push('--playlist-items', `1-${maxItems}`);
-    if (fs.existsSync(COOKIE)) args.push('--cookies', COOKIE);
+    if (COOKIE_BROWSER) args.push('--cookies-from-browser', COOKIE_BROWSER);
+    else if (fs.existsSync(COOKIE)) args.push('--cookies', COOKIE);
     if (PROXY) args.push('--proxy', PROXY);
     args.push(url);
     // 编码：yt-dlp 已强制 --encoding utf-8，按 UTF-8 解码；全量/大量条目清单超时放宽（X 时间线 200 条约需数分钟）
@@ -352,7 +362,7 @@ function fetchViaYtDlp(url, maxItems = 5) {
 function fetchViaGdl(url, maxItems = 20) {
   return new Promise((resolve, reject) => {
     const args = [...gdlBaseArgs(), '--simulate', '--range', `1-${maxItems}`];
-    if (COOKIE && fs.existsSync(COOKIE)) args.push('--cookies', COOKIE);
+    args.push(...cookieArgs());
     if (PROXY) args.push('--proxy', PROXY);
     args.push(url);
     const dec = new TextDecoder('utf-8');   // 配置文件已强制 gallery-dl 输出 UTF-8
@@ -521,4 +531,4 @@ function itemUrl(sub, it) {
   return null;
 }
 
-module.exports = { configure, list, get, add, remove, update, checkSub, itemUrl, backfill, setProxy, refreshName, onNameChange, save, classify, resetCookieCache, gdlBaseArgs, pixivAuthorized };
+module.exports = { configure, list, get, add, remove, update, checkSub, itemUrl, backfill, setProxy, setCookieBrowser, refreshName, onNameChange, save, classify, resetCookieCache, gdlBaseArgs, pixivAuthorized };

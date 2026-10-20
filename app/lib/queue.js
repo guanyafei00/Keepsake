@@ -17,6 +17,10 @@ let MAX_CONCURRENT = 2;   // 同时下载任务数（设置页可调 1-5，热�
 let RATE_LIMIT = 0;       // 下载限速字节/秒（0=不限；yt-dlp --limit-rate + 直连引擎节流；gallery-dl 图文站不适用）
 let GDL_CFG = null;   // gallery-dl 配置：stdout/stderr 强制 UTF-8（韩/日/emoji 否则被内部替换成 '???')
 let PIXIV_CFG = null;   // gdl-pixiv.json：Pixiv OAuth refresh-token 配置（授权后存在，spawn 时才查 → 即时生效）
+let COOKIE_BROWSER = '';   // 浏览器登录态来源（''=用 cookies.txt 文件；chrome/edge/firefox/brave=引擎 --cookies-from-browser 直读）
+let AUTO_CBZ = false;   // gallery-dl 任务完成后自动把图片目录打包 CBZ
+const CBZ_MIN_IMAGES = 3;   // 目录内图片少于该数不打包（避免把单图/缩略图目录也卷进去）
+const CBZ_IMG_RE = /\.(jpe?g|png|webp|gif|bmp|avif)$/i;
 function configure({ binDir, cookiePath, outDir, proxy, minFreeMB, enginesDir, watchdogTotalMin, watchdogStallMin, maxConcurrent, rateLimitMB }) {
   if (binDir) BIN = binDir;
   if (cookiePath) COOKIE = cookiePath;
@@ -37,6 +41,17 @@ function configure({ binDir, cookiePath, outDir, proxy, minFreeMB, enginesDir, w
     } }));
   } catch (e) { GDL_CFG = null; console.warn('[queue] gdl config write fail:', e.message); }
   PIXIV_CFG = path.join(path.dirname(COOKIE), 'gdl-pixiv.json');
+}
+
+// 运行时可调项（设置页热更；与 configure 分开避免整包重读）
+function setCookieBrowser(b) { COOKIE_BROWSER = ['', 'chrome', 'edge', 'firefox', 'brave'].includes(b) ? b : ''; }
+function setAutoCbz(on) { AUTO_CBZ = !!on; }
+
+// cookie 来源参数：浏览器直读优先（免导出），回落 cookies.txt。两引擎同款参数（各自原生支持）
+function cookieArgs() {
+  if (COOKIE_BROWSER) return ['--cookies-from-browser', COOKIE_BROWSER];
+  if (fs.existsSync(COOKIE)) return ['--cookies', COOKIE];
+  return [];
 }
 // gallery-dl 启动参数前缀（所有 spawn 共用）
 function gdlBaseArgs() {
@@ -300,6 +315,9 @@ class DownloadQueue {
       if (status === 'done' && this.onDone) {
         try { this.onDone(it); } catch (e) { console.warn('[queue] onDone hook fail:', e.message); }   // 来源索引（媒体库溯源用）
       }
+      if (status === 'done' && AUTO_CBZ) {
+        this._maybeCbz(it).catch(e => console.warn('[queue] cbz fail:', e.message));   // 异步打包，不阻塞队列补位
+      }
       this.active = Math.max(0, this.active - 1);
       it._wasActive = false;
       this.tick();
@@ -377,6 +395,41 @@ class DownloadQueue {
     });
   }
 
+  // 图站任务产物 → CBZ：取本次产出文件里「图片最多的目录」，用系统自带 bsdtar（Windows 10+ 内置，
+  // 显式 --format zip）整目录打包成 <目录名>.cbz 与目录平级。0 依赖、失败静默（不影响下载结果）
+  async _maybeCbz(it) {
+    try {
+      if (it.engine !== 'gallery-dl' || !Array.isArray(it._files) || !it._files.length) return;
+      const counts = new Map();   // dir -> 图片数
+      for (const f of it._files) {
+        if (!CBZ_IMG_RE.test(f)) continue;
+        const d = path.dirname(f);
+        counts.set(d, (counts.get(d) || 0) + 1);
+      }
+      let best = null, bestN = 0;
+      for (const [d, n] of counts) if (n > bestN) { best = d; bestN = n; }
+      if (!best || bestN < CBZ_MIN_IMAGES) return;
+      const base = path.basename(best);
+      const out = path.join(path.dirname(best), base + '.cbz');
+      if (fs.existsSync(out)) { it.cbz = out; return; }   // 重试场景：册子已在，跳过
+      await new Promise((resolve, reject) => {
+        // 必须用绝对路径调系统 bsdtar——Git Bash 环境的 GNU tar 在 PATH 里优先且不支持 zip。
+        // 路径经 path.join 拼（避免字符串字面量反斜杠被 JS 转义符吃掉）；--format zip 显式指定
+        // （bsdtar 的 -a 只认 .zip 等常见扩展，.cbz 会落回 ustar 格式，实测踩坑）
+        const tarExe = path.join(process.env.SystemRoot || 'C:/Windows', 'System32', 'tar.exe');
+        const child = spawn(tarExe, ['--format', 'zip', '-c', '-f', out, '-C', path.dirname(best), base], { windowsHide: true });
+        let err = '';
+        child.stderr.on('data', d => err += d);
+        child.on('error', reject);
+        child.on('close', code => code === 0 ? resolve() : reject(new Error('tar exit ' + code + ' ' + err.slice(0, 100))));
+        setTimeout(() => { try { child.kill(); } catch (e) {} reject(new Error('cbz 打包超时')); }, 10 * 60000);
+      });
+      it.cbz = out;
+      if (this.onCbz) { try { this.onCbz(it, out); } catch (e) {} }
+      this.push();
+    } catch (e) { console.warn('[queue] cbz:', e.message); }
+  }
+
   buildArgs(it) {
     const ytdlp = pick(exe('yt-dlp'));
     const gdl = pick(exe('gallery-dl'));
@@ -410,7 +463,7 @@ class DownloadQueue {
       // 下载限速（设置页可调，0=不限）；--limit-rate 接受 4.2M 这类后缀
       if (RATE_LIMIT > 0) args.push('--limit-rate', Math.floor(RATE_LIMIT / (1024 * 1024)) + 'M');
       if (PROXY) args.push('--proxy', PROXY);   // YouTube 等被墙站点走用户代理
-      if (fs.existsSync(COOKIE)) args.push('--cookies', COOKIE);
+      args.push(...cookieArgs());
       args.push('-P', OUTDIR, it.url);
       return { exe: ytdlp, args };
     }
@@ -420,7 +473,7 @@ class DownloadQueue {
       if (st.sleep > 0) args.push('--sleep', String(st.sleep));
       if (it._range) args.push('--range', it._range);
       if (PROXY) args.push('--proxy', PROXY);
-      if (fs.existsSync(COOKIE)) args.push('--cookies', COOKIE);
+      args.push(...cookieArgs());
       args.push(it.url);
       return { exe: gdl, args };
     }
@@ -591,4 +644,4 @@ class DownloadQueue {
   }
 }
 
-module.exports = { DownloadQueue, configure, reconfigure: configure };
+module.exports = { DownloadQueue, configure, reconfigure: configure, setCookieBrowser, setAutoCbz };
