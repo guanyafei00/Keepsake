@@ -177,6 +177,7 @@ function add(url, name) {
     intervalMin: 0,        // #70②：检查频率档位（0=跟随全局 10 分钟；可选 10/30/60）
     userPaused: false,     // #70②：用户手动暂停（与连续失败自动暂停 paused 区分）
     autoTranscribe: false, // #70④：新下载自动转写出字幕
+    latestN: 0,            // ★★#7：增量检查只入队最新 N 条（0=不限制；追更连载只留最新话的场景）
   };
   subs.push(sub);
   save();
@@ -282,7 +283,7 @@ function remove(id) {
 }
 
 // #70② 订阅属性更新（白名单字段，防注入未知键）
-const UPDATABLE = ['userPaused', 'group', 'intervalMin', 'autoTranscribe'];
+const UPDATABLE = ['userPaused', 'group', 'intervalMin', 'autoTranscribe', 'latestN'];
 function update(id, patch) {
   const s = get(id);
   if (!s) return { ok: false, reason: '订阅不存在' };
@@ -292,9 +293,25 @@ function update(id, patch) {
     if (k === 'userPaused' || k === 'autoTranscribe') s[k] = !!patch[k];
     else if (k === 'group') s[k] = String(patch[k] || '').trim().slice(0, 20);
     else if (k === 'intervalMin') s[k] = [0, 10, 30, 60].includes(Number(patch[k])) ? Number(patch[k]) : 0;
+    else if (k === 'latestN') {   // ★★#7：0=不限制；1-100 有效，越界归 0（宁可不限制也不静默吞更新）
+      const n = Math.floor(Number(patch[k]));
+      s[k] = Number.isFinite(n) && n >= 1 && n <= 100 ? n : 0;
+    }
   }
   save();
   return { ok: true, sub: { ...s, known: undefined } };
+}
+
+// ★★#7（机制借鉴 VidBee 的 onlyDownloadLatest，clean-room 重写）：增量清单按「只下最新 N 条」截取。
+// 纯函数便于单测。items 顺序 = 源站枚举顺序：图站/B站动态/YouTube 最新在前；合集按时间正序、最新在尾。
+// 语义：被截掉的不是「下轮重试」而是「本轮直接记 known 跳过」——用户开了这档就是只要最新的，
+// 老的增量若每轮都留作 fresh 会永久反复入队（去重闸只挡活跃任务，挡不住 done 后的重复入队）
+function latestCut(items, latestN, newestAtTail) {
+  const arr = Array.isArray(items) ? items : [];
+  const n = Math.floor(Number(latestN) || 0);
+  if (n < 1 || n >= arr.length) return { enqueue: arr, skipped: 0 };
+  const enqueue = newestAtTail ? arr.slice(arr.length - n) : arr.slice(0, n);
+  return { enqueue, skipped: arr.length - n };
 }
 
 // B站订阅检查：bili-probe.exe 探针（wbi 签名 + 每次刷新游客指纹）拉动态列表（投稿视频+图文动态）。
@@ -483,8 +500,13 @@ async function checkSub(sub, onNew) {
     else if (items.channel) { sub.name = items.channel; sub._auto = false; }
     else if (sub.kind === 'gdl' || sub.kind === 'x') guessName(sub.id);   // 加订阅时没名字的（如当时缺 cookie），检查通了再补一次
   } else {
-    let recorded = 0;
+    let recorded = 0, skippedLatest = 0;
+    // ★★#7 只下最新 N 条：先截取本轮要入队的窗口，窗口外的 fresh 直接记 known（跳过语义见 latestCut 注释）
+    const cut = latestCut(fresh, sub.latestN, sub.kind === 'bili-collection');
+    skippedLatest = cut.skipped;
+    const cutIds = new Set(cut.enqueue.map(i => i.id));
     for (const it of fresh) {
+      if (!cutIds.has(it.id)) { known.add(it.id); continue; }
       // onNew 返回 false = 调用方判定本条未真正入队（如队列去重命中，而既有任务可能失败/被取消）。
       // 此时不记 known——下轮仍算 fresh 重查，防止增量被永久吞掉
       if (onNew && onNew(sub, it) === false) continue;
@@ -493,13 +515,14 @@ async function checkSub(sub, onNew) {
     }
     sub.known = [...known].slice(-500);   // 防无限膨胀
     sub.lastNew = recorded;
+    sub.lastSkippedLatest = skippedLatest;   // UI 展示「本轮因只下最新 N 条跳过 K 条」；0/undefined=未启用或无跳过
   }
   sub.lastCheck = Date.now();
   sub.checked++;
   sub.sourceDeleted = gone.length ? gone.length : 0;   // 仅提示用
   sub.gone = gone.slice(0, 20);   // 具体哪几条：供 UI 展示明细（只存 id，链回源用 itemUrl 规则）
   save();
-  return { ok: true, fresh: fresh.length, total: items.length, gone: gone.length, items: items.map(i => ({ id: i.id, type: i.type })) };
+  return { ok: true, fresh: fresh.length, total: items.length, gone: gone.length, skippedLatest: sub.lastSkippedLatest || 0, items: items.map(i => ({ id: i.id, type: i.type })) };
 }
 
 // 回溯下载（主人需求「订阅后立即下载」）：拉全部动态并逐条回调，不管 known——
@@ -531,4 +554,4 @@ function itemUrl(sub, it) {
   return null;
 }
 
-module.exports = { configure, list, get, add, remove, update, checkSub, itemUrl, backfill, setProxy, setCookieBrowser, refreshName, onNameChange, save, classify, resetCookieCache, gdlBaseArgs, pixivAuthorized };
+module.exports = { configure, list, get, add, remove, update, checkSub, itemUrl, backfill, setProxy, setCookieBrowser, refreshName, onNameChange, save, classify, resetCookieCache, gdlBaseArgs, pixivAuthorized, latestCut };

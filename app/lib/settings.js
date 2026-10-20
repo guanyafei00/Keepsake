@@ -27,6 +27,8 @@ function configure({ file, defaultOutDir }) {
   if (!['', 'chrome', 'edge', 'firefox', 'brave'].includes(data.cookieBrowser)) data.cookieBrowser = '';
   // 图站（gallery-dl）任务完成后自动把图片目录打包成 CBZ（漫画归档友好；0 依赖，用系统自带 bsdtar）
   if (data.autoCbz === undefined) data.autoCbz = false; else data.autoCbz = !!data.autoCbz;
+  // 剪贴板监听（复制链接自动填入输入框；默认关——后台读剪贴板属于敏感行为，让用户显式打开）
+  if (data.clipboardWatch === undefined) data.clipboardWatch = false; else data.clipboardWatch = !!data.clipboardWatch;
 }
 
 function get() { return { ...data }; }
@@ -40,6 +42,7 @@ function set(patch) {
   // 浏览器来源/CBZ 开关归一化（与 configure 同规则，双保险）
   if (p.cookieBrowser !== undefined && !['', 'chrome', 'edge', 'firefox', 'brave'].includes(p.cookieBrowser)) p.cookieBrowser = '';
   if (p.autoCbz !== undefined) p.autoCbz = !!p.autoCbz;
+  if (p.clipboardWatch !== undefined) p.clipboardWatch = !!p.clipboardWatch;
   Object.assign(data, p);
   try { atomicWrite(FILE, JSON.stringify(data, null, 2)); } catch (e) { console.warn('[settings] save fail:', e.message); }
   return get();

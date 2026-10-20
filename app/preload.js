@@ -51,6 +51,8 @@ contextBridge.exposeInMainWorld('fetchie', {
   setUpdateUrl: (url) => ipcRenderer.invoke('settings:setUpdateUrl', { url }),
   setEngineAuto: (on) => ipcRenderer.invoke('settings:setEngineAuto', { on }),
   setNotify: (o) => ipcRenderer.invoke('settings:setNotify', o),
+  setClipboardWatch: (on) => ipcRenderer.invoke('settings:setClipboard', { on }),
+  onClipboardUrl: (cb) => ipcRenderer.on('clipboard:url', (e, d) => cb(d)),
   onToast: (cb) => ipcRenderer.on('toast:event', (e, d) => cb(d)),
   cookieInfo: () => ipcRenderer.invoke('cookie:info'),
   cookieImport: () => ipcRenderer.invoke('cookie:import'),

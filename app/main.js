@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, shell, Tray, Menu, Notification, dialog } = require('electron');
+const { app, BrowserWindow, ipcMain, shell, Tray, Menu, Notification, dialog, clipboard } = require('electron');
 // README 截图模式需在 app ready 前禁硬件加速（无 GPU/沙箱环境下 GPU 进程会崩）
 if (process.env.KEEPSAKE_CAPTURE) app.disableHardwareAcceleration();
 const path = require('path');
@@ -23,6 +23,7 @@ if (process.env.KEEPSAKE_CAPTURE) {
 }
 
 const identify = require('./lib/identify');
+const { ClipWatcher } = require('./lib/clipwatch');
 const { DownloadQueue, configure } = require('./lib/queue');
 const strategy = require('./lib/strategy');
 const autoupdate = require('./lib/autoupdate');
@@ -334,6 +335,22 @@ app.whenReady().then(() => {
   setCookieBrowser(settings.get().cookieBrowser);
   setAutoCbz(settings.get().autoCbz);
   subs.setCookieBrowser(settings.get().cookieBrowser);
+  // ★★#5 剪贴板监听：复制到链接时自动填入任务输入框。安全边界（机制借鉴 RipMe，clean-room）：
+  // 只读文本 + 只填输入框，绝不自动入队——入队必须用户点「加入队列」确认；开关默认关
+  let clipWatcher = null;
+  function applyClipboardWatch(on) {
+    if (on && !clipWatcher) {
+      clipWatcher = new ClipWatcher(
+        () => { try { return clipboard.readText(); } catch (e) { return ''; } },   // 剪贴板被占等异常静默跳过
+        url => {
+          log.info('clipboard', '剪贴板检测到链接: ' + url);
+          if (win && !win.isDestroyed()) win.webContents.send('clipboard:url', { url });
+        }
+      );
+      clipWatcher.start(1500);
+    } else if (!on && clipWatcher) { clipWatcher.stop(); clipWatcher = null; }
+  }
+  applyClipboardWatch(!!settings.get().clipboardWatch);
   library.configure({ outDir, sourceGet: p => source.get(p) });
   textindex.configure({ file: path.join(userData, 'text-index.json') });   // #70③：文稿全文检索索引
   asr.configure({
@@ -512,9 +529,12 @@ app.whenReady().then(() => {
     log.info('queue', 'CBZ 打包完成: ' + out);
   };
 
-  // 恢复上次未完成的任务：downloading 中断 → error（可重试），queued → 重新排队
+  // ★★#4 崩溃恢复（机制借鉴 Parabolic RecoverableDownload，clean-room）：tasks.json 每次 push 都
+  // 落盘（1s 防抖），崩溃/强关时「downloading」状态原样留在盘上——与正常退出（before-quit 先 cancel
+  // 再 flush，盘上全是终态）天然区分。这里把中断任务自动重排回队 + 提示用户
+  let restoredN = 0;
   for (const raw of store.load()) {
-    if (raw.status === 'downloading') { raw.status = 'queued'; raw.error = '应用退出中断，已自动重排'; raw.progress = 0; }
+    if (raw.status === 'downloading') { raw.status = 'queued'; raw.error = '应用退出中断，已自动重排'; raw.progress = 0; restoredN++; }
     if (raw.status === 'held') raw.status = 'queued';
     if (raw.status === 'queued') {
       const item = queue.add(raw.url, { engine: raw.engine, title: raw.title, _range: raw._range, _subs: raw._subs, _audio: raw._audio, _transcribe: raw._transcribe, _subId: raw._subId });
@@ -524,6 +544,11 @@ app.whenReady().then(() => {
       queue.order.push(raw.id);
       if (raw.status === 'done') resumedDone.add(raw.id);
     }
+  }
+  if (restoredN) {
+    const msg = '上次异常退出，已自动恢复 ' + restoredN + ' 个中断任务';
+    toastMsg(msg);
+    log.info('queue', msg + '（tasks.json 崩溃恢复）');
   }
 
   // 订阅改名 → 队列历史任务标题同步（老任务入队时还带着「订阅 N」占位名，改名后追平）
@@ -691,6 +716,12 @@ app.whenReady().then(() => {
     const r = settings.set({ autoCbz: !!on });
     setAutoCbz(r.autoCbz);
     return { ok: true, autoCbz: r.autoCbz };
+  });
+  // ★★#5 剪贴板监听开关（热启停：开=启动轮询，关=停止并丢弃实例）
+  ipcMain.handle('settings:setClipboard', (e, { on }) => {
+    const r = settings.set({ clipboardWatch: !!on });
+    applyClipboardWatch(r.clipboardWatch);
+    return { ok: true, clipboardWatch: r.clipboardWatch };
   });
   ipcMain.handle('settings:setQueue', (e, { max, rate }) => {
     const maxN = Math.min(5, Math.max(1, Math.floor(Number(max) || 2)));

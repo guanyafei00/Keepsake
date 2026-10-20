@@ -151,6 +151,7 @@
       <textarea id="urls" rows="2" placeholder="粘贴视频 / 图片链接（B站、YouTube、Pixiv、X、Instagram…每行一个），自动识别并加入下载队列"></textarea>
       <button class="btn-dl" id="btnAdd" onclick="addUrls()">＋ 加入队列</button>
     </div>
+    <div id="probeStrip" style="display:none;margin:8px 2px 0;font-size:12.5px;color:var(--txt2);padding:7px 11px;background:var(--panel);border:1px dashed var(--line);border-radius:var(--r-md)"></div>
     <div class="opts">
       <span class="pick" id="pickSubs" onclick="togglePick('pickSubs')"><span class="box">✓</span>⬇ 带字幕 <span class="n">自动抓中文字幕</span></span>
       <span class="pick" id="pickAudio" onclick="togglePick('pickAudio')"><span class="box">✓</span>🎧 仅音频 <span class="n">转 mp3，体积小</span></span>
@@ -269,6 +270,11 @@
         <label>漫画册打包</label>
         <input type="checkbox" id="autoCbzChk" onchange="saveAutoCbz(this.checked)">
         <span class="note">图站（Pixiv/微博/Booru 等）任务完成后，把图片目录自动打包成 .cbz 漫画册（媒体库/阅读器可直接看）</span>
+      </div>
+      <div class="row" style="margin:12px 0 0">
+        <label>剪贴板监听</label>
+        <input type="checkbox" id="clipChk" onchange="saveClipboardWatch(this.checked)">
+        <span class="note">复制链接后自动填入任务输入框（只填框，加入队列仍需手动点按钮确认；默认关闭）</span>
       </div>
       <div class="row" style="margin:12px 0 0">
         <label>Pixiv 授权</label>
@@ -462,6 +468,30 @@ try {
 try { syncPicks(); } catch (e) { console.warn('syncPicks fail:', e.message); }   // 顶层初始化防再犯：崩了也不能断掉后续绑定
 
 let _adding = false;
+// ★★#6 粘贴先探测（机制借鉴 Parabolic 的元数据确认，clean-room）：输入框停止输入 600ms 后
+// 自动识别首条链接，把「将用什么引擎、下的是什么」亮给用户看，再由用户点「加入队列」确认。
+// 纯 UI 预览：不入队、不阻塞，识别失败只是不显示（真正的校验仍以 queue:add 后端为准）
+let _probeSeq = 0, _probeTimer = null;
+function probeUrls() {
+  const strip = $('probeStrip');
+  const seq = ++_probeSeq;
+  const urls = $('urls').value.split('\n').map(s => s.trim()).filter(Boolean);
+  clearTimeout(_probeTimer);
+  if (!urls.length || !/^https?:\/\//i.test(urls[0])) { strip.style.display = 'none'; return; }
+  _probeTimer = setTimeout(async () => {
+    try {
+      const meta = await window.fetchie.identify(urls[0]);
+      if (seq !== _probeSeq) return;   // 用户已继续输入，本轮结果作废
+      if (meta.engine === 'invalid') {
+        strip.textContent = '❓ 无法识别：' + (meta.reason || '不支持的链接');
+      } else {
+        strip.textContent = engIcon(meta.engine) + ' ' + engName(meta.engine) + ' · ' + (meta.title || urls[0])
+          + (urls.length > 1 ? '（共 ' + urls.length + ' 条，已识别第 1 条）' : '');
+      }
+      strip.style.display = 'block';
+    } catch (e) { if (seq === _probeSeq) strip.style.display = 'none'; }
+  }, 600);
+}
 async function addUrls() {
   if (_adding) return;   // 防连点重复入队（
   const urls = $('urls').value.split('\n').map(s => s.trim()).filter(Boolean);
@@ -471,6 +501,7 @@ async function addUrls() {
   if (btn) { btn.disabled = true; btn.textContent = '识别中…'; }
   try {
     $('urls').value = '';
+    $('probeStrip').style.display = 'none';
     const opts = currentOpts();
     const r = await window.fetchie.addTasks(urls, opts);
     const n = (r && r.added ? r.added.length : 0);
@@ -742,6 +773,7 @@ async function loadSettings() {
   $('rateLimitInput').value = s.rateLimitMB || 0;
   $('cookieBrowserSel').value = s.cookieBrowser || '';
   $('autoCbzChk').checked = !!s.autoCbz;
+  $('clipChk').checked = !!s.clipboardWatch;
   loadAiConfig();
   $('engineAutoChk').checked = s.engineAutoUpdate !== false;
   $('appVer').textContent = '当前 ' + await window.fetchie.appVersion();
@@ -863,6 +895,15 @@ async function saveEngineAuto(on) {
   toast(on ? '已开启引擎每日自动更新' : '已关闭引擎自动更新');
 }
 window.fetchie.onToast(d => toast(d.msg));
+// ★★#5 剪贴板监听回填：主进程检测到新链接 → 填进输入框（绝不自动入队，入队必须点按钮）
+window.fetchie.onClipboardUrl(({ url }) => {
+  const box = $('urls');
+  if (box.value.includes(url)) return;   // 已在输入框里，不重复填
+  box.value = (box.value.trim() ? box.value.trimEnd() + '\n' : '') + url;
+  toast('📋 检测到剪贴板链接，已填入——确认后点「加入队列」');
+});
+// ★★#6 输入框探测：停止输入 600ms 后识别首条链接亮预览
+$('urls').addEventListener('input', probeUrls);
 // 浏览器登录态来源：引擎 --cookies-from-browser 直读，改完即时生效
 async function saveCookieBrowser() {
   const r = await window.fetchie.settingsSetCookieBrowser($('cookieBrowserSel').value);
@@ -872,6 +913,11 @@ async function saveCookieBrowser() {
 async function saveAutoCbz(on) {
   await window.fetchie.settingsSetCbz(on);
   toast(on ? '已开启：图站下载完成自动打包 .cbz 漫画册 ✓' : '已关闭漫画册自动打包');
+}
+// 剪贴板监听（复制链接自动填输入框，不自动入队）
+async function saveClipboardWatch(on) {
+  await window.fetchie.settingsSetClipboardWatch(on);
+  toast(on ? '已开启：复制链接后自动填入输入框 ✓' : '已关闭剪贴板监听');
 }
 async function saveProxy() {
   const r = await window.fetchie.settingsSetProxy($('proxyInput').value);
@@ -990,13 +1036,14 @@ async function renderSubs() {
     const groupTag = (s.group || '').trim() ? ` <span style="font-size:11px;color:var(--acc2);background:var(--panel2);border-radius:var(--r-xs);padding:1px 6px">${esc(s.group)}</span>` : '';
     const freqTag = s.intervalMin ? ` · 检查频率 ${s.intervalMin} 分钟` : '';
     const atTag = s.autoTranscribe ? ' · <span style="color:var(--acc2)">📝 自动转写</span>' : '';
+    const lnTag = s.latestN ? ` · 只下最新 ${s.latestN} 条` : '';
     htmls.push(`
     <div class="task"${paused ? ' style="opacity:.62"' : ''}>
       <div class="pickbox${_subSel.has(s.id) ? ' on' : ''}" onclick="subPick(event,'${s.id}')" title="选中（Ctrl 切换 / Shift 范围选）">${_subSel.has(s.id) ? '✔' : ''}</div>
       <div class="t-thumb">📡<span class="eng">${s.kind === 'bilibili' ? 'B站' : s.kind === 'bili-collection' ? '合集' : s.kind === 'x' ? 'X' : s.kind === 'youtube' ? 'YouTube' : s.kind === 'gdl' ? '图站' : '订阅'}</span></div>
       <div class="t-info">
         <div class="name">${esc(s.name)}</div>
-        <div class="meta">${groupTag}${pausedTag ? pausedTag + ' · ' : ''}${statusHtml} · 已跟踪 ${s.knownCount} 条${s.lastNew ? ` · 上轮新增 ${s.lastNew}` : ''}${s._pendingBackfill ? ' · <span style="color:var(--acc2)">⏳ 排队待回溯</span>' : ''}${s.autoBackfill ? ' · <span style="color:var(--acc2)">⤓ 自动全量下载中</span>' : ''}${s.kw && s.kw.length ? ' · 🏷 ' + esc(s.kw.join('/')) : ''}${freqTag}${atTag}${goneBadge(s)}</div>
+        <div class="meta">${groupTag}${pausedTag ? pausedTag + ' · ' : ''}${statusHtml} · 已跟踪 ${s.knownCount} 条${s.lastNew ? ` · 上轮新增 ${s.lastNew}` : ''}${s._pendingBackfill ? ' · <span style="color:var(--acc2)">⏳ 排队待回溯</span>' : ''}${s.autoBackfill ? ' · <span style="color:var(--acc2)">⤓ 自动全量下载中</span>' : ''}${s.kw && s.kw.length ? ' · 🏷 ' + esc(s.kw.join('/')) : ''}${freqTag}${atTag}${lnTag}${goneBadge(s)}</div>
       </div>
       <div class="x" onclick="checkSub('${s.id}')" title="立即检查">⟳</div>
       <div class="x" onclick="backfillSub('${s.id}')" title="把 TA 已发布的内容全部加入下载队列">⤓</div>
@@ -1080,6 +1127,16 @@ function editSubOpts(id) {
           <option value="60" ${s.intervalMin === 60 ? 'selected' : ''}>每 60 分钟</option>
         </select>
       </div>
+      <div>
+        <div style="font-size:12.5px;color:var(--txt2);margin-bottom:5px">只下最新（追更连载只留最新几话时用；开启后跳过的旧增量不再补下）</div>
+        <select id="soLatestN" style="width:100%;padding:8px 11px;font:inherit;background:var(--panel2);color:var(--txt);border:1px solid var(--line);border-radius:var(--r-md);outline:none">
+          <option value="0" ${!s.latestN ? 'selected' : ''}>不限制（新内容全下）</option>
+          <option value="1" ${s.latestN === 1 ? 'selected' : ''}>只下最新 1 条</option>
+          <option value="3" ${s.latestN === 3 ? 'selected' : ''}>只下最新 3 条</option>
+          <option value="5" ${s.latestN === 5 ? 'selected' : ''}>只下最新 5 条</option>
+          <option value="10" ${s.latestN === 10 ? 'selected' : ''}>只下最新 10 条</option>
+        </select>
+      </div>
     </div>
     <div style="text-align:right;margin-top:14px"><button class="btn-mini" style="color:var(--acc2)" onclick="saveSubOpts('${id}')">💾 保存</button></div>`);
 }
@@ -1089,6 +1146,7 @@ async function saveSubOpts(id) {
     autoTranscribe: $('soTranscribe').checked,
     group: $('soGroup').value,
     intervalMin: Number($('soInterval').value),
+    latestN: Number($('soLatestN').value),
   });
   if (!r.ok) return toast(r.reason || '保存失败');
   closeModal(); toast('订阅设置已保存 ✓'); loadSubs();
