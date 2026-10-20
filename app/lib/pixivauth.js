@@ -113,6 +113,29 @@ function pixivLogout(userData) {
   return { ok: true };
 }
 
+// ===== pixiv:// 内部协议接管（第 4 层，也是唯一真正拦得住的一层）=====
+// 背景（主人 2026-10-20 实测）：页面用 window.location = 'pixiv://…' 跳转时，Chromium 不走
+// 网络栈、也不触发 will-navigate——直接落给 OS「外部协议启动」，没装 Pixiv App 就弹
+// 「获取打开此 pixiv 链接的应用」对话框，登录 code 就此丢失。前三种截获全被绕过。
+// 修法：ready 前 registerSchemesAsPrivileged（standard）+ ready 后 protocol.handle 把
+// pixiv:// 注册成 App 内部协议——导航永远进本进程 handler，绝不出手给系统。
+// installPixivProtocol 在 main.js 的 app ready 后调用；registerSchemesAsPrivileged 在 main.js 顶层
+// （Electron 限制：该函数全局只能调一次且必须在 ready 前）。
+let _deepLinkSink = null;   // 当前授权窗口的深链回调（openPixivLoginWindow 挂载/清理）
+
+function installPixivProtocol() {
+  const { protocol } = require('electron');
+  try {
+    protocol.handle('pixiv', req => {
+      try { if (_deepLinkSink && req && req.url) _deepLinkSink(req.url); } catch (e) {}
+      // 返回一个空壳页（页面导航需要响应体）：提示用户可以关窗了，别留白屏
+      return new Response('<!doctype html><meta charset="utf-8"><body style="font-family:sans-serif;background:#fff;color:#333;text-align:center;padding-top:40vh">✅ 授权处理中，本窗口可以关闭了</body>',
+        { headers: { 'content-type': 'text/html; charset=utf-8' } });
+    });
+    return true;
+  } catch (e) { console.warn('[pixivauth] protocol.handle fail:', e.message); return false; }
+}
+
 // 打开授权窗口。onDone({ok, reason?|userName?}) 只回调一次
 let win = null;
 function openPixivLoginWindow(userData, opts, onDone) {
@@ -129,6 +152,7 @@ function openPixivLoginWindow(userData, opts, onDone) {
     if (settled) return;
     settled = true;
     clearTimeout(timer);
+    _deepLinkSink = null;   // 窗口结束即摘钩子：protocol.handle 收到迟到深链也不再分发
     try { if (win && !win.isDestroyed()) win.destroy(); } catch (e) {}
     win = null;
     onDone({ ok, ...extra });
@@ -165,8 +189,12 @@ function openPixivLoginWindow(userData, opts, onDone) {
     win.loadURL(LOGIN_URL + `?code_challenge=${cc.challenge}&code_challenge_method=S256&client=pixiv-android`);
   })();
 
-  // 三重截获 pixiv:// 深链（自定义 scheme 导航在 Electron 里表现不定，三层全兜住）：
-  // ① will-navigate；② did-fail-load 的 ERR_UNKNOWN_URL_SCHEME 附带 URL；③ webRequest 全量过滤
+  // 四重截获 pixiv:// 深链：
+  // ④ protocol.handle（内部协议接管，installPixivProtocol 已在 app ready 时安装）——主框架
+  //    location 跳转的必经之路，唯一能 100% 拦住不落 OS 的层
+  // ① will-navigate；② did-fail-load 的 ERR_UNKNOWN_URL_SCHEME；③ webRequest——前两层在新版
+  //    Electron 仍可能拦到部分场景（window.open/子资源），全留着兜底，宁可重复回调（settled 幂等）
+  _deepLinkSink = onDeepLink;
   win.webContents.on('will-navigate', (e, url) => {
     if (/^pixiv:\/\//i.test(url)) { e.preventDefault(); onDeepLink(url); return; }
     // 登录窗只许访问 pixiv.net 域名（防页内外链跳走）
@@ -197,4 +225,4 @@ function pixivLogin(userData, opts = {}) {
   });
 }
 
-module.exports = { pixivLogin, pixivState, pixivLogout, saveAuth, authFile, gdlCfgFile, pkce, extractCode, pixivCookiesFrom, exchangeToken };
+module.exports = { pixivLogin, pixivState, pixivLogout, saveAuth, authFile, gdlCfgFile, pkce, extractCode, pixivCookiesFrom, exchangeToken, installPixivProtocol };

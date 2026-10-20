@@ -1,4 +1,10 @@
-const { app, BrowserWindow, ipcMain, shell, Tray, Menu, Notification, dialog, clipboard } = require('electron');
+const { app, BrowserWindow, ipcMain, shell, Tray, Menu, Notification, dialog, clipboard, protocol } = require('electron');
+
+// ★ Pixiv 授权深链接管（必须在 app ready 前、且全局只能调一次）：把 pixiv 注册为内部标准协议，
+// 页面 location 跳 pixiv:// 才会路由进 protocol.handle（pixivauth.installPixivProtocol），
+// 否则 Chromium 交给 OS「外部协议启动」→ 没装 Pixiv App 弹「获取打开此链接的应用」，
+// 授权 code 直接丢失（主人 2026-10-20 实测）
+protocol.registerSchemesAsPrivileged([{ scheme: 'pixiv', privileges: { standard: true, secure: true } }]);
 // README 截图模式需在 app ready 前禁硬件加速（无 GPU/沙箱环境下 GPU 进程会崩）
 if (process.env.KEEPSAKE_CAPTURE) app.disableHardwareAcceleration();
 const path = require('path');
@@ -245,6 +251,7 @@ app.on('second-instance', () => { if (win && !win.isDestroyed()) { if (win.isMin
 
 app.whenReady().then(() => {
   const userData = app.getPath('userData');
+  pixivauth.installPixivProtocol();   // pixiv:// 内部协议 handler（注册privileged见文件顶部注释）
 
   // 改名迁移：Fetchie → DGO，旧 %APPDATA%\Fetchie 的数据一次性搬入（
   // 逐文件断点续迁 + 完成写标记 + 旧目录改名封存（内含明文 cookies.txt，凭证不散落））
