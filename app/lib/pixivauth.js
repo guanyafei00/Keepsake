@@ -124,16 +124,24 @@ function pixivLogout(userData) {
 let _deepLinkSink = null;   // 当前授权窗口的深链回调（openPixivLoginWindow 挂载/清理）
 
 function installPixivProtocol() {
-  const { protocol } = require('electron');
-  try {
-    protocol.handle('pixiv', req => {
-      try { if (_deepLinkSink && req && req.url) _deepLinkSink(req.url); } catch (e) {}
-      // 返回一个空壳页（页面导航需要响应体）：提示用户可以关窗了，别留白屏
-      return new Response('<!doctype html><meta charset="utf-8"><body style="font-family:sans-serif;background:#fff;color:#333;text-align:center;padding-top:40vh">✅ 授权处理中，本窗口可以关闭了</body>',
-        { headers: { 'content-type': 'text/html; charset=utf-8' } });
-    });
-    return true;
-  } catch (e) { console.warn('[pixivauth] protocol.handle fail:', e.message); return false; }
+  const { session } = require('electron');
+  // 坑（主人 2026-10-24 实测）：授权窗口挂在 persist:pixiv-login 独立 session（webPreferences.partition），
+  // 而 protocol.handle 是按 session 隔离的——只注册默认 session 等于白注册，授权窗里的 pixiv://
+  // 照样落 OS 弹「获取应用」。必须把 handler 同时挂到默认 session 和授权窗用的 partition session。
+  const handler = req => {
+    try { if (_deepLinkSink && req && req.url) _deepLinkSink(req.url); } catch (e) {}
+    // 返回一个空壳页（页面导航需要响应体）：提示用户可以关窗了，别留白屏
+    return new Response('<!doctype html><meta charset="utf-8"><body style="font-family:sans-serif;background:#fff;color:#333;text-align:center;padding-top:40vh">✅ 授权处理中，本窗口可以关闭了</body>',
+      { headers: { 'content-type': 'text/html; charset=utf-8' } });
+  };
+  const targets = [session.defaultSession];
+  try { targets.push(session.fromPartition(PARTITION)); } catch (e) {}
+  let ok = true;
+  for (const ses of targets) {
+    try { ses.protocol.handle('pixiv', handler); }
+    catch (e) { ok = false; console.warn('[pixivauth] protocol.handle fail (' + (ses === session.defaultSession ? 'default' : PARTITION) + '):', e.message); }
+  }
+  return ok;
 }
 
 // 打开授权窗口。onDone({ok, reason?|userName?}) 只回调一次
