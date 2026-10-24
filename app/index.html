@@ -1005,8 +1005,14 @@ function friendlySubFail(m) {
     .replace(/\[[^\]]*\]\[error\]\s*/gi, '')
     .replace(/\s+/g, ' ').trim();
   const k = core || s;   // 剥噪后的主干优先，剥秃了才用原文
+  // 报错自带 [站点] 前缀 → 出站点名定制话术（主人 2026-10-24 实证：X/IG 的 AuthRequired 直出英文没人看得懂）
+  const siteRaw = (s.match(/^\[(\w+)\]/i) || (k.match(/^\[(\w+)\]/i) || []))[1];
+  const siteName = siteRaw ? ({ twitter: 'X（推特）', instagram: 'Instagram', pixiv: 'Pixiv', weibo: '微博', bilibili: 'B站', youtube: 'YouTube' }[siteRaw.toLowerCase()] || siteRaw) : '';
+  const who = siteName ? siteName : '该站点';
   if (/refresh-token/i.test(k)) return '需要 Pixiv 授权（设置 → Cookie 管理 → Pixiv 授权，一次性操作）';   // Pixiv 专用：它的报错是 'refresh-token' required，与 cookie 无关
-  if (/401|Unauthorized|AuthenticationError|PHPSESSID|cookies?\s*(required|expired|invalid)|login/i.test(k)) return '需要登录 Cookie（设置 → Cookie 管理，导入该站点 cookies.txt）';
+  if (/AuthRequired|authenticated cookies|需要登录/i.test(k)) return who + '需要登录才能看：到 设置 → Cookie 管理 导入它的 cookies.txt（或在设置页选一个已登录的浏览器）';
+  if (/NotFoundError|could not be found|user not found/i.test(k)) return (siteName ? siteName + ' 上' : '') + '找不到这个账号：可能已改名或注销（点订阅 ⚙ 核对链接）；Instagram 也可能要登录后才可见';
+  if (/401|Unauthorized|AuthenticationError|PHPSESSID|cookies?\s*(required|expired|invalid)|login/i.test(k)) return (siteName ? siteName + ' ' : '') + '需要登录 Cookie（设置 → Cookie 管理，导入该站点 cookies.txt）';
   if (/403|Forbidden/i.test(k)) return '站点拒绝访问：需要登录 Cookie，或站点在挡程序（设置 → Cookie 管理）';
   if (/404|not found|No extractor/i.test(k)) return '订阅地址失效或站点不支持（检查订阅链接）';
   if (/HTTP Error 5\d\d|Internal Server Error|Bad Gateway|Service Unavailable/i.test(k)) return '站点服务器开小差，稍后自动重试';
@@ -1046,7 +1052,7 @@ async function renderSubs() {
     }
     const paused = s.userPaused || s.paused;
     const pausedTag = s.userPaused ? '<span class="st flat">⏸ 已暂停</span>'
-      : s.paused ? `<span class="st error" title="${esc('连续 3 次检查失败：' + (s.lastError || '') + '｜点 ▶ 恢复后会重试；缺登录态的站点请先到 设置 → Cookie 管理 导入该站点 cookies.txt')}">连续失败暂停</span>` : '';
+      : s.paused ? `<span class="st error" title="${esc('连续 3 次检查失败，已自动暂停：' + friendlySubFail(s.lastError) + '｜点 ▶ 恢复后会重试')}">连续失败暂停（悬停看原因）</span>` : '';
     const groupTag = (s.group || '').trim() ? ` <span style="font-size:11px;color:var(--acc2);background:var(--panel2);border-radius:var(--r-xs);padding:1px 6px">${esc(s.group)}</span>` : '';
     const freqTag = s.intervalMin ? ` · 检查频率 ${s.intervalMin} 分钟` : '';
     const atTag = s.autoTranscribe ? ' · <span style="color:var(--acc2)">📝 自动转写</span>' : '';
