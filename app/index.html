@@ -1013,12 +1013,15 @@ function friendlySubFail(m) {
     .replace(/\s+/g, ' ').trim();
   const k = core || s;   // 剥噪后的主干优先，剥秃了才用原文
   // 报错自带 [站点] 前缀 → 出站点名定制话术（主人 2026-10-24 实证：X/IG 的 AuthRequired 直出英文没人看得懂）
-  const siteRaw = (s.match(/^\[(\w+)\]/i) || (k.match(/^\[(\w+)\]/i) || []))[1];
+  // 注意要先从原文抓 [xxx][error] 标签：剥噪一步会把标签吃掉，exited with code 前缀型的站点名就丢了
+  const siteRaw = (s.match(/^\[(\w+)\]/i) || s.match(/\[(\w+)\]\[error\]/i) || (k.match(/^\[(\w+)\]/i) || []))[1];
   const siteName = siteRaw ? ({ twitter: 'X（推特）', instagram: 'Instagram', pixiv: 'Pixiv', weibo: '微博', bilibili: 'B站', youtube: 'YouTube' }[siteRaw.toLowerCase()] || siteRaw) : '';
   const who = siteName ? siteName : '该站点';
   if (/refresh-token/i.test(k)) return '需要 Pixiv 授权（设置 → Cookie 管理 → Pixiv 授权，一次性操作）';   // Pixiv 专用：它的报错是 'refresh-token' required，与 cookie 无关
   if (/AuthRequired|authenticated cookies|需要登录/i.test(k)) return who + '需要登录才能看：到 设置 → Cookie 管理 导入它的 cookies.txt（或在设置页选一个已登录的浏览器）';
   if (/NotFoundError|could not be found|user not found/i.test(k)) return (siteName ? siteName + ' 上' : '') + '找不到这个账号：可能已改名或注销（点订阅 ⚙ 核对链接）；Instagram 也可能要登录后才可见';
+  // Instagram 2026-09 起 graphql 接口频繁变更（KeyError: 'data' / missing_required_variable_value），上游 gallery-dl 跟进中——与 Cookie/账号无关（官方账号同报错已实证）
+  if (/KeyError:\s*'data'|missing_required_variable_value|Failed to load API data/i.test(k)) return who + ' 的接口临时变更，下载器官方正在跟进适配（不是 Cookie 或账号的问题），出修复版引擎后更新即恢复';
   if (/401|Unauthorized|AuthenticationError|PHPSESSID|cookies?\s*(required|expired|invalid)|login/i.test(k)) return (siteName ? siteName + ' ' : '') + '需要登录 Cookie（设置 → Cookie 管理，导入该站点 cookies.txt）';
   if (/403|Forbidden/i.test(k)) return '站点拒绝访问：需要登录 Cookie，或站点在挡程序（设置 → Cookie 管理）';
   if (/404|not found|No extractor/i.test(k)) return '订阅地址失效或站点不支持（检查订阅链接）';
