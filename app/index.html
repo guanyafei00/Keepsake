@@ -996,14 +996,28 @@ function refreshNavCounts() {
   const l = $('l-cnt'); if (l && libData) l.textContent = libData.groups.length;
 }
 // 订阅检查失败原因 → 人话（gallery-dl 原始报错对用户是黑话：HttpError 401、AuthenticationError…）
+// 顺序敏感：refresh-token 必须在 cookie 映射前（Pixiv 报错也含 login 字样）；401 在 403 前
 function friendlySubFail(m) {
   const s = String(m || '');
-  if (/refresh-token/i.test(s)) return '需要 Pixiv 授权（设置 → Cookie 管理 → Pixiv 授权，一次性操作）';   // Pixiv 专用：它的报错是 'refresh-token' required，与 cookie 无关，必须排在 cookie 映射前面
-  if (/401|Unauthorized|AuthenticationError|refresh-token|PHPSESSID|cookies?\s*(required|expired|invalid)|login/i.test(s)) return '需要登录 Cookie（设置 → Cookie 管理，导入该站点 cookies.txt）';
-  if (/timed?\s?out|ETIMEDOUT|ECONNRESET|ECONNREFUSED|socket hang up/i.test(s)) return '网络超时或中断，稍后自动重试';
-  if (/429|rate.?limit|Too Many/i.test(s)) return '触发站点限流，冷却后自动重试';
-  if (/退出码/i.test(s)) return '引擎异常退出，下轮自动重试';
-  return s.slice(0, 60);
+  // 先剥命令行噪音（exited with code / 退出码 前缀后面的才是真错因），剥完拿主干去匹配规则
+  const core = s
+    .replace(/^.*?(?:exited with code \d+\s*[:.]?|Command failed[^:]*:|gallery-dl\s*退出码\s*\d+\s*[:：]?)\s*/i, '')
+    .replace(/\[[^\]]*\]\[error\]\s*/gi, '')
+    .replace(/\s+/g, ' ').trim();
+  const k = core || s;   // 剥噪后的主干优先，剥秃了才用原文
+  if (/refresh-token/i.test(k)) return '需要 Pixiv 授权（设置 → Cookie 管理 → Pixiv 授权，一次性操作）';   // Pixiv 专用：它的报错是 'refresh-token' required，与 cookie 无关
+  if (/401|Unauthorized|AuthenticationError|PHPSESSID|cookies?\s*(required|expired|invalid)|login/i.test(k)) return '需要登录 Cookie（设置 → Cookie 管理，导入该站点 cookies.txt）';
+  if (/403|Forbidden/i.test(k)) return '站点拒绝访问：需要登录 Cookie，或站点在挡程序（设置 → Cookie 管理）';
+  if (/404|not found|No extractor/i.test(k)) return '订阅地址失效或站点不支持（检查订阅链接）';
+  if (/HTTP Error 5\d\d|Internal Server Error|Bad Gateway|Service Unavailable/i.test(k)) return '站点服务器开小差，稍后自动重试';
+  if (/ENOTFOUND|getaddrinfo|EAI_AGAIN/i.test(k)) return '域名打不开：断网、站点被墙或站点挂了';
+  if (/SSL|TLS|certificate|CERT_/i.test(k)) return 'HTTPS 连接异常：网络被劫持或站点证书问题';
+  if (/timed?\s?out|ETIMEDOUT|ECONNRESET|ECONNREFUSED|ECONNABORTED|socket hang up/i.test(k)) return '网络超时或中断，稍后自动重试';
+  if (/429|rate.?limit|Too Many/i.test(k)) return '触发站点限流，冷却后自动重试';
+  if (/ENOENT|spawn/i.test(k)) return '下载引擎缺失：到 设置 → 下载引擎 检查或重装';
+  if (!core && /退出码|exited with code/i.test(s)) return '站点拉取失败（网络波动或 Cookie 失效），下轮自动重试';   // 剥完没剩主干 = 只有退出码，无具体错因；别误导用户去重装引擎
+  const tail = k.replace(/^[（(]+/, '').replace(/[）)]+$/, '').trim();   // 只剩括号备注时去掉括号壳，避免「其他错误：（...）（悬停…」双括号
+  return '其他错误：' + (tail || k).slice(0, 50) + '（悬停看原始报错）';
 }
 async function renderSubs() {
   const el = $('subList');
@@ -1021,7 +1035,7 @@ async function renderSubs() {
     // 用户分不清「没查过」和「查了但失败」。lastFailAt 晚于 lastCheck = 最近一次尝试失败
     const lastFailed = s.lastError && (!s.lastCheck || (s.lastFailAt || 0) > (s.lastCheck || 0));
     const statusHtml = lastFailed
-      ? `<span style="color:var(--red)" title="${esc(s.lastError)}">检查失败：${esc(friendlySubFail(s.lastError))}</span>`
+      ? `<span style="color:var(--red);cursor:help;text-decoration:underline dotted" title="技术详情：${esc(s.lastError)}">检查失败：${esc(friendlySubFail(s.lastError))}</span>`
       : ago === null ? '尚未检查' : ago + ' 分钟前检查过';
     if (s.sourceDeleted) {
       // gone 清单未变直接复用缓存，不再每次渲染都发 subsGoneFiles（主进程全目录走查）
@@ -1100,10 +1114,12 @@ async function batchSubCheck() {
   const ids = [..._subSel];
   if (!ids.length) return;
   toast(`检查 ${ids.length} 个订阅中…（自动依次进行，完成后提示）`);
-  for (const id of ids) { try { await window.fetchie.subsCheck(id); } catch (e) {} }
+  const all = [];
+  for (const id of ids) { try { const rs = await window.fetchie.subsCheck(id); if (Array.isArray(rs)) all.push(...rs); } catch (e) {} }
   _subSel.clear(); _subAnchor = null;
   loadSubs();
-  toast('选中订阅检查完毕');
+  const bad = all.filter(r => r.ok === false && r.name && !/间隔未到|已暂停/.test(r.reason || ''));
+  toast(bad.length ? `检查完毕：${bad.length} 个失败（${bad.slice(0, 2).map(b => b.name).join('、')}${bad.length > 2 ? ' 等' : ''}）— 卡片上红字就是原因` : '选中订阅检查完毕，全部正常 ✓');
 }
 function clearSubSel() { _subSel.clear(); _subAnchor = null; renderSubs(); }
 
@@ -1277,8 +1293,22 @@ async function backfillSub(id) {
   } catch (e) { toast('回溯失败：' + (e.message || e)); }
   loadSubs();
 }
-async function checkSub(id) { toast('检查中…'); await window.fetchie.subsCheck(id); loadSubs(); }
-async function checkAllSubs() { toast('检查全部订阅中…'); await window.fetchie.subsCheck(null); loadSubs(); }
+async function checkSub(id) {
+  toast('检查中…');
+  const rs = await window.fetchie.subsCheck(id);
+  loadSubs();
+  const bad = (Array.isArray(rs) ? rs : []).filter(r => r.ok === false && r.name && !/间隔未到|已暂停/.test(r.reason || ''));
+  if (bad.length) toast(`「${bad[0].name}」检查失败：${friendlySubFail(bad[0].reason)}（卡片上有详情）`);
+  else toast('检查完成 ✓');
+}
+async function checkAllSubs() {
+  toast('检查全部订阅中…');
+  const rs = await window.fetchie.subsCheck(null);
+  loadSubs();
+  const bad = (Array.isArray(rs) ? rs : []).filter(r => r.ok === false && r.name && !/间隔未到|已暂停/.test(r.reason || ''));
+  if (bad.length) toast(`检查完毕：${bad.length} 个失败（${bad.slice(0, 2).map(b => b.name).join('、')}${bad.length > 2 ? ' 等' : ''}）— 卡片上红字就是原因，悬停看技术详情`);
+  else toast('检查完毕，全部正常 ✓');
+}
 window.fetchie.onSubs(() => { loadSubs(); });
 
 // ===== 媒体库 =====
