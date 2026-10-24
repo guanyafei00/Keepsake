@@ -20,6 +20,8 @@ contextBridge.exposeInMainWorld('fetchie', {
   subsAdd: (url, name) => ipcRenderer.invoke('subs:add', { url, name }),
   subsRemove: (id) => ipcRenderer.invoke('subs:remove', { id }),
   subsCheck: (id) => ipcRenderer.invoke('subs:check', { id }),
+  openSubUrl: (id) => ipcRenderer.invoke('subs:openUrl', { id }),
+  openLibSource: (filePath) => ipcRenderer.invoke('lib:openSource', { filePath }),
   subsResume: (id) => ipcRenderer.invoke('subs:resume', { id }),
   subsBackfill: (id) => ipcRenderer.invoke('subs:backfill', { id }),
   subsOpenFolder: (id) => ipcRenderer.invoke('subs:openFolder', { id }),

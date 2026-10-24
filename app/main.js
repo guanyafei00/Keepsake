@@ -1136,6 +1136,24 @@ app.whenReady().then(() => {
     } finally { }
   }
   ipcMain.handle('subs:list', () => subs.list());
+  // 一键直达订阅原链接：URL 由主进程按 id 从订阅表取，不信任渲染层传 URL（防注入钓鱼）；
+  // 只放行 https（订阅都是 http(s)），不做站点白名单——订阅本来就是用户自己加的，打开自己的订阅页没有额外风险
+  ipcMain.handle('subs:openUrl', (e, { id }) => {
+    const sub = subs.list().find(s => s.id === id);
+    const url = sub && sub.url;
+    if (!url || !/^https:\/\//i.test(url)) return { ok: false, reason: '订阅链接缺失或不是 https，已在主进程拦截' };
+    shell.openExternal(url);
+    return { ok: true };
+  });
+  // 媒体库一键直达来源：URL 由主进程按文件路径查来源索引取得。
+  // 索引只记录建档之后的下载（source.js 的诚实声明），老文件查不到要明说，别让用户以为按钮坏了
+  ipcMain.handle('lib:openSource', (e, { filePath }) => {
+    const src = source.get(String(filePath || ''));
+    if (!src || !src.url) return { ok: false, reason: '这个文件没有来源记录：来源索引只记录建档之后的下载，老文件查不到' };
+    if (!/^https:\/\//i.test(src.url)) return { ok: false, reason: '来源链接不是 https，已在主进程拦截' };
+    shell.openExternal(src.url);
+    return { ok: true };
+  });
   ipcMain.handle('subs:add', (e, { url, name }) => {
     const r = subs.add(url, name);
     // 添加即检查：首检建基线 → 自动全量回溯立刻开跑（不等 10 分钟轮询）

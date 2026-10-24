@@ -648,6 +648,13 @@ function openFileFolderById(id) {
   if (!p) return toast('找不到该任务的文件路径');
   openFileFolder(p);
 }
+function openSubLink(id) { window.fetchie.openSubUrl(id).then(r => { if (r && !r.ok) toast(r.reason || '打开失败'); }).catch(() => toast('打开失败')); }
+async function openLibSource(p) {
+  let r = null;
+  try { r = await window.fetchie.openLibSource(p); } catch (e) {}
+  if (r && r.ok) return;
+  toast((r && r.reason) || '打开失败');
+}
 function openFileFolder(p) { window.fetchie.openFolder(p).then(r => { if (r && !r.ok) toast(r.reason || '打开失败'); }); }
 
 async function removeTask(id) {
@@ -1065,6 +1072,7 @@ async function renderSubs() {
         <div class="name">${esc(s.name)}</div>
         <div class="meta">${groupTag}${pausedTag ? pausedTag + ' · ' : ''}${statusHtml} · 已跟踪 ${s.knownCount} 条${s.lastNew ? ` · 上轮新增 ${s.lastNew}` : ''}${s._pendingBackfill ? ' · <span style="color:var(--acc2)">⏳ 排队待回溯</span>' : ''}${s.autoBackfill ? ' · <span style="color:var(--acc2)">⤓ 自动全量下载中</span>' : ''}${s.kw && s.kw.length ? ' · 🏷 ' + esc(s.kw.join('/')) : ''}${freqTag}${atTag}${lnTag}${goneBadge(s)}</div>
       </div>
+      <div class="x" onclick="openSubLink('${s.id}')" title="打开订阅原链接（浏览器）">🔗</div>
       <div class="x" onclick="checkSub('${s.id}')" title="立即检查">⟳</div>
       <div class="x" onclick="backfillSub('${s.id}')" title="把 TA 已发布的内容全部加入下载队列">⤓</div>
       <div class="x" onclick="openSubFolder('${s.id}')" title="打开下载文件夹">📂</div>
@@ -1403,6 +1411,7 @@ function renderLibrary() {
           <div class="meta">${f.sizeText} · ${timeAgo(f.mtime)}${_txtHits[f.path] ? ' · 📄 <span title="' + escAttr(_txtHits[f.path].snippet || '') + '" style="color:var(--acc2)">文稿匹配</span>' : ''}${asrStates[f.path] ? ' · 📝 ' + (asrStates[f.path].state === 'running' ? '转写中 ' + asrStates[f.path].pct + '%' : asrStates[f.path].state === 'done' ? '已转写' : '转写失败') : ''}${jobStatus(f)}${srcBadge(f)}</div>
         </div>
         ${/\.(mp4|mkv|webm|mov|avi|flv|m4a|mp3|wav)$/i.test(f.name) ? `<div class="x" onclick="event.stopPropagation();transcribeFile('${escAttr(f.path)}')" title="本地转写出 SRT 字幕">📝</div><div class="x" onclick="event.stopPropagation();translateFile('${escAttr(f.path)}')" title="生成中英双语字幕（无字幕会先自动转写；需在设置页配置 AI）">🌐</div><div class="x" onclick="event.stopPropagation();burnFile('${escAttr(f.path)}')" title="把字幕硬烧进视频（生成新视频文件）">🎬</div><div class="x" onclick="event.stopPropagation();aiPanel('${escAttr(f.path)}')" title="AI 文稿助理（摘要/翻译）">✨</div>` : ''}
+        <div class="x" onclick="event.stopPropagation();openLibSource('${escAttr(f.path)}')" title="打开来源链接（浏览器）">🔗</div>
         <div class="x" onclick="openPath('${escAttr(f.path)}')" title="打开所在文件夹">📁</div>
         <div class="x" onclick="event.stopPropagation();trashFile('${escAttr(f.path)}')" title="删除（移入回收站，可恢复）" style="color:var(--red)">🗑</div>
       </div>`).join('') : ''}`;
