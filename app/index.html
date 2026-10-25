@@ -839,22 +839,69 @@ async function applyAppUpdate() {
   if (!r.ok) return toast('更新失败：' + (r.reason || ''));
   toast('安装已启动，Keepsake 即将退出…重新打开就是新版本');
 }
-// ===== 引擎更新 =====
+// ===== 引擎更新（双通道：稳定版 / 开发版，主人 2026-10-25 提案）=====
+// 渲染层小版本比较（与主进程 autoupdate.cmpVer 同规则，只取数字段）
+function _verKey(v) {
+  const m = String(v || '').replace(/^v/, '').match(/(\d+(?:\.\d+)+)/);
+  return m ? m[1].split('.').map(Number) : null;
+}
+function _cmpVer(a, b) {
+  const pa = _verKey(a), pb = _verKey(b);
+  if (!pa || !pb) return String(a) === String(b) ? 0 : null;
+  const n = Math.max(pa.length, pb.length);
+  for (let i = 0; i < n; i++) { const x = pa[i] || 0, y = pb[i] || 0; if (x > y) return 1; if (x < y) return -1; }
+  return 0;
+}
+// 悬停提示文案：版本 + 更新内容（截 500 字符，转义进 title）
+function _engTip(label, ch) {
+  const notes = String(ch.notes || '').trim();
+  const built = ch.built ? `\n构建日期：${ch.built}` : '';
+  const tail = notes ? `\n---- 更新内容 ----\n${notes.slice(0, 500)}` : '';
+  const page = ch.page ? `\n（详情页：${ch.page}）` : '';
+  return `${label}${built}${tail}${page}`.replace(/"/g, "'");
+}
+function _engBtn(engine, ch, label, cls) {
+  return `<button type="button" class="btn-mini" style="color:${cls}" onclick="applyEngineUpdate('${engine}','${escAttr(ch.url)}','${escAttr(ch.sha256 || '')}')" title="${escAttr(_engTip(label, ch))}">${label}</button>`;
+}
 async function loadEngines() {
   try {
     const list = await window.fetchie.checkUpdate();
-    $('engineList').innerHTML = list.map(u => `
+    $('engineList').innerHTML = list.map(u => {
+      const local = u.local || '';
+      const s = u.stable || { version: u.remote, url: u.url, notes: '' };
+      const d = u.dev;
+      const btns = [];
+      // 稳定通道：本地与稳定版不同才给按钮；本地 dev 比稳定新时标「回退」
+      if (s.version && s.version !== local) {
+        const c = local ? _cmpVer(s.version, local) : 1;
+        const back = c !== null && c < 0;   // 稳定版比本地旧 = 回退（本地多半是 dev）
+        btns.push(_engBtn(u.engine, s, (back ? '⏮ 稳定 ' : '⬇ 稳定 ') + s.version.replace(/^v/, '') + (back ? '（回退）' : ''), 'var(--acc2)'));
+      }
+      // 开发通道：存在且与本地不同才给按钮
+      if (d && d.version && d.version !== local) {
+        const c = local ? _cmpVer(d.version, local) : 1;
+        btns.push(_engBtn(u.engine, d, c > 0 || c === null ? '🧪 开发 ' + d.version : '🧪 开发 ' + d.version + '（回退）', 'var(--txt2)'));
+      }
+      // 本地版本展示：dev 构建标注一下
+      const localDisp = local || '未安装';
+      const state = btns.length ? `<span id="engBtns-${u.engine}">${btns.join(' ')}</span>`
+        : '<span class="dl-state ok">最新</span>';
+      const desc = btns.length
+        ? `本地 ${localDisp} · 稳定 ${s.version ? s.version.replace(/^v/, '') : '?'}${d ? ' · 开发 ' + d.version : ''}（悬停按钮看更新内容）`
+        : `已是最新（${localDisp}）`;
+      return `
       <div class="model">
-        <div class="mi">${u.needUpdate ? '⬆️' : '✅'}</div>
+        <div class="mi">${btns.length ? '⬆️' : '✅'}</div>
         <div class="mt"><b>${u.engine.replace('.exe', '')}</b>
-          <div class="d">${u.needUpdate ? `本地 ${u.local || '?'} → 最新 ${u.remote}` : `已是最新（${u.local || u.remote || '?'}）`}</div>
+          <div class="d">${desc}</div>
           <div id="engProg-${u.engine}" style="display:none;margin-top:6px">
             <div style="height:6px;border-radius:3px;background:var(--panel2);overflow:hidden"><i id="engProgBar-${u.engine}" style="display:block;height:100%;width:0;background:var(--acc2);transition:width .2s"></i></div>
             <div class="d" id="engProgTxt-${u.engine}" style="margin-top:3px">正在下载新引擎…</div>
           </div>
         </div>
-        ${u.needUpdate ? `<button type="button" id="engBtn-${u.engine}" class="btn-mini" style="color:var(--acc2)" onclick="applyEngineUpdate('${u.engine}','${escAttr(u.url)}')">⬇ 更新</button>` : '<span class="dl-state ok">最新</span>'}
-      </div>`).join('');
+        <div>${state}</div>
+      </div>`;
+    }).join('') + `<div class="d" style="opacity:.65;margin-top:4px">开发版 = 上游最新代码（修复快但未充分测试）；稳定版 = 正式发布（更稳）。选哪个看你要新修复还是要安稳。</div>`;
   } catch (e) { $('engineList').innerHTML = `<div class="empty">检查失败（网络原因）</div>`; }
 }
 async function checkEngines() { toast('检查引擎版本中…'); loadEngines(); }
@@ -867,23 +914,24 @@ async function pickLocalEngine() {
   toast('引擎已安装 ✓ ' + (r.dest || ''));
   loadEngines();
 }
-async function applyEngineUpdate(engine, url) {
-  const prog = $('engProg-' + engine), bar = $('engProgBar-' + engine), txt = $('engProgTxt-' + engine), btn = $('engBtn-' + engine);
-  if (btn) btn.style.display = 'none';           // 防连点重复触发更新
+async function applyEngineUpdate(engine, url, sha256) {
+  const prog = $('engProg-' + engine), bar = $('engProgBar-' + engine), txt = $('engProgTxt-' + engine);
+  const btns = $('engBtns-' + engine);
+  if (btns) btns.style.display = 'none';         // 防连点重复触发更新
   if (prog) prog.style.display = 'block';
   if (txt) txt.textContent = '正在下载新引擎…';
   try {
-    const r = await window.fetchie.applyUpdate(engine, url);
+    const r = await window.fetchie.applyUpdate(engine, url, sha256 || undefined);
     if (prog) prog.style.display = 'none';
     if (!r || !r.ok) {
-      if (btn) btn.style.display = '';
+      if (btns) btns.style.display = '';
       return toast('引擎更新失败：' + ((r && r.reason) || '未知原因'));
     }
     toast(`引擎已更新到 ${r.newVersion} ✓ 之后的下载立即用上新引擎`);
     loadEngines();
   } catch (e) {
     if (prog) prog.style.display = 'none';
-    if (btn) btn.style.display = '';
+    if (btns) btns.style.display = '';
     toast('引擎更新失败：' + (e && e.message ? e.message : e));
   }
 }

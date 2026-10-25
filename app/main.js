@@ -610,7 +610,7 @@ app.whenReady().then(() => {
 
   // 引擎更新（风控对抗第一防线）
   ipcMain.handle('engine:checkUpdate', async () => autoupdate.checkAll());
-  ipcMain.handle('engine:applyUpdate', async (e, { engine, url }) => {
+  ipcMain.handle('engine:applyUpdate', async (e, { engine, url, sha256 }) => {
     // 进度直达渲染层（下载 20~30MB 要几十秒，没进度条用户以为卡死）。
     // 不再拿「队列运行中」挡更新：下载随时可点，只让替换阶段等正被 spawn 的引擎文件解锁
     // （Windows 锁文件，updateEngine 内部重试等，见 autoupdate.js）
@@ -618,7 +618,7 @@ app.whenReady().then(() => {
       if (win && !win.isDestroyed()) win.webContents.send('engine:progress', { engine, received, total, pct: total ? Math.round(received / total * 100) : null });
     };
     try {
-      return await autoupdate.updateEngine(engine, url, onProgress);
+      return await autoupdate.updateEngine(engine, url, onProgress, sha256);
     } finally {
       if (win && !win.isDestroyed()) win.webContents.send('engine:progress', { engine, done: true });
     }
@@ -633,6 +633,12 @@ app.whenReady().then(() => {
     const list = await autoupdate.checkAll().catch(() => null);
     if (!list) return;
     for (const u of list.filter(x => x.needUpdate)) {
+      // 防降级：本地是 dev 构建（1.33.0-dev / nightly / master）绝不被自动换回稳定版——
+      // dev 是用户主动选的，自动更新只负责稳定通道（0.2.7 双通道后 needUpdate 是字符串不等，dev 本地会误报）
+      if (autoupdate.isDevVer(u.local)) continue;
+      // 只有稳定版确实比本地新才动（本地 dev→稳定 由用户在设置页手动选）
+      const c = autoupdate.cmpVer(u.remote, u.local);
+      if (c === null || c <= 0) continue;
       try {
         const r = await autoupdate.updateEngine(u.engine, u.url);
         toastMsg(`${u.engine.replace('.exe', '')} 引擎已自动更新 → ${r.newVersion}`);

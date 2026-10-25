@@ -68,17 +68,41 @@ function download(url, dest, onProgress) {
   });
 }
 
-// 引擎更新白名单（engine 只许这两个文件名，URL 只许官方发布域名——
-// 堵死 renderer 被攻破后借 applyUpdate 任意下载/任意路径写 exe 的口子
+// 引擎更新白名单（engine 只许这两个文件名，URL 只许可信发布域名——
+// 堵死 renderer 被攻破后借 applyUpdate 任意下载/任意路径写 exe 的口子）。
+// 每个引擎允许多个来源：官方稳定版 + 官方/自建开发版。
 const ENGINE_ALLOW = {
-  'yt-dlp.exe': /^https:\/\/github\.com\/yt-dlp\/yt-dlp\/releases\/download\//,
-  'gallery-dl.exe': /^https:\/\/codeberg\.org\/mikf\/gallery-dl\/releases\/download\//
+  'yt-dlp.exe': [
+    /^https:\/\/github\.com\/yt-dlp\/yt-dlp\/releases\/download\//,                 // 稳定版
+    /^https:\/\/github\.com\/yt-dlp\/yt-dlp-master-builds\/releases\/download\//    // 官方 master 构建（每日）
+  ],
+  'gallery-dl.exe': [
+    /^https:\/\/codeberg\.org\/mikf\/gallery-dl\/releases\/download\//,             // 稳定版
+    /^https:\/\/github\.com\/guanyafei00\/Keepsake\/releases\/(download|latest\/download)\/gallery-dl-dev\.exe$/  // 自建开发版（上游 master 构建）
+  ]
 };
 
 async function latestYtDlp() {
   const loc = await getRedirect('https://github.com/yt-dlp/yt-dlp/releases/latest');
   const tag = (loc.match(/tag\/(.+?)(?:\?|$)/) || [])[1];
-  return { version: tag, url: `https://github.com/yt-dlp/yt-dlp/releases/download/${tag}/yt-dlp.exe` };
+  return { version: tag, url: `https://github.com/yt-dlp/yt-dlp/releases/download/${tag}/yt-dlp.exe`,
+    page: 'https://github.com/yt-dlp/yt-dlp/releases/tag/' + tag,
+    notes: await ghReleaseBody('yt-dlp/yt-dlp', tag) };
+}
+// yt-dlp 官方每日 master 构建（开发版通道）
+async function latestYtDlpNightly() {
+  const loc = await getRedirect('https://github.com/yt-dlp/yt-dlp-master-builds/releases/latest');
+  const tag = (loc.match(/tag\/(.+?)(?:\?|$)/) || [])[1];
+  return { version: tag, url: `https://github.com/yt-dlp/yt-dlp-master-builds/releases/download/${tag}/yt-dlp.exe`,
+    page: 'https://github.com/yt-dlp/yt-dlp-master-builds/releases/tag/' + tag,
+    notes: '官方每日自动构建，含最新修复（未经过完整测试，偶尔有副作用）' };
+}
+// GitHub release 正文（未认证 API 60 次/小时够用；失败降级为空，不挡检查）
+async function ghReleaseBody(repo, tag) {
+  try {
+    const j = await getJson(`https://api.github.com/repos/${repo}/releases/tags/${tag}`);
+    return String(j.body || '').slice(0, 800);
+  } catch (e) { return ''; }
 }
 async function latestGalleryDl() {
   // releases/latest 可能只有源码资产（v1.32.16 实测无二进制，旧逻辑返回的 URL 404）。
@@ -86,10 +110,45 @@ async function latestGalleryDl() {
   const list = await getJson('https://codeberg.org/api/v1/repos/mikf/gallery-dl/releases?limit=10');
   for (const rel of (Array.isArray(list) ? list : [])) {
     const asset = (rel.assets || []).find(a => a.name === 'gallery-dl.exe');
-    if (asset) return { version: rel.tag_name, url: asset.browser_download_url };
+    if (asset) return { version: rel.tag_name, url: asset.browser_download_url,
+      page: rel.html_url || 'https://codeberg.org/mikf/gallery-dl/releases',
+      notes: String(rel.body || '').slice(0, 800) };
   }
   throw new Error('codeberg 最近 10 个 release 均无 gallery-dl.exe');
 }
+
+// ===== 自建开发版元数据（engine-dev.json 放 Pages 更新源同仓库）=====
+// 结构：{ "gallery-dl.exe": { version, url, sha256, notes, built } }
+// 为什么 gallery-dl 的 dev 要自建：上游只在正式 release 发 exe，master 分支没有现成二进制，
+// 我们用 PyInstaller 从上游源码构建后传到 Keepsake Release（构建命令见工作区 2026-10-25 日志）。
+// 为什么 yt-dlp 不需要：官方 yt-dlp/yt-dlp-master-builds 仓库每天发构建。
+const DEV_META_URL = 'https://guanyafei00.github.io/fetchie-rules/engine-dev.json';
+let _devMeta = null, _devMetaAt = 0;
+async function getDevMeta() {
+  if (_devMeta && Date.now() - _devMetaAt < 600000) return _devMeta;   // 10 分钟缓存
+  try {
+    const j = await getJson(DEV_META_URL);
+    _devMeta = (j && typeof j === 'object') ? j : {};
+  } catch (e) { _devMeta = {}; }   // 拉不到 = 无 dev 通道，静默
+  _devMetaAt = Date.now();
+  return _devMeta;
+}
+
+// ===== 版本比较（显示用 + 自动更新降级防护）=====
+// '1.33.0-dev' → 取数字段 [1,33,0]；解析不了返回 null（调用方只判相等）
+function verKey(v) {
+  const m = String(v || '').replace(/^v/, '').match(/(\d+(?:\.\d+)+)/);
+  return m ? m[1].split('.').map(Number) : null;
+}
+function cmpVer(a, b) {
+  const pa = verKey(a), pb = verKey(b);
+  if (!pa || !pb) return String(a) === String(b) ? 0 : null;
+  const n = Math.max(pa.length, pb.length);
+  for (let i = 0; i < n; i++) { const x = pa[i] || 0, y = pb[i] || 0; if (x > y) return 1; if (x < y) return -1; }
+  return 0;
+}
+// dev 构建识别：-dev / -nightly / master 字样的版本号（自动更新绝不碰这类本地版本）
+function isDevVer(v) { return /-dev|-nightly|master/i.test(String(v || '')); }
 function localVersion(engine) {
   return new Promise(resolve => {
     // 主目录优先（自更新新版），回退随包目录（首装未更新时 bundled 版也算本地版本）
@@ -106,15 +165,29 @@ function localVersion(engine) {
   });
 }
 
-// 检查全部引擎，返回 [{engine, local, remote, url, needUpdate}]
+// 检查全部引擎：每引擎给 稳定 stable + 开发 dev 两个可选通道
+// 兼容字段（remote/url/needUpdate）保留 = 稳定通道语义，自动更新等旧消费方继续用
 async function checkAll() {
-  const [yLocal, gLocal, yRemote, gRemote] = await Promise.all([
+  const [yLocal, gLocal, yRemote, gRemote, yNightly, devMeta] = await Promise.all([
     localVersion('yt-dlp.exe'), localVersion('gallery-dl.exe'),
-    latestYtDlp().catch(() => null), latestGalleryDl().catch(() => null)
+    latestYtDlp().catch(() => null), latestGalleryDl().catch(() => null),
+    latestYtDlpNightly().catch(() => null), getDevMeta()
   ]);
   const out = [];
-  if (yRemote) out.push({ engine: 'yt-dlp.exe', local: yLocal, remote: yRemote.version, url: yRemote.url, needUpdate: yLocal !== yRemote.version.replace(/^v/, '') });
-  if (gRemote) out.push({ engine: 'gallery-dl.exe', local: gLocal, remote: gRemote.version, url: gRemote.url, needUpdate: gLocal !== gRemote.version.replace(/^v/, '') });
+  if (yRemote) out.push({
+    engine: 'yt-dlp.exe', local: yLocal,
+    remote: yRemote.version, url: yRemote.url,
+    needUpdate: yLocal !== yRemote.version.replace(/^v/, ''),
+    stable: { version: yRemote.version, url: yRemote.url, sha256: '', notes: yRemote.notes || '', page: yRemote.page || '' },
+    dev: yNightly ? { version: yNightly.version, url: yNightly.url, sha256: '', notes: yNightly.notes || '', page: yNightly.page || '', built: '' } : null
+  });
+  if (gRemote) out.push({
+    engine: 'gallery-dl.exe', local: gLocal,
+    remote: gRemote.version, url: gRemote.url,
+    needUpdate: gLocal !== gRemote.version.replace(/^v/, ''),
+    stable: { version: gRemote.version, url: gRemote.url, sha256: '', notes: gRemote.notes || '', page: gRemote.page || '' },
+    dev: (devMeta && devMeta['gallery-dl.exe']) ? { ...devMeta['gallery-dl.exe'], page: 'https://codeberg.org/mikf/gallery-dl/commits/branch/master' } : null
+  });
   return out;
 }
 
@@ -149,10 +222,11 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
 // 占用处理：Windows 下正被下载任务 spawn 的 exe 是锁住的——旧逻辑让用户「等队列完成后更新」，
 // 现在下载随时可点，只让替换这一步等当前引擎进程结束（重试 12 次×10s≈2 分钟，覆盖绝大多数任务时长）；
 // 仍失败则留下 .new 并报错，下次点「更新」检测到 30 分钟内暂存的新版会跳过下载直接换。
-async function updateEngine(engine, url, onProgress) {
+// expectSha：dev 构建的可选校验（我们自建的 gallery-dl-dev 在 engine-dev.json 里带哈希）；
+// 官方发布走官方 SHA2-256SUMS，没有官方哈希的引擎该参数为空 → 降级为仅 allowlist+HTTPS
+async function updateEngine(engine, url, onProgress, expectSha) {
   const allowRe = ENGINE_ALLOW[engine];
-  if (!allowRe) throw new Error('unknown engine: ' + engine);
-  if (typeof url !== 'string' || !allowRe.test(url)) throw new Error('update url not allowed');
+  if (!allowRe || !allowRe.some(re => re.test(String(url || '')))) throw new Error('update url not allowed');
   // 目标目录必须先建：userData/engines 平时不存在（Windows 引擎装在随包 resources/bin，
   // 只有自更新第一次落 userData）——不建目录 createWriteStream 直接 ENOENT（0.2.5 主人机器实锤，
   // 全新环境第一次引擎自动更新 100% 复现）
@@ -188,6 +262,15 @@ async function updateEngine(engine, url, onProgress) {
       }
     }
   }
+  // dev 构建自建哈希校验：暂存快路径也要验（暂存文件可能来自中断的旧下载）
+  if (expectSha) {
+    const got = await sha256File(tmp);
+    if (got !== String(expectSha).toLowerCase()) {
+      try { fs.unlinkSync(tmp); } catch (e) {}
+      throw new Error('SHA-256 校验失败（期望 ' + String(expectSha).slice(0, 12) + '…，实得 ' + got.slice(0, 12) + '…），已丢弃下载');
+    }
+    hashChecked = true;
+  }
   // 替换（含占用重试）：unlink 成功但 rename 失败的窗口里必须回滚旧版——
   // 留空档期会让正在跑的下载任务 ENOENT（引擎文件凭空消失）
   let swapped = false, lastErr = null;
@@ -208,4 +291,4 @@ async function updateEngine(engine, url, onProgress) {
   return { engine, newVersion: v, backup: bak, hashChecked, installDir: BIN };
 }
 
-module.exports = { configure, checkAll, updateEngine, localVersion, getJsonPublic: getJson, downloadPublic: download, sha256File, parseEngineSha, sumsUrlFor };
+module.exports = { configure, checkAll, updateEngine, localVersion, cmpVer, isDevVer, getJsonPublic: getJson, downloadPublic: download, sha256File, parseEngineSha, sumsUrlFor };

@@ -3,7 +3,7 @@ const { contextBridge, ipcRenderer } = require('electron');
 contextBridge.exposeInMainWorld('fetchie', {
   probe: () => ipcRenderer.invoke('engine:probe'),
   checkUpdate: () => ipcRenderer.invoke('engine:checkUpdate'),
-  applyUpdate: (engine, url) => ipcRenderer.invoke('engine:applyUpdate', { engine, url }),
+  applyUpdate: (engine, url, sha256) => ipcRenderer.invoke('engine:applyUpdate', { engine, url, sha256 }),
   pickLocalEngine: (engine) => ipcRenderer.invoke('engine:pickLocal', { engine }),
   strategySnapshot: () => ipcRenderer.invoke('strategy:snapshot'),
   strategyRefresh: () => ipcRenderer.invoke('strategy:refresh'),
