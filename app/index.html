@@ -26,7 +26,7 @@
   .logo { display:flex; align-items:center; gap:9px; font-weight:800; font-size:14.5px; letter-spacing:.3px; padding:4px 13px 14px; }
   .logo .gem { width:22px; height:22px; border-radius:7px; background:linear-gradient(135deg,var(--acc2),var(--acc-bright)); display:inline-flex; align-items:center; justify-content:center; font-size:12.5px; font-weight:800; color:#fff; }
   .logo .tag { font-size:11px; color:var(--acc2); background:var(--accbg); border-radius:var(--r-xs); padding:2px 7px; font-weight:600; }
-  /* 订阅多选（主人需求：点选 + Ctrl/Shift 批量） */
+  /* 订阅多选（用户需求：点选 + Ctrl/Shift 批量） */
   .pickbox { width:16px; height:16px; border:1.5px solid var(--line-strong); border-radius:4px; flex-shrink:0; cursor:pointer; display:flex; align-items:center; justify-content:center; font-size:11px; line-height:1; color:#fff; background:var(--panel); user-select:none; }
   .pickbox.on { background:var(--acc); border-color:var(--acc); }
   .selbar { position:fixed; bottom:18px; left:50%; transform:translateX(-50%); background:var(--panel); border:1px solid var(--line-strong); border-radius:var(--r); box-shadow:var(--shadow-lg); padding:10px 16px; display:none; gap:14px; align-items:center; z-index:180; font-size:13px; }
@@ -112,10 +112,10 @@
   .dl-state.ok { color:var(--green); } .dl-state.no { color:var(--txt2); font-weight:500; }
   .chip2 { display:inline-block; background:var(--panel2); color:var(--txt2); font-size:11px; border-radius:var(--r-sm); padding:2px 9px; margin:0 6px 6px 0; }
 
-  /* ===== 设置页三段式（主人 2026-10-25 提案）：左列分类竖排 / 右侧具体设置项 ===== */
+  /* ===== 设置页三段式（用户提案）：左列分类竖排 / 右侧具体设置项 ===== */
   .setWrap { display:flex; gap:14px; align-items:stretch; }
   .setNav { width:168px; flex-shrink:0; background:var(--panel); border:1px solid var(--line); border-radius:var(--r); padding:8px; box-shadow:var(--shadow); }
-  /* 导航框全高占满左列（主人 2026-10-25：别让它孤零零一坨），条目容器 sticky 跟滚——
+  /* 导航框全高占满左列（用户反馈：别让它孤零零一坨），条目容器 sticky 跟滚——
      之前 sticky 挂在框上、框只有内容高，占满和跟滚二选一；拆成内外两层后两个都要 */
   .setNavInner { position:sticky; top:12px; }
   .setNavItem { padding:9px 12px; border-radius:var(--r-md); font-size:12.5px; color:var(--txt2); cursor:pointer; display:flex; gap:8px; align-items:center; margin-bottom:2px; }
@@ -548,8 +548,8 @@ function render() {
   $('q-cnt2').textContent = active.length;
   $('d-cnt').textContent = done.length;
 
-  // —— 分组渲染：按主页名称（订阅名/UP主）聚合，组头箭头展开收起（主人需求）——
-  // 旧任务标题里的占位名（订阅 N）是历史快照改不了的，展示时清洗掉（主人反馈：不想再看到「订阅 3」）
+  // —— 分组渲染：按主页名称（订阅名/UP主）聚合，组头箭头展开收起（用户需求）——
+  // 旧任务标题里的占位名（订阅 N）是历史快照改不了的，展示时清洗掉（用户反馈：不想再看到「订阅 3」）
   const cleanTitle = t => String(t || '').replace(/^(\[订阅(?:回溯)?\])\s*订阅\s*\d+\s*·?\s*/, '$1 ').trim();
   // 标题还是 URL（图文/直连任务真名还没来）→ 缩短展示：至少看得出是哪个站的哪条，而不是一长串链接
   const prettyTitle = t => {
@@ -856,7 +856,7 @@ async function applyAppUpdate() {
   if (!r.ok) return toast('更新失败：' + (r.reason || ''));
   toast('安装已启动，Keepsake 即将退出…重新打开就是新版本');
 }
-// ===== 引擎更新（双通道：稳定版 / 开发版，主人 2026-10-25 提案）=====
+// ===== 引擎更新（双通道：稳定版 / 开发版，用户反馈：提案）=====
 // 渲染层小版本比较（与主进程 autoupdate.cmpVer 同规则，只取数字段）
 function _verKey(v) {
   const m = String(v || '').replace(/^v/, '').match(/(\d+(?:\.\d+)+)/);
@@ -871,7 +871,7 @@ function _cmpVer(a, b) {
 }
 // 悬停提示文案：版本 + 更新内容（截 500 字符，转义进 title）
 function _engTip(label, ch) {
-  if (!ch) return label || '';   // 通道对象缺失时给空提示，绝不再让它炸渲染（0.2.12 主人实锤 reading 'notes'）
+  if (!ch) return label || '';   // 通道对象缺失时给空提示，绝不再让它炸渲染（0.2.12 实测实锤 reading 'notes'）
   const notes = String(ch.notes || '').trim();
   const built = ch.built ? `\n构建日期：${ch.built}` : '';
   const tail = notes ? `\n---- 更新内容 ----\n${notes.slice(0, 500)}` : '';
@@ -944,7 +944,7 @@ async function loadEngines() {
     _engRetryUsed = false;
   } catch (e) {
     // 不再吞异常统一谎称「直连和镜像都不通」——真实错误显示出来才能对症（0.2.8 ok:true 乌龙同教训）：
-    // 主人 2026-10-25 反馈设置页报失败而左下角能查成功，两入口同一 IPC，必须看到真因才能定位
+    // 用户反馈设置页报失败而左下角能查成功，两入口同一 IPC，必须看到真因才能定位
     const msg = escAttr(String((e && e.message) || e)).slice(0, 140);
     // stack 首帧带文件+行号：错误类异常（非网络）再崩时一眼定位（0.2.12 reading 'notes' 无行号瞎猜的教训）
     const frame = escAttr(String((e && e.stack) || '').split('\n').map(s => s.trim()).find(s => /index\.html:\d+/.test(s)) || '').slice(0, 90);
@@ -1039,7 +1039,7 @@ async function saveNotify() {
   await window.fetchie.setNotify({ on: $('notifyChk').checked, mode: $('notifyModeSel').value });
   toast($('notifyChk').checked ? ($('notifyModeSel').value === 'batch' ? '已设为：全部完成后统一通知' : '已设为：每个任务完成即通知') : '已关闭下载完成通知');
 }
-// 开机自启动（主人 2026-10-25）：注册系统 login item；未完成任务开机自动续跑
+// 开机自启动（用户反馈）：注册系统 login item；未完成任务开机自动续跑
 async function saveAutoStart() {
   const on = $('autoStartChk').checked;
   const r = await window.fetchie.setAutoStart(on);
@@ -1108,7 +1108,7 @@ async function loadSubs() {
   renderSubs();
   refreshNavCounts();
 }
-// 侧栏角标常驻刷新（主人反馈：订阅/媒体库不点开就永远显示 0）
+// 侧栏角标常驻刷新（用户反馈：订阅/媒体库不点开就永远显示 0）
 function refreshNavCounts() {
   const s = $('s-cnt'); if (s) s.textContent = subsItems.length;
   const l = $('l-cnt'); if (l && libData) l.textContent = libData.groups.length;
@@ -1123,7 +1123,7 @@ function friendlySubFail(m) {
     .replace(/\[[^\]]*\]\[error\]\s*/gi, '')
     .replace(/\s+/g, ' ').trim();
   const k = core || s;   // 剥噪后的主干优先，剥秃了才用原文
-  // 报错自带 [站点] 前缀 → 出站点名定制话术（主人 2026-10-24 实证：X/IG 的 AuthRequired 直出英文没人看得懂）
+  // 报错自带 [站点] 前缀 → 出站点名定制话术（实测：X/IG 的 AuthRequired 直出英文没人看得懂）
   // 注意要先从原文抓 [xxx][error] 标签：剥噪一步会把标签吃掉，exited with code 前缀型的站点名就丢了
   const siteRaw = (s.match(/^\[(\w+)\]/i) || s.match(/\[(\w+)\]\[error\]/i) || (k.match(/^\[(\w+)\]/i) || []))[1];
   const siteName = siteRaw ? ({ twitter: 'X（推特）', instagram: 'Instagram', pixiv: 'Pixiv', weibo: '微博', bilibili: 'B站', youtube: 'YouTube' }[siteRaw.toLowerCase()] || siteRaw) : '';
@@ -1158,7 +1158,7 @@ async function renderSubs() {
   const htmls = [];
   for (const s of items) {
     const ago = s.lastCheck ? Math.round((Date.now() - s.lastCheck) / 60000) : null;
-    // 失败态显式化（Q1 主人实证）：旧逻辑失败时 lastCheck 不动 → 永远显示「尚未检查」，
+    // 失败态显式化（实测确认）：旧逻辑失败时 lastCheck 不动 → 永远显示「尚未检查」，
     // 用户分不清「没查过」和「查了但失败」。lastFailAt 晚于 lastCheck = 最近一次尝试失败
     const lastFailed = s.lastError && (!s.lastCheck || (s.lastFailAt || 0) > (s.lastCheck || 0));
     const statusHtml = lastFailed
@@ -1201,7 +1201,7 @@ async function renderSubs() {
   updateSelBar();
 }
 
-// ===== 订阅多选（主人需求：鼠标点选，Ctrl 切换、Shift 范围选，批量下载）=====
+// ===== 订阅多选（用户需求：鼠标点选，Ctrl 切换、Shift 范围选，批量下载）=====
 const _subSel = new Set();
 let _subAnchor = null;
 function subPick(e, id) {
@@ -1405,7 +1405,7 @@ async function addSub() {
   try { await window.fetchie.subsCheck(r.sub.id); } catch (e) {}
   loadSubs();
   const info = subsItems.find(s => s.id === r.sub.id) || {};
-  // 主人需求：订阅后询问是否立即回溯下载
+  // 用户需求：订阅后询问是否立即回溯下载
   if (confirm(`订阅「${info.name || '成功'}」完成，已记录 ${info.knownCount || 0} 条内容。\n\n要把 TA 已发布的内容现在就全部下载吗？`)) {
     await backfillSub(r.sub.id);
   } else {
@@ -1730,14 +1730,14 @@ refreshLoginBadge();
 
 window.fetchie.onQueue(snap => { items = snap; render(); });
 window.fetchie.snapshot().then(s => { items = s; render(); });
-// 侧栏角标首刷（主人反馈：不点开订阅/媒体库就看不到现有数量）
+// 侧栏角标首刷（用户反馈：不点开订阅/媒体库就看不到现有数量）
 // 订阅数立即取（读 json 秒回）；媒体库后台静默全扫一次（大目录不卡界面，扫完角标自然更新）
 window.fetchie.subsList().then(list => { subsItems = list || []; refreshNavCounts(); }).catch(() => {});
 loadLibrary(true).catch(() => {});
 
-// ===== 设置页三段式（主人 2026-10-25 提案：设置分类单独竖列，点击进入具体设置项）=====
+// ===== 设置页三段式（用户提案：设置分类单独竖列，点击进入具体设置项）=====
 // 左列 = 分类导航；右侧 = 所选分类的设置卡片。运行时按 h3 文本归组现有卡片，零 HTML 结构手术
-// 顺序即导航顺序（主人 2026-10-25：Cookie 管理最常用，挪到最上方）
+// 顺序即导航顺序（用户反馈：Cookie 管理最常用，挪到最上方）
 const SET_SECTIONS = [
   ['set-cookies', '🔑', 'Cookie 管理'],
   ['set-downloads', '⚙', '下载设置'],

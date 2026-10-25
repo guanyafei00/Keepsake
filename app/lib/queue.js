@@ -166,7 +166,7 @@ class DownloadQueue {
     return false;
   }
 
-  // 退出前清场但不取消任务（主人 2026-10-25：未完成项目下次启动自动续跑）：
+  // 退出前清场但不取消任务（用户反馈：未完成项目下次启动自动续跑）：
   // 只杀 downloading 的子进程/请求防孤儿，状态就地改回 queued 落盘；
   // queued/held 原样保留 → 启动时 restore 自动重排续跑。与 cancel 的区别 = 不标 canceled
   killRunning() {

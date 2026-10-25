@@ -1,5 +1,5 @@
 // README 演示数据生成器：造一份体面的假订阅/任务/媒体库（screenshots/demo-userdata + demo-media）
-// 用正常向知名账号（影视飓风/老饭骨/NASA/natgeo），绝不使用主人真实数据。跑一次即可，重跑会重置。
+// 用正常向知名账号（影视飓风/老饭骨/NASA/natgeo），绝不使用真实用户数据。跑一次即可，重跑会重置。
 const fs = require('fs');
 const path = require('path');
 

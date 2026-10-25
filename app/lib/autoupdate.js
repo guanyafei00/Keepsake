@@ -11,7 +11,7 @@ let BIN = null;          // 可写引擎目录（userData/engines）：更新落
 let FALLBACK_BIN = null; // 随包目录（resources/bin）：本地版本探测的回退位
 function configure({ binDir, fallbackBinDir }) { BIN = binDir; FALLBACK_BIN = fallbackBinDir || null; }
 
-// 国内镜像回退（主人 2026-10-25：直连 GitHub/Codeberg 失败时自动换镜像重试）
+// 国内镜像回退（用户反馈：直连 GitHub/Codeberg 失败时自动换镜像重试）
 // ghfast.top / gh-proxy.com 是通用 URL 前缀代理：原样转发官方文件，不改动内容；
 // yt-dlp 下载后仍有官方 SHA2-256SUMS 校验兜底，gallery-dl 走 engine-stable.json 里的哈希（有就验）
 const GH_MIRRORS = ['https://ghfast.top/', 'https://gh-proxy.com/'];
@@ -60,7 +60,7 @@ async function getTextMirrored(url) {
   throw lastErr;
 }
 // onProgress(received, total) 可选：引擎下载 20~30MB 要几十秒，没进度条用户以为卡死
-// 直连失败自动换镜像前缀重试（主人 2026-10-25）
+// 直连失败自动换镜像前缀重试（用户反馈）
 function download(url, dest, onProgress) {
   const cands = urlCandidates(url);
   const attempt = u => new Promise((resolve, reject) => {
@@ -285,7 +285,7 @@ async function updateEngine(engine, url, onProgress, expectSha) {
   const allowRe = ENGINE_ALLOW[engine];
   if (!allowRe || !allowRe.some(re => re.test(String(url || '')))) throw new Error('update url not allowed');
   // 目标目录必须先建：userData/engines 平时不存在（Windows 引擎装在随包 resources/bin，
-  // 只有自更新第一次落 userData）——不建目录 createWriteStream 直接 ENOENT（0.2.5 主人机器实锤，
+  // 只有自更新第一次落 userData）——不建目录 createWriteStream 直接 ENOENT（0.2.5 用户机器实锤，
   // 全新环境第一次引擎自动更新 100% 复现）
   try { fs.mkdirSync(BIN, { recursive: true }); } catch (e) {}
   const exe = path.join(BIN, engine);

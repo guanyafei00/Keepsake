@@ -114,7 +114,7 @@ function pixivLogout(userData) {
 }
 
 // ===== pixiv:// 内部协议接管（第 4 层，也是唯一真正拦得住的一层）=====
-// 背景（主人 2026-10-20 实测）：页面用 window.location = 'pixiv://…' 跳转时，Chromium 不走
+// 背景（实测）：页面用 window.location = 'pixiv://…' 跳转时，Chromium 不走
 // 网络栈、也不触发 will-navigate——直接落给 OS「外部协议启动」，没装 Pixiv App 就弹
 // 「获取打开此 pixiv 链接的应用」对话框，登录 code 就此丢失。前三种截获全被绕过。
 // 修法：ready 前 registerSchemesAsPrivileged（standard）+ ready 后 protocol.handle 把
@@ -125,7 +125,7 @@ let _deepLinkSink = null;   // 当前授权窗口的深链回调（openPixivLogi
 
 function installPixivProtocol() {
   const { session } = require('electron');
-  // 坑（主人 2026-10-24 实测）：授权窗口挂在 persist:pixiv-login 独立 session（webPreferences.partition），
+  // 坑（实测）：授权窗口挂在 persist:pixiv-login 独立 session（webPreferences.partition），
   // 而 protocol.handle 是按 session 隔离的——只注册默认 session 等于白注册，授权窗里的 pixiv://
   // 照样落 OS 弹「获取应用」。必须把 handler 同时挂到默认 session 和授权窗用的 partition session。
   const handler = req => {

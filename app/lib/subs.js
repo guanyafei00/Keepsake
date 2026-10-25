@@ -258,7 +258,7 @@ function parseKeywordsName(text) {
     }
   }
   // 显示名优先，其次 IG 的 fullname/full_name（display name），最后 username（handle 兜底）。
-  // IG 字段缺失是「订阅 N」占位名永不更新的根因（主人 2026-10-25 实锤：IG -K 只有 fullname/user.*，
+  // IG 字段缺失是「订阅 N」占位名永不更新的根因（实测实锤：IG -K 只有 fullname/user.*，
   // 旧优先级链全是 twitter 系字段，IG 永远取不到名）
   return map['author.nick'] || map['user.nick'] || map['author.name'] || map['user.name']
     || map['fullname'] || map['user.full_name'] || map['user.username']
@@ -299,7 +299,7 @@ function update(id, patch) {
     if (k === 'userPaused' || k === 'autoTranscribe') s[k] = !!patch[k];
     else if (k === 'group') s[k] = String(patch[k] || '').trim().slice(0, 20);
     else if (k === 'name') {
-      // 手动改名（主人 2026-10-25：订阅 N 挂着难看还没法改）。空名/全空白拒绝，不静默吞
+      // 手动改名（用户反馈：订阅 N 挂着难看还没法改）。空名/全空白拒绝，不静默吞
       const n = String(patch[k] || '').trim().slice(0, 40);
       if (!n) return { ok: false, reason: '订阅名称不能为空' };
       if (n !== s.name) { s.name = n; s._auto = false; renamed = n; }   // 用户起名后自动认领永不再覆盖
@@ -455,7 +455,7 @@ async function checkSub(sub, onNew) {
 
   const known = new Set(sub.known || []);
   const fresh = items.filter(it => !known.has(it.id));
-  // gone（源头删除）判定 v2（主人实证旧版误报）：只和「上一轮实际看到的窗口」比对——
+  // gone（源头删除）判定 v2（用户实证旧版误报）：只和「上一轮实际看到的窗口」比对——
   // 旧版拿全量 known（500条）对最新一页（12/20条），老帖滑出列表就被误判删除。
   // 窗口滑动宽容：本轮新增 freshCount 条新帖，会把 lastSeen 最老的 freshCount 条挤出列表（items 最新在前，被挤的在尾部），
   // 剩下的 missing 才算真删除。
@@ -472,7 +472,7 @@ async function checkSub(sub, onNew) {
   if (sub.kind === 'bili-collection') {
     // 合集=全量拉取（flat-playlist 秒回）：known 与 visible 均为全量，直接比对。
     // 旧代码拿 lastSeen(tail 100) 对全量窗口，头部老条目每轮都「不在窗口」→ 连续 2 轮后
-    // 被误判源头删除（>100 项的合集每轮检查必误报，确定性 bug，主人实证）
+    // 被误判源头删除（>100 项的合集每轮检查必误报，确定性 bug，实测确认）
     candidates = [...known].filter(id => !visible.has(id));
   } else {
     // 部分窗口类型（bilibili 翻 2 页 / gdl、x 取 20 条）：只与上一轮实际窗口比对 + 新帖挤出宽容。
@@ -537,7 +537,7 @@ async function checkSub(sub, onNew) {
   return { ok: true, fresh: fresh.length, total: items.length, gone: gone.length, skippedLatest: sub.lastSkippedLatest || 0, items: items.map(i => ({ id: i.id, type: i.type })) };
 }
 
-// 回溯下载（主人需求「订阅后立即下载」）：拉全部动态并逐条回调，不管 known——
+// 回溯下载（用户需求「订阅后立即下载」）：拉全部动态并逐条回调，不管 known——
 // 由调用方按队列已有 URL 查重。youtube 回溯多拉一些（50 条）
 async function backfill(id, onItem) {
   const sub = get(id);

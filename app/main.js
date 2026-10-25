@@ -3,7 +3,7 @@ const { app, BrowserWindow, ipcMain, shell, Tray, Menu, Notification, dialog, cl
 // ★ Pixiv 授权深链接管（必须在 app ready 前、且全局只能调一次）：把 pixiv 注册为内部标准协议，
 // 页面 location 跳 pixiv:// 才会路由进 protocol.handle（pixivauth.installPixivProtocol），
 // 否则 Chromium 交给 OS「外部协议启动」→ 没装 Pixiv App 弹「获取打开此链接的应用」，
-// 授权 code 直接丢失（主人 2026-10-20 实测）
+// 授权 code 直接丢失（实测）
 protocol.registerSchemesAsPrivileged([{ scheme: 'pixiv', privileges: { standard: true, secure: true } }]);
 // README 截图模式需在 app ready 前禁硬件加速（无 GPU/沙箱环境下 GPU 进程会崩）
 if (process.env.KEEPSAKE_CAPTURE) app.disableHardwareAcceleration();
@@ -15,7 +15,7 @@ const { spawn } = require('child_process');   // app:applyUpdate 静默安装用
 // GPU 崩溃保护：核显/驱动异常机器上降级为软件渲染（实测 0xC0000005 GPU 进程崩溃）
 app.disableHardwareAcceleration();
 
-// autotest 数据隔离：测试绝不读写用户真实数据（曾把测试任务/订阅写进主人 %APPDATA%）
+// autotest 数据隔离：测试绝不读写用户真实数据（曾把测试任务/订阅写进用户 %APPDATA%）
 if (process.env.FETCHIE_AUTOTEST) {
   app.setPath('userData', path.join(os.tmpdir(), 'keepsake-autotest-' + Date.now()));
 }
@@ -23,7 +23,7 @@ if (process.env.FETCHIE_AUTOTEST) {
 if (process.env.KEEPSAKE_E2E) {
   app.setPath('userData', path.join(os.tmpdir(), 'keepsake-e2e-' + Date.now()));
 }
-// README 截图数据隔离：用仓库内演示数据（screenshots/demo-userdata），公开截图不暴露主人真实订阅
+// README 截图数据隔离：用仓库内演示数据（screenshots/demo-userdata），公开截图不暴露真实订阅
 if (process.env.KEEPSAKE_CAPTURE) {
   app.setPath('userData', path.join(__dirname, '..', 'screenshots', 'demo-userdata'));   // app/ 上一层就是工作区根
 }
@@ -56,7 +56,7 @@ const RULES_INTERVAL_MS = 6 * 3600 * 1000;  // 远程风控规则 6 小时拉一
 // 默认规则服务端（静态 JSON，随规则变更直接更新线上文件）；FETCHIE_RULES_URL 环境变量可覆盖
 const RULES_URL = process.env.FETCHIE_RULES_URL || 'https://guanyafei00.github.io/fetchie-rules/rules.json';
 let _rulesVersion = null;   // 最近一次成功应用的远程规则版本（UI 展示用）
-// 出厂预置更新源（A4 决策 2026-10-10：主人接受「每次发版同步更新线上 update.json」义务）
+// 出厂预置更新源（A4 决策 2026-10-10：维护约定：每次发版同步更新线上 update.json）
 // 用户在设置页自己填的 updateUrl 优先于预置值；每次发版流程：签 update.json → 部署到该地址
 const UPDATE_URL_PRESET = 'https://guanyafei00.github.io/fetchie-rules/update.json';
 
@@ -194,7 +194,7 @@ function createWindow() {
   // 导航锁（渲染层失守也不许导航去外站——preload 不在外部页面重新注入，IPC 暴露面收住
   win.webContents.on('will-navigate', (e, url) => { if (!url.startsWith('file://')) e.preventDefault(); });
   win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
-  // 右键菜单（Electron 默认无）：输入框/可编辑区提供 剪切/复制/粘贴/全选（主人反馈：粘贴栏不支持右键粘贴）
+  // 右键菜单（Electron 默认无）：输入框/可编辑区提供 剪切/复制/粘贴/全选（用户反馈：粘贴栏不支持右键粘贴）
   win.webContents.on('context-menu', (e, params) => {
     if (!params.isEditable) return;
     e.preventDefault();
@@ -396,7 +396,7 @@ app.whenReady().then(() => {
   function jobState(p, state, note) {   // 媒体库通用任务状态（翻译/烧字幕），渲染层 jobStates 消费
     if (win && !win.isDestroyed()) win.webContents.send('lib:job', { filePath: p, state, note });
   }
-  // 翻译串行链：逐个跑，防并发打爆 AI 接口；无 SRT 时自动先转写（对主人零门槛）
+  // 翻译串行链：逐个跑，防并发打爆 AI 接口；无 SRT 时自动先转写（对用户零门槛）
   let srtChain = Promise.resolve();
   function enqueueTranslate(mediaPath) {
     srtChain = srtChain.then(() => translateOne(mediaPath)).catch(e => {
@@ -546,7 +546,7 @@ app.whenReady().then(() => {
     if (raw.status === 'queued') {
       const item = queue.add(raw.url, { engine: raw.engine, title: raw.title, _range: raw._range, _subs: raw._subs, _audio: raw._audio, _transcribe: raw._transcribe, _subId: raw._subId });
       item.filePath = raw.filePath; item.fileCount = raw.fileCount;
-      restoredN++;   // 未完成续跑（主人 2026-10-25）：排队任务也计入恢复数
+      restoredN++;   // 未完成续跑（用户反馈）：排队任务也计入恢复数
     } else {
       queue.items.set(raw.id, raw);
       queue.order.push(raw.id);
@@ -620,7 +620,7 @@ app.whenReady().then(() => {
     };
     try {
       // ok:true 必须带上：渲染层以 r.ok 判成败——以前裸返 updateEngine 结果（无 ok 字段），
-      // 更新成功也报「引擎更新失败：未知原因」（主人 2026-10-25 实锤，重启后才发现其实装上了）
+      // 更新成功也报「引擎更新失败：未知原因」（实测实锤：重启后才发现其实装上了）
       const r = await autoupdate.updateEngine(engine, url, onProgress, sha256);
       return { ok: true, ...r };
     } finally {
@@ -708,7 +708,7 @@ app.whenReady().then(() => {
   // 更新源配置（只许写 updateUrl 字段，防 renderer 被攻破时改其它配置）
   ipcMain.handle('settings:setUpdateUrl', (e, { url }) => { settings.set({ updateUrl: String(url || '').trim() }); return { ok: true }; });
   ipcMain.handle('settings:setEngineAuto', (e, { on }) => { settings.set({ engineAutoUpdate: !!on }); return { ok: true }; });
-  // 开机自启动（主人 2026-10-25）：settings.autoStart → 系统 login item。
+  // 开机自启动（用户反馈）：settings.autoStart → 系统 login item。
   // dev 下 process.execPath 是 electron.exe，注册了也没意义 → 只记设置不注册（诚实返回）
   function applyAutoStart() {
     if (!app.isPackaged) return;
@@ -1096,7 +1096,7 @@ app.whenReady().then(() => {
         if (real.userPaused) { results.push({ id: sub.id, ok: false, reason: '已暂停（手动）' }); continue; }   // #70②
         if (real.paused) {
           // 手动单查自动解除连续失败暂停：cookie/授权修好后用户点 ⟳ 应立即生效，而非强制先点 ▶ 恢复。
-          // 根因场景：IG 订阅在没 cookie 时期被 failStreak≥3 自动暂停，cookie 导入后点 ⟳ 仍被这里拦住（主人 2026-10-17 实测）
+          // 根因场景：IG 订阅在没 cookie 时期被 failStreak≥3 自动暂停，cookie 导入后点 ⟳ 仍被这里拦住（实测）
           if (onlyId === sub.id) { real.paused = false; real.failStreak = 0; real.lastError = null; subs.save(); }
           else { results.push({ id: sub.id, ok: false, reason: '已暂停（连续失败）' }); continue; }
         }
@@ -1136,7 +1136,7 @@ app.whenReady().then(() => {
           real.failStreak = 0;
           real.lastError = null;   // 检查通过：清失败原因（UI「检查失败」态复位）
           subs.refreshName(real.id);   // 占位名补救（bilibili/gdl/x 都覆盖；已修好的直接跳过）
-          // 新订阅自动全量（主人需求：订阅=要全部）：首检建好基线就自动回溯；
+          // 新订阅自动全量（用户需求：订阅=要全部）：首检建好基线就自动回溯；
           // 队列忙/失败不清标记，下轮检查（10 分钟）自动重试，成功才落盘清除
           if (real.autoBackfill && r.ok) {
             runBackfill(real).then(r2 => {
@@ -1302,7 +1302,7 @@ app.whenReady().then(() => {
     return { ok: true };
   });
   // 回溯下载（手动 ⤓ 与「新订阅自动全量」共用）：拉订阅源全部媒体逐条入队（队列内已有同 URL 的自动跳过）
-  // 主人 2026-10-17 反馈「回溯只能一个一个来」：旧实现 FIFO 要等整个下载队列全空才跑下一个回溯——
+  // 用户反馈「回溯只能一个一个来」：旧实现 FIFO 要等整个下载队列全空才跑下一个回溯——
   // A 订阅回溯入队 200 个任务后，B 订阅要等这 200 个全下完才开始拉清单，干等几小时。
   // 回溯本身只是「拉清单 + 入队」（gdl/x 一次请求搞定，bilibili 全量翻页较重），
   // 下载并发/风控由队列自己管，没道理串行。改为并发 3 个回溯（bilibili 全量翻页 3 路并行是
@@ -1446,7 +1446,7 @@ app.whenReady().then(() => {
     else toastMsg(skipped ? '该组全部文件都已有字幕' : '没有可转写的媒体文件');
     return { ok: true, added, skipped };
   });
-  // 阶段一：双语字幕——无 SRT 自动先转写，再分块翻译合成中英对照（走主人已配的 AI key）
+  // 阶段一：双语字幕——无 SRT 自动先转写，再分块翻译合成中英对照（走用户已配置的 AI key）
   ipcMain.handle('srt:translate', (e, { filePath }) => {
     const resolved = insideOutDir(filePath);
     if (!resolved) return { ok: false, reason: '只允许处理下载目录内的文件' };
@@ -1737,7 +1737,7 @@ app.on('window-all-closed', () => {
 
 app.on('before-quit', () => {
   quitting = true;
-  // 未完成任务续跑（主人 2026-10-25）：退出不再取消任务——
+  // 未完成任务续跑（用户反馈）：退出不再取消任务——
   // downloading 杀子进程防孤儿后标 queued，queued/held 原样落盘；下次启动 restore 自动续跑。
   // （旧行为 before-quit 全取消，重启后队列是空的，与「自启动后继续未完成项目」矛盾）
   try {

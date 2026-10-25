@@ -43,7 +43,7 @@ async function walk(dir, base, out, ctx) {
       await walk(full, base, out, ctx);
       ctx.depth--;
     } else if (ent.isFile()) {
-      // 只收音视频图片（主人反馈：.srt/.txt 等附属文件不进媒体库）；.part 下载残留跳过
+      // 只收音视频图片（用户反馈：.srt/.txt 等附属文件不进媒体库）；.part 下载残留跳过
       const ext = path.extname(ent.name).toLowerCase();
       if (ext === '.part' || ext === '.tmp') continue;
       if (!VIDEO_EXT.has(ext) && !IMG_EXT.has(ext)) continue;
@@ -96,7 +96,7 @@ async function scan() {
       sizeText: fmtSize(g.totalSize),
       lastMtime: g.lastMtime,
       // 实测两引擎的文件 mtime 都≈帖子发布时间：gallery-dl 会把文件时间设为发帖日期（2022 老帖 mtime 停在当天），
-      // yt-dlp 加 --mtime 后用 HTTP Last-Modified（≈视频上传时间）→ 降序 = 最新帖子在前（主人需求）
+      // yt-dlp 加 --mtime 后用 HTTP Last-Modified（≈视频上传时间）→ 降序 = 最新帖子在前（用户需求）
       files: g.files.sort((a, b) => b.mtime - a.mtime).map(f => ({
         name: f.name, path: f.path, size: f.size, sizeText: fmtSize(f.size),
         mtime: f.mtime, kind: f.kind,
