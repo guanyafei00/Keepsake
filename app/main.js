@@ -618,7 +618,10 @@ app.whenReady().then(() => {
       if (win && !win.isDestroyed()) win.webContents.send('engine:progress', { engine, received, total, pct: total ? Math.round(received / total * 100) : null });
     };
     try {
-      return await autoupdate.updateEngine(engine, url, onProgress, sha256);
+      // ok:true 必须带上：渲染层以 r.ok 判成败——以前裸返 updateEngine 结果（无 ok 字段），
+      // 更新成功也报「引擎更新失败：未知原因」（主人 2026-10-25 实锤，重启后才发现其实装上了）
+      const r = await autoupdate.updateEngine(engine, url, onProgress, sha256);
+      return { ok: true, ...r };
     } finally {
       if (win && !win.isDestroyed()) win.webContents.send('engine:progress', { engine, done: true });
     }

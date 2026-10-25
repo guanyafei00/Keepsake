@@ -860,38 +860,56 @@ function _engTip(label, ch) {
   const page = ch.page ? `\n（详情页：${ch.page}）` : '';
   return `${label}${built}${tail}${page}`.replace(/"/g, "'");
 }
-function _engBtn(engine, ch, label, cls) {
-  return `<button type="button" class="btn-mini" style="color:${cls}" onclick="applyEngineUpdate('${engine}','${escAttr(ch.url)}','${escAttr(ch.sha256 || '')}')" title="${escAttr(_engTip(label, ch))}">${label}</button>`;
+// 通道候选收集：稳定/开发里与本地不同的才进下拉；本地比目标新 = 回退
+function _engChannels(u) {
+  const local = u.local || '';
+  const s = u.stable || { version: u.remote, url: u.url, notes: '' };
+  const out = [];
+  if (s.version && s.version !== local) {
+    const c = local ? _cmpVer(s.version, local) : 1;
+    const back = c !== null && c < 0;
+    out.push({ key: 'stable', ch: s, label: '稳定 ' + s.version.replace(/^v/, '') + (back ? '（回退）' : '') });
+  }
+  const d = u.dev;
+  if (d && d.version && d.version !== local) {
+    const c = local ? _cmpVer(d.version, local) : 1;
+    out.push({ key: 'dev', ch: d, label: '开发 ' + d.version + (c !== null && c < 0 ? '（回退）' : '') });
+  }
+  return out;
+}
+// 下拉选中项变化 → 换悬停提示（option 的 title 各浏览器不可靠，挂到 select 上）
+function engSelChange(engine) {
+  const sel = $('engSel-' + engine);
+  const pool = (window._engineCh || {})[engine] || {};
+  const pick = pool[sel.value];
+  if (pick) sel.title = _engTip(pick.label, pick.ch);
 }
 async function loadEngines() {
   try {
     const list = await window.fetchie.checkUpdate();
+    window._engineCh = window._engineCh || {};
     $('engineList').innerHTML = list.map(u => {
       const local = u.local || '';
       const s = u.stable || { version: u.remote, url: u.url, notes: '' };
-      const d = u.dev;
-      const btns = [];
-      // 稳定通道：本地与稳定版不同才给按钮；本地 dev 比稳定新时标「回退」
-      if (s.version && s.version !== local) {
-        const c = local ? _cmpVer(s.version, local) : 1;
-        const back = c !== null && c < 0;   // 稳定版比本地旧 = 回退（本地多半是 dev）
-        btns.push(_engBtn(u.engine, s, (back ? '⏮ 稳定 ' : '⬇ 稳定 ') + s.version.replace(/^v/, '') + (back ? '（回退）' : ''), 'var(--acc2)'));
+      const chans = _engChannels(u);
+      window._engineCh[u.engine] = {};
+      chans.forEach(x => { window._engineCh[u.engine][x.key] = x.ch; });
+      let state;
+      if (!chans.length) {
+        state = '<span class="dl-state ok">最新</span>';
+      } else {
+        const opts = chans.map(x => `<option value="${x.key}">${escAttr(x.label)}</option>`).join('');
+        state = `<span id="engBtns-${u.engine}" style="display:inline-flex;gap:6px;align-items:center">
+          <select id="engSel-${u.engine}" onchange="engSelChange('${u.engine}')" style="max-width:170px;padding:6px 9px;border:1px solid var(--line);border-radius:var(--r-md);font:inherit;background:var(--panel2);color:var(--txt);outline:none">${opts}</select>
+          <button type="button" class="btn-mini" style="color:var(--acc2)" onclick="applyEngineUpdateSel('${u.engine}')" title="下载所选版本并替换（悬停下拉框看更新内容）">⬇ 更新</button>
+        </span>`;
       }
-      // 开发通道：存在且与本地不同才给按钮
-      if (d && d.version && d.version !== local) {
-        const c = local ? _cmpVer(d.version, local) : 1;
-        btns.push(_engBtn(u.engine, d, c > 0 || c === null ? '🧪 开发 ' + d.version : '🧪 开发 ' + d.version + '（回退）', 'var(--txt2)'));
-      }
-      // 本地版本展示：dev 构建标注一下
-      const localDisp = local || '未安装';
-      const state = btns.length ? `<span id="engBtns-${u.engine}">${btns.join(' ')}</span>`
-        : '<span class="dl-state ok">最新</span>';
-      const desc = btns.length
-        ? `本地 ${localDisp} · 稳定 ${s.version ? s.version.replace(/^v/, '') : '?'}${d ? ' · 开发 ' + d.version : ''}（悬停按钮看更新内容）`
-        : `已是最新（${localDisp}）`;
+      const desc = chans.length
+        ? `本地 ${local || '未安装'} · 稳定 ${s.version ? s.version.replace(/^v/, '') : '?'}${u.dev ? ' · 开发 ' + u.dev.version : ''}（悬停下拉框看所选版本的更新内容）`
+        : `已是最新（${local || '未安装'}）`;
       return `
       <div class="model">
-        <div class="mi">${btns.length ? '⬆️' : '✅'}</div>
+        <div class="mi">${chans.length ? '⬆️' : '✅'}</div>
         <div class="mt"><b>${u.engine.replace('.exe', '')}</b>
           <div class="d">${desc}</div>
           <div id="engProg-${u.engine}" style="display:none;margin-top:6px">
@@ -902,7 +920,16 @@ async function loadEngines() {
         <div>${state}</div>
       </div>`;
     }).join('') + `<div class="d" style="opacity:.65;margin-top:4px">开发版 = 上游最新代码（修复快但未充分测试）；稳定版 = 正式发布（更稳）。选哪个看你要新修复还是要安稳。</div>`;
+    // 渲染完给每个下拉挂上初始悬停提示
+    list.forEach(u => { if ($('engSel-' + u.engine)) engSelChange(u.engine); });
   } catch (e) { $('engineList').innerHTML = `<div class="empty">检查失败（网络原因）</div>`; }
+}
+async function applyEngineUpdateSel(engine) {
+  const pool = (window._engineCh || {})[engine] || {};
+  const sel = $('engSel-' + engine);
+  const pick = sel && pool[sel.value];
+  if (!pick) return toast('先在下拉框里选一个版本');
+  return applyEngineUpdate(engine, pick.url, pick.sha256);
 }
 async function checkEngines() { toast('检查引擎版本中…'); loadEngines(); }
 async function pickLocalEngine() {
