@@ -245,7 +245,10 @@ function createWindow() {
 }
 
 // 单实例锁：托盘常驻后双击图标容易重复启动
-const gotLock = app.requestSingleInstanceLock();
+// CAPTURE 截图模式跳过：截图实例用的是隔离 userData，与用户常驻实例本不互斥；
+// 而 ProcessSingleton 的锁在 JS setPath 之前就按默认 userData 建（实测），常驻实例活着时
+// 截图实例会被误判重复启动 → requestSingleInstanceLock() 返回 false → 静默退出，截图必失败
+const gotLock = process.env.KEEPSAKE_CAPTURE || app.requestSingleInstanceLock();
 if (!gotLock) { app.quit(); } else {
 app.on('second-instance', () => { if (win && !win.isDestroyed()) { if (win.isMinimized()) win.restore(); win.show(); win.focus(); } });   // 窗口可能已销毁，isDestroyed 守卫防 TypeError
 
