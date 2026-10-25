@@ -1183,6 +1183,11 @@ app.whenReady().then(() => {
   // #70② 订阅属性：暂停/分组/频率/自动转写（白名单见 subs.update）
   ipcMain.handle('subs:update', (e, { id, patch }) => {
     const r = subs.update(id, patch);
+    // 手动改名 → 队列历史任务标题同步（旧任务还挂着「订阅 N」，改名后追平；机制同 onNameChange）
+    if (r.ok && r.renamed) {
+      const n = queue.renameSub(id, r.renamed);
+      if (n && win && !win.isDestroyed()) win.webContents.send('queue:snapshot', queue.snapshot());
+    }
     if (win && !win.isDestroyed()) win.webContents.send('subs:changed', subs.list());
     return r;
   });

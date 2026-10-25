@@ -112,6 +112,14 @@
   .dl-state.ok { color:var(--green); } .dl-state.no { color:var(--txt2); font-weight:500; }
   .chip2 { display:inline-block; background:var(--panel2); color:var(--txt2); font-size:11px; border-radius:var(--r-sm); padding:2px 9px; margin:0 6px 6px 0; }
 
+  /* ===== 设置页三段式（主人 2026-10-25 提案）：左列分类竖排 / 右侧具体设置项 ===== */
+  .setWrap { display:flex; gap:14px; align-items:flex-start; }
+  .setNav { width:168px; flex-shrink:0; background:var(--panel); border:1px solid var(--line); border-radius:var(--r); padding:8px; box-shadow:var(--shadow); position:sticky; top:12px; }
+  .setNavItem { padding:9px 12px; border-radius:var(--r-md); font-size:12.5px; color:var(--txt2); cursor:pointer; display:flex; gap:8px; align-items:center; margin-bottom:2px; }
+  .setNavItem:hover { background:var(--panel2); color:var(--txt); }
+  .setNavItem.on { background:var(--accbg); color:var(--acc2); font-weight:700; }
+  .setMain { flex:1; min-width:0; }
+
   table.stg { width:100%; border-collapse:collapse; font-size:12px; }
   table.stg th { color:var(--txt2); text-align:left; padding:4px 8px 8px; font-weight:600; }
   table.stg td { border-top:1px solid var(--line); padding:7px 8px; }
@@ -1220,6 +1228,10 @@ function editSubOpts(id) {
   const s = subsItems.find(x => x.id === id); if (!s) return;
   openModal('⚙ 订阅设置 · ' + s.name, `
     <div style="display:flex;flex-direction:column;gap:12px;font-size:13px">
+      <div>
+        <div style="font-size:12.5px;color:var(--txt2);margin-bottom:5px">订阅名称（最多 40 字；改名后队列里的历史任务标题同步更新）</div>
+        <input id="soName" value="${escAttr(s.name || '')}" placeholder="如：徐珺大哥" style="width:100%;box-sizing:border-box;padding:8px 11px;border:1px solid var(--line);border-radius:var(--r-md);font:inherit;background:var(--panel2);color:var(--txt)">
+      </div>
       <label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" id="soPaused" ${s.userPaused ? 'checked' : ''}> ⏸ 暂停此订阅（不自动检查、不自动下载，已下载文件保留）</label>
       <label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" id="soTranscribe" ${s.autoTranscribe ? 'checked' : ''}> 📝 新下载自动转写（下载完成即后台转写出字幕和文稿）</label>
       <div>
@@ -1250,6 +1262,7 @@ function editSubOpts(id) {
 }
 async function saveSubOpts(id) {
   const r = await window.fetchie.subsUpdate(id, {
+    name: $('soName').value,
     userPaused: $('soPaused').checked,
     autoTranscribe: $('soTranscribe').checked,
     group: $('soGroup').value,
@@ -1257,7 +1270,7 @@ async function saveSubOpts(id) {
     latestN: Number($('soLatestN').value),
   });
   if (!r.ok) return toast(r.reason || '保存失败');
-  closeModal(); toast('订阅设置已保存 ✓'); loadSubs();
+  closeModal(); toast(r.renamed ? '已改名：' + r.renamed + ' ✓' : '订阅设置已保存 ✓'); loadSubs();
 }
 
 // 删帖回链：B站 opus/视频、YouTube 视频、X 推文（从文件名前缀提推文 id，尽力而为）、gdl 型退订阅主页
@@ -1693,6 +1706,54 @@ window.fetchie.snapshot().then(s => { items = s; render(); });
 // 订阅数立即取（读 json 秒回）；媒体库后台静默全扫一次（大目录不卡界面，扫完角标自然更新）
 window.fetchie.subsList().then(list => { subsItems = list || []; refreshNavCounts(); }).catch(() => {});
 loadLibrary(true).catch(() => {});
+
+// ===== 设置页三段式（主人 2026-10-25 提案：设置分类单独竖列，点击进入具体设置项）=====
+// 左列 = 分类导航；右侧 = 所选分类的设置卡片。运行时按 h3 文本归组现有卡片，零 HTML 结构手术
+const SET_SECTIONS = [
+  ['set-downloads', '⚙', '下载设置'],
+  ['set-conc', '🚦', '并发与限速'],
+  ['set-cookies', '🔑', 'Cookie 管理'],
+  ['set-asr', '📝', '本地转写'],
+  ['set-proxy', '🌐', '网络代理'],
+  ['set-notify', '🔔', '通知与常驻'],
+  ['set-data', '💾', '数据安全'],
+  ['set-ai', '✨', 'AI 文稿助理'],
+  ['set-update', '⬆️', '软件更新'],
+  ['set-engines', '🛠', '下载引擎'],
+];
+function switchSet(id) {
+  document.querySelectorAll('#setNav .setNavItem').forEach(d => d.classList.toggle('on', d.dataset.set === id));
+  document.querySelectorAll('#page-settings .setCard').forEach(c => c.style.display = (c.id === id ? '' : 'none'));
+  try { localStorage.setItem('keepsake.setSection', id); } catch (e) {}
+}
+function initSettingsNav() {
+  const page = document.getElementById('page-settings');
+  if (!page || document.getElementById('setNav')) return;   // 已初始化过
+  const cards = [...page.querySelectorAll(':scope > .card')];
+  // 按 h3 文本匹配分类；对不上的卡片不动（诚实降级为原布局，别把设置页拆散）
+  const matched = [];
+  for (const c of cards) {
+    const h3 = (c.querySelector('h3') || {}).textContent || '';
+    const meta = SET_SECTIONS.find(x => h3.includes(x[2]));
+    if (meta) matched.push([c, meta]);
+  }
+  if (matched.length < SET_SECTIONS.length) return;   // 卡片没认全 → 不重排
+  const wrap = document.createElement('div'); wrap.className = 'setWrap';
+  const nav = document.createElement('div'); nav.className = 'setNav'; nav.id = 'setNav';
+  const main = document.createElement('div'); main.className = 'setMain';
+  for (const [c, [id]] of matched) { c.id = id; c.classList.add('setCard'); main.appendChild(c); }
+  for (const [id, icon, name] of SET_SECTIONS) {
+    const d = document.createElement('div');
+    d.className = 'setNavItem'; d.dataset.set = id;
+    d.innerHTML = `<span>${icon}</span>${name}`;
+    d.onclick = () => switchSet(id);
+    nav.appendChild(d);
+  }
+  wrap.appendChild(nav); wrap.appendChild(main); page.appendChild(wrap);
+  let last = null; try { last = localStorage.getItem('keepsake.setSection'); } catch (e) {}
+  switchSet(SET_SECTIONS.some(x => x[0] === last) ? last : SET_SECTIONS[0][0]);
+}
+initSettingsNav();
 
 // 首启引导（只在第一次弹，三步说清核心用法
 try {

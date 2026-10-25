@@ -257,7 +257,12 @@ function parseKeywordsName(text) {
       if (v && v.length <= 40 && !/^\d+$/.test(v) && !/https?:\/\//i.test(v)) map[cur] = v;
     }
   }
-  return map['author.nick'] || map['user.nick'] || map['author.name'] || map['user.name'] || map['screen_name'] || map['uploader'] || null;
+  // 显示名优先，其次 IG 的 fullname/full_name（display name），最后 username（handle 兜底）。
+  // IG 字段缺失是「订阅 N」占位名永不更新的根因（主人 2026-10-25 实锤：IG -K 只有 fullname/user.*，
+  // 旧优先级链全是 twitter 系字段，IG 永远取不到名）
+  return map['author.nick'] || map['user.nick'] || map['author.name'] || map['user.name']
+    || map['fullname'] || map['user.full_name'] || map['user.username']
+    || map['screen_name'] || map['uploader'] || null;
 }
 
 // 统一取名入口：X 先 oEmbed（回落 -K），gdl 直接 -K；拿到就认领
@@ -283,15 +288,22 @@ function remove(id) {
 }
 
 // #70② 订阅属性更新（白名单字段，防注入未知键）
-const UPDATABLE = ['userPaused', 'group', 'intervalMin', 'autoTranscribe', 'latestN'];
+const UPDATABLE = ['name', 'userPaused', 'group', 'intervalMin', 'autoTranscribe', 'latestN'];
 function update(id, patch) {
   const s = get(id);
   if (!s) return { ok: false, reason: '订阅不存在' };
   if (!patch || typeof patch !== 'object') return { ok: false, reason: '无效的更新内容' };
+  let renamed = null;
   for (const k of UPDATABLE) {
     if (patch[k] === undefined) continue;
     if (k === 'userPaused' || k === 'autoTranscribe') s[k] = !!patch[k];
     else if (k === 'group') s[k] = String(patch[k] || '').trim().slice(0, 20);
+    else if (k === 'name') {
+      // 手动改名（主人 2026-10-25：订阅 N 挂着难看还没法改）。空名/全空白拒绝，不静默吞
+      const n = String(patch[k] || '').trim().slice(0, 40);
+      if (!n) return { ok: false, reason: '订阅名称不能为空' };
+      if (n !== s.name) { s.name = n; s._auto = false; renamed = n; }   // 用户起名后自动认领永不再覆盖
+    }
     else if (k === 'intervalMin') s[k] = [0, 10, 30, 60].includes(Number(patch[k])) ? Number(patch[k]) : 0;
     else if (k === 'latestN') {   // ★★#7：0=不限制；1-100 有效，越界归 0（宁可不限制也不静默吞更新）
       const n = Math.floor(Number(patch[k]));
@@ -299,7 +311,7 @@ function update(id, patch) {
     }
   }
   save();
-  return { ok: true, sub: { ...s, known: undefined } };
+  return { ok: true, renamed, sub: { ...s, known: undefined } };
 }
 
 // ★★#7（机制借鉴 VidBee 的 onlyDownloadLatest，clean-room 重写）：增量清单按「只下最新 N 条」截取。
