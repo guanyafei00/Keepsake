@@ -871,6 +871,7 @@ function _cmpVer(a, b) {
 }
 // 悬停提示文案：版本 + 更新内容（截 500 字符，转义进 title）
 function _engTip(label, ch) {
+  if (!ch) return label || '';   // 通道对象缺失时给空提示，绝不再让它炸渲染（0.2.12 主人实锤 reading 'notes'）
   const notes = String(ch.notes || '').trim();
   const built = ch.built ? `\n构建日期：${ch.built}` : '';
   const tail = notes ? `\n---- 更新内容 ----\n${notes.slice(0, 500)}` : '';
@@ -899,7 +900,7 @@ function engSelChange(engine) {
   const sel = $('engSel-' + engine);
   const pool = (window._engineCh || {})[engine] || {};
   const pick = pool[sel.value];
-  if (pick) sel.title = _engTip(pick.label, pick.ch);
+  if (pick && pick.ch) sel.title = _engTip(pick.label, pick.ch);   // ch 缺失跳过（防渲染崩）
 }
 let _engRetryUsed = false;   // loadEngines 失败自动重试只用一次（渲染错误类重试无意义，防循环）
 async function loadEngines() {
@@ -945,7 +946,9 @@ async function loadEngines() {
     // 不再吞异常统一谎称「直连和镜像都不通」——真实错误显示出来才能对症（0.2.8 ok:true 乌龙同教训）：
     // 主人 2026-10-25 反馈设置页报失败而左下角能查成功，两入口同一 IPC，必须看到真因才能定位
     const msg = escAttr(String((e && e.message) || e)).slice(0, 140);
-    $('engineList').innerHTML = `<div class="empty">检查失败：${msg}<br><button class="btn-mini" style="color:var(--acc2);margin-top:8px" onclick="loadEngines()">🔄 重试</button></div>`;
+    // stack 首帧带文件+行号：错误类异常（非网络）再崩时一眼定位（0.2.12 reading 'notes' 无行号瞎猜的教训）
+    const frame = escAttr(String((e && e.stack) || '').split('\n').map(s => s.trim()).find(s => /index\.html:\d+/.test(s)) || '').slice(0, 90);
+    $('engineList').innerHTML = `<div class="empty">检查失败：${msg}${frame ? `<br><span style="opacity:.6;font-size:11px">${frame}</span>` : ''}<br><button class="btn-mini" style="color:var(--acc2);margin-top:8px" onclick="loadEngines()">🔄 重试</button></div>`;
     // 瞬时网络抖动自愈：自动重试一次（只重试一次，防错误类异常无限循环）
     if (!_engRetryUsed) { _engRetryUsed = true; setTimeout(loadEngines, 3000); }
   }
