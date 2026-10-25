@@ -11,6 +11,16 @@ let BIN = null;          // 可写引擎目录（userData/engines）：更新落
 let FALLBACK_BIN = null; // 随包目录（resources/bin）：本地版本探测的回退位
 function configure({ binDir, fallbackBinDir }) { BIN = binDir; FALLBACK_BIN = fallbackBinDir || null; }
 
+// 国内镜像回退（主人 2026-10-25：直连 GitHub/Codeberg 失败时自动换镜像重试）
+// ghfast.top / gh-proxy.com 是通用 URL 前缀代理：原样转发官方文件，不改动内容；
+// yt-dlp 下载后仍有官方 SHA2-256SUMS 校验兜底，gallery-dl 走 engine-stable.json 里的哈希（有就验）
+const GH_MIRRORS = ['https://ghfast.top/', 'https://gh-proxy.com/'];
+function urlCandidates(url) {
+  const u = String(url || '');
+  if (/^https:\/\/(github\.com|codeberg\.org)\//.test(u)) return [u, ...GH_MIRRORS.map(m => m + u)];
+  return [u];
+}
+
 // 通用超时 GET（GitHub 半开连接不再让检查永久挂死）
 function getWithTimeout(url, headers, handler, timeoutMs = 15000) {
   return new Promise((resolve, reject) => {
@@ -41,15 +51,32 @@ function getText(url) {
     res.on('end', () => resolve(d));
   });
 }
+// 带镜像重试的文本拉取（yt-dlp SHA2-256SUMS 在 github.com，直连不通时走镜像）
+async function getTextMirrored(url) {
+  let lastErr = null;
+  for (const u of urlCandidates(url)) {
+    try { return await getText(u); } catch (e) { lastErr = e; }
+  }
+  throw lastErr;
+}
 // onProgress(received, total) 可选：引擎下载 20~30MB 要几十秒，没进度条用户以为卡死
+// 直连失败自动换镜像前缀重试（主人 2026-10-25）
 function download(url, dest, onProgress) {
-  return new Promise((resolve, reject) => {
-    const get = (u, redirects = 0) => {
+  const cands = urlCandidates(url);
+  const attempt = u => new Promise((resolve, reject) => {
+    const get = (uu, redirects = 0) => {
       if (redirects > 5) return reject(new Error('too many redirects'));
-      https.get(u, { headers: { 'User-Agent': 'Mozilla/5.0' } }, res => {
+      https.get(uu, { headers: { 'User-Agent': 'Mozilla/5.0' } }, res => {
         res.on('error', reject);   // 网络半途断开不再变未捕获异常（
-        if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location)
-          return get(res.headers.location, redirects + 1);
+        if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
+          // 镜像可能回相对路径重定向（实测 ghfast.top 回 '/https://...' 形式）——
+          // new URL 解析成绝对再跟进；解析失败 reject 而不是让同步抛错击穿（ERR_INVALID_URL 实锤）
+          try {
+            const next = new URL(res.headers.location, uu).toString();
+            try { return get(next, redirects + 1); }
+            catch (e) { return reject(e); }   // https.get 对怪 URL 会同步抛，res 回调里必须接住
+          } catch (e) { return reject(new Error('bad redirect: ' + res.headers.location)); }
+        }
         if (res.statusCode !== 200) { res.resume(); return reject(new Error('HTTP ' + res.statusCode)); }
         // 停滞超时：连接挂起/半路断开时 https.get 可以永远不触发 error（实测 TLS 被网络层掐时直挂）。
         // 60s 无任何数据流动就主动断，别让「更新中」卡成无底洞
@@ -64,8 +91,15 @@ function download(url, dest, onProgress) {
         f.on('error', reject);
       }).on('error', reject);
     };
-    get(url);
+    get(u);
   });
+  return (async () => {
+    let lastErr = null;
+    for (const u of cands) {
+      try { return await attempt(u); } catch (e) { lastErr = e; }
+    }
+    throw lastErr || new Error('download failed');
+  })();
 }
 
 // 引擎更新白名单（engine 只许这两个文件名，URL 只许可信发布域名——
@@ -134,6 +168,23 @@ async function getDevMeta() {
   return _devMeta;
 }
 
+// ===== 稳定版元数据兜底（engine-stable.json，与 dev 同仓库）=====
+// 上游 API（github redirect / codeberg API）直连失败时用：Pages 直读 → jsdelivr 国内 CDN 镜像。
+// 维护约定：每次确认有新引擎稳定版时更新此文件（sha256 有就带上，镜像下载的防篡改全靠它）
+const STABLE_META_URLS = [
+  'https://guanyafei00.github.io/fetchie-rules/engine-stable.json',
+  'https://cdn.jsdelivr.net/gh/guanyafei00/fetchie-rules@main/engine-stable.json',
+];
+async function getStableMeta() {
+  for (const u of STABLE_META_URLS) {
+    try {
+      const j = await getJson(u);
+      if (j && typeof j === 'object' && !Array.isArray(j)) return j;
+    } catch (e) {}   // 试下一个源
+  }
+  return {};
+}
+
 // ===== 版本比较（显示用 + 自动更新降级防护）=====
 // '1.33.0-dev' → 取数字段 [1,33,0]；解析不了返回 null（调用方只判相等）
 function verKey(v) {
@@ -167,25 +218,28 @@ function localVersion(engine) {
 
 // 检查全部引擎：每引擎给 稳定 stable + 开发 dev 两个可选通道
 // 兼容字段（remote/url/needUpdate）保留 = 稳定通道语义，自动更新等旧消费方继续用
+// 上游 API 全断 → 稳定版信息回落 Pages 固化元数据（engine-stable.json，jsdelivr 镜像兜底）
 async function checkAll() {
-  const [yLocal, gLocal, yRemote, gRemote, yNightly, devMeta] = await Promise.all([
+  const [yLocal, gLocal, yRemote, gRemote, yNightly, devMeta, stableMeta] = await Promise.all([
     localVersion('yt-dlp.exe'), localVersion('gallery-dl.exe'),
     latestYtDlp().catch(() => null), latestGalleryDl().catch(() => null),
-    latestYtDlpNightly().catch(() => null), getDevMeta()
+    latestYtDlpNightly().catch(() => null), getDevMeta(), getStableMeta()
   ]);
+  const yUse = yRemote || (stableMeta['yt-dlp.exe'] ? stableMeta['yt-dlp.exe'] : null);
+  const gUse = gRemote || (stableMeta['gallery-dl.exe'] ? stableMeta['gallery-dl.exe'] : null);
   const out = [];
-  if (yRemote) out.push({
+  if (yUse) out.push({
     engine: 'yt-dlp.exe', local: yLocal,
-    remote: yRemote.version, url: yRemote.url,
-    needUpdate: yLocal !== yRemote.version.replace(/^v/, ''),
-    stable: { version: yRemote.version, url: yRemote.url, sha256: '', notes: yRemote.notes || '', page: yRemote.page || '' },
+    remote: yUse.version, url: yUse.url,
+    needUpdate: yLocal !== String(yUse.version).replace(/^v/, ''),
+    stable: { version: yUse.version, url: yUse.url, sha256: yUse.sha256 || '', notes: yUse.notes || '', page: yUse.page || (yRemote ? yRemote.page : '') || '' },
     dev: yNightly ? { version: yNightly.version, url: yNightly.url, sha256: '', notes: yNightly.notes || '', page: yNightly.page || '', built: '' } : null
   });
-  if (gRemote) out.push({
+  if (gUse) out.push({
     engine: 'gallery-dl.exe', local: gLocal,
-    remote: gRemote.version, url: gRemote.url,
-    needUpdate: gLocal !== gRemote.version.replace(/^v/, ''),
-    stable: { version: gRemote.version, url: gRemote.url, sha256: '', notes: gRemote.notes || '', page: gRemote.page || '' },
+    remote: gUse.version, url: gUse.url,
+    needUpdate: gLocal !== String(gUse.version).replace(/^v/, ''),
+    stable: { version: gUse.version, url: gUse.url, sha256: gUse.sha256 || '', notes: gUse.notes || '', page: gUse.page || (gRemote ? gRemote.page : '') || '' },
     dev: (devMeta && devMeta['gallery-dl.exe']) ? { ...devMeta['gallery-dl.exe'], page: 'https://codeberg.org/mikf/gallery-dl/commits/branch/master' } : null
   });
   return out;
@@ -250,7 +304,7 @@ async function updateEngine(engine, url, onProgress, expectSha) {
     // SHA-256 校验（外部引擎是被 spawn 的可执行文件，官方提供校验和就必须验
     const sumsUrl = sumsUrlFor(engine, url);
     if (sumsUrl) {
-      const sumsText = await getText(sumsUrl).catch(() => null);
+      const sumsText = await getTextMirrored(sumsUrl).catch(() => null);
       const expect = sumsText ? parseEngineSha(sumsText, engine) : null;
       if (expect) {
         const got = await sha256File(tmp);

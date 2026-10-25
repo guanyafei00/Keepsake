@@ -930,7 +930,7 @@ async function loadEngines() {
     }).join('') + `<div class="d" style="opacity:.65;margin-top:4px">开发版 = 上游最新代码（修复快但未充分测试）；稳定版 = 正式发布（更稳）。选哪个看你要新修复还是要安稳。</div>`;
     // 渲染完给每个下拉挂上初始悬停提示
     list.forEach(u => { if ($('engSel-' + u.engine)) engSelChange(u.engine); });
-  } catch (e) { $('engineList').innerHTML = `<div class="empty">检查失败（网络原因）</div>`; }
+  } catch (e) { $('engineList').innerHTML = `<div class="empty">检查失败（直连和镜像都不通，稍后再试；下载引擎页有手动安装兜底）</div>`; }
 }
 async function applyEngineUpdateSel(engine) {
   const pool = (window._engineCh || {})[engine] || {};
@@ -1709,10 +1709,11 @@ loadLibrary(true).catch(() => {});
 
 // ===== 设置页三段式（主人 2026-10-25 提案：设置分类单独竖列，点击进入具体设置项）=====
 // 左列 = 分类导航；右侧 = 所选分类的设置卡片。运行时按 h3 文本归组现有卡片，零 HTML 结构手术
+// 顺序即导航顺序（主人 2026-10-25：Cookie 管理最常用，挪到最上方）
 const SET_SECTIONS = [
+  ['set-cookies', '🔑', 'Cookie 管理'],
   ['set-downloads', '⚙', '下载设置'],
   ['set-conc', '🚦', '并发与限速'],
-  ['set-cookies', '🔑', 'Cookie 管理'],
   ['set-asr', '📝', '本地转写'],
   ['set-proxy', '🌐', '网络代理'],
   ['set-notify', '🔔', '通知与常驻'],
@@ -1738,6 +1739,8 @@ function initSettingsNav() {
     if (meta) matched.push([c, meta]);
   }
   if (matched.length < SET_SECTIONS.length) return;   // 卡片没认全 → 不重排
+  // 内容卡片按 SET_SECTIONS 顺序排列（导航顺序 = 内容顺序，Cookie 挪上方后右侧跟着变）
+  matched.sort((a, b) => SET_SECTIONS.findIndex(x => x[0] === a[1][0]) - SET_SECTIONS.findIndex(x => x[0] === b[1][0]));
   const wrap = document.createElement('div'); wrap.className = 'setWrap';
   const nav = document.createElement('div'); nav.className = 'setNav'; nav.id = 'setNav';
   const main = document.createElement('div'); main.className = 'setMain';
