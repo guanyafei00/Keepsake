@@ -153,6 +153,10 @@ async function updateEngine(engine, url, onProgress) {
   const allowRe = ENGINE_ALLOW[engine];
   if (!allowRe) throw new Error('unknown engine: ' + engine);
   if (typeof url !== 'string' || !allowRe.test(url)) throw new Error('update url not allowed');
+  // 目标目录必须先建：userData/engines 平时不存在（Windows 引擎装在随包 resources/bin，
+  // 只有自更新第一次落 userData）——不建目录 createWriteStream 直接 ENOENT（0.2.5 主人机器实锤，
+  // 全新环境第一次引擎自动更新 100% 复现）
+  try { fs.mkdirSync(BIN, { recursive: true }); } catch (e) {}
   const exe = path.join(BIN, engine);
   const tmp = exe + '.new';
   const bak = exe + '.bak';
