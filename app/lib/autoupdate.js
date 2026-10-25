@@ -157,7 +157,7 @@ async function latestGalleryDl() {
 // 我们用 PyInstaller 从上游源码构建后传到 Keepsake Release（构建命令见工作区 2026-10-25 日志）。
 // 为什么 yt-dlp 不需要：官方 yt-dlp/yt-dlp-master-builds 仓库每天发构建。
 const DEV_META_URL = 'https://guanyafei00.github.io/fetchie-rules/engine-dev.json';
-let _devMeta = null, _devMetaAt = 0;
+let _devMeta = null, _devMetaAt = 0, _stableMeta = null, _stableMetaAt = 0;
 async function getDevMeta() {
   if (_devMeta && Date.now() - _devMetaAt < 600000) return _devMeta;   // 10 分钟缓存
   try {
@@ -176,10 +176,13 @@ const STABLE_META_URLS = [
   'https://cdn.jsdelivr.net/gh/guanyafei00/fetchie-rules@main/engine-stable.json',
 ];
 async function getStableMeta() {
+  // 10 分钟成功缓存（对齐 getDevMeta）：打开设置页不必每次都重新拉 Pages——
+  // 缓存只在成功时写入，全断不缓存，下次照常重试（兜底语义不变）
+  if (_stableMeta && Date.now() - _stableMetaAt < 600000) return _stableMeta;
   for (const u of STABLE_META_URLS) {
     try {
       const j = await getJson(u);
-      if (j && typeof j === 'object' && !Array.isArray(j)) return j;
+      if (j && typeof j === 'object' && !Array.isArray(j)) { _stableMeta = j; _stableMetaAt = Date.now(); return j; }
     } catch (e) {}   // 试下一个源
   }
   return {};

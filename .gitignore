@@ -66,3 +66,9 @@ dgo-setup-sha.txt
 _gdl_test/
 竞品借鉴点清单.md
 Keepsake竞品代码级对比报告.md
+
+# 发版产物/测试下载件不进库（110MB 安装包超 GitHub 100MB 限制，2026-10-25 实锤 pre-receive 拒收）
+*.exe
+!app/resources/bin/*.exe
+SHA256SUMS*.txt
+_gdl_test/Keepsake.Setup.*

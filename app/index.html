@@ -898,6 +898,7 @@ function engSelChange(engine) {
   const pick = pool[sel.value];
   if (pick) sel.title = _engTip(pick.label, pick.ch);
 }
+let _engRetryUsed = false;   // loadEngines 失败自动重试只用一次（渲染错误类重试无意义，防循环）
 async function loadEngines() {
   try {
     const list = await window.fetchie.checkUpdate();
@@ -936,7 +937,15 @@ async function loadEngines() {
     }).join('') + `<div class="d" style="opacity:.65;margin-top:4px">开发版 = 上游最新代码（修复快但未充分测试）；稳定版 = 正式发布（更稳）。选哪个看你要新修复还是要安稳。</div>`;
     // 渲染完给每个下拉挂上初始悬停提示
     list.forEach(u => { if ($('engSel-' + u.engine)) engSelChange(u.engine); });
-  } catch (e) { $('engineList').innerHTML = `<div class="empty">检查失败（直连和镜像都不通，稍后再试；下载引擎页有手动安装兜底）</div>`; }
+    _engRetryUsed = false;
+  } catch (e) {
+    // 不再吞异常统一谎称「直连和镜像都不通」——真实错误显示出来才能对症（0.2.8 ok:true 乌龙同教训）：
+    // 主人 2026-10-25 反馈设置页报失败而左下角能查成功，两入口同一 IPC，必须看到真因才能定位
+    const msg = escAttr(String((e && e.message) || e)).slice(0, 140);
+    $('engineList').innerHTML = `<div class="empty">检查失败：${msg}<br><button class="btn-mini" style="color:var(--acc2);margin-top:8px" onclick="loadEngines()">🔄 重试</button></div>`;
+    // 瞬时网络抖动自愈：自动重试一次（只重试一次，防错误类异常无限循环）
+    if (!_engRetryUsed) { _engRetryUsed = true; setTimeout(loadEngines, 3000); }
+  }
 }
 async function applyEngineUpdateSel(engine) {
   const pool = (window._engineCh || {})[engine] || {};
