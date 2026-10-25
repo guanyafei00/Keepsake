@@ -325,8 +325,13 @@
         <label>通知方式</label>
         <select id="notifyModeSel" onchange="saveNotify()" style="max-width:260px">
           <option value="each">每个任务完成即通知</option>
-          <option value="batch">全部下载完成后统一通知</option>
+          <option value="batch">全部完成后统一通知</option>
         </select>
+      </div>
+      <div class="row" style="margin-bottom:0">
+        <label>开机自启动</label>
+        <input type="checkbox" id="autoStartChk" onchange="saveAutoStart()">
+        <span class="note">开机自动运行，自动继续订阅检查与未完成的下载任务</span>
       </div>
       <div class="desc" style="margin:12px 0 0">· 关闭窗口 = 最小化到系统托盘，订阅检查与下载<b>继续运行</b><br>· 托盘图标右键可「显示」或「退出」；双击托盘图标回到主窗口<br>· 已防重复启动：再次双击桌面图标会唤出主窗口</div>
     </div>
@@ -783,6 +788,7 @@ async function loadSettings() {
   $('updateUrlInput').value = s.updateUrl || '';
   $('notifyChk').checked = s.notifyDone !== false;
   $('notifyModeSel').value = s.notifyMode === 'batch' ? 'batch' : 'each';
+  $('autoStartChk').checked = !!s.autoStart;
   $('minFreeInput').value = s.minFreeMB !== undefined ? s.minFreeMB : 1000;
   $('maxConcurrentSel').value = String(Math.min(5, Math.max(1, s.maxConcurrent || 2)));
   $('rateLimitInput').value = s.rateLimitMB || 0;
@@ -1017,6 +1023,13 @@ async function saveProxy() {
 async function saveNotify() {
   await window.fetchie.setNotify({ on: $('notifyChk').checked, mode: $('notifyModeSel').value });
   toast($('notifyChk').checked ? ($('notifyModeSel').value === 'batch' ? '已设为：全部完成后统一通知' : '已设为：每个任务完成即通知') : '已关闭下载完成通知');
+}
+// 开机自启动（主人 2026-10-25）：注册系统 login item；未完成任务开机自动续跑
+async function saveAutoStart() {
+  const on = $('autoStartChk').checked;
+  const r = await window.fetchie.setAutoStart(on);
+  if (!r || r.ok === false) { $('autoStartChk').checked = !on; return toast('自启动设置失败：' + ((r && r.reason) || '未知原因')); }
+  toast(on ? '已开启开机自启动 ✓（开机自动运行，继续订阅检查与未完成任务）' : '已关闭开机自启动');
 }
 async function pickOutDir() {
   const r = await window.fetchie.settingsPickDir();

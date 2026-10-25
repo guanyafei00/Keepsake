@@ -52,6 +52,7 @@ contextBridge.exposeInMainWorld('fetchie', {
   appApplyUpdate: (url, sha256) => ipcRenderer.invoke('app:applyUpdate', { url, sha256 }),
   setUpdateUrl: (url) => ipcRenderer.invoke('settings:setUpdateUrl', { url }),
   setEngineAuto: (on) => ipcRenderer.invoke('settings:setEngineAuto', { on }),
+  setAutoStart: (on) => ipcRenderer.invoke('settings:setAutoStart', { on }),
   setNotify: (o) => ipcRenderer.invoke('settings:setNotify', o),
   setClipboardWatch: (on) => ipcRenderer.invoke('settings:setClipboard', { on }),
   onClipboardUrl: (cb) => ipcRenderer.on('clipboard:url', (e, d) => cb(d)),

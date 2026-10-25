@@ -166,6 +166,21 @@ class DownloadQueue {
     return false;
   }
 
+  // 退出前清场但不取消任务（主人 2026-10-25：未完成项目下次启动自动续跑）：
+  // 只杀 downloading 的子进程/请求防孤儿，状态就地改回 queued 落盘；
+  // queued/held 原样保留 → 启动时 restore 自动重排续跑。与 cancel 的区别 = 不标 canceled
+  killRunning() {
+    for (const it of this.items.values()) {
+      if (it.status !== 'downloading') continue;
+      if (it._directReq) { try { it._directReq.destroy(); } catch (e) {} it._directReq = null; }
+      killTree(it._child);
+      if (it._wasActive) { this.active = Math.max(0, this.active - 1); it._wasActive = false; }
+      if (it._diskTimer) { clearInterval(it._diskTimer); it._diskTimer = null; }
+      it.status = 'queued';
+    }
+    this.push();
+  }
+
   // 重试：error/held/canceled/done → queued（重置进度统计，防跨次累加虚高）
   // done 也允许重试——doneCard 本来就渲染了 ⟳ 按钮，点了却无响应；gallery-dl 重跑会自动跳过已有文件
   retry(id) {

@@ -546,6 +546,7 @@ app.whenReady().then(() => {
     if (raw.status === 'queued') {
       const item = queue.add(raw.url, { engine: raw.engine, title: raw.title, _range: raw._range, _subs: raw._subs, _audio: raw._audio, _transcribe: raw._transcribe, _subId: raw._subId });
       item.filePath = raw.filePath; item.fileCount = raw.fileCount;
+      restoredN++;   // 未完成续跑（主人 2026-10-25）：排队任务也计入恢复数
     } else {
       queue.items.set(raw.id, raw);
       queue.order.push(raw.id);
@@ -553,9 +554,9 @@ app.whenReady().then(() => {
     }
   }
   if (restoredN) {
-    const msg = '上次异常退出，已自动恢复 ' + restoredN + ' 个中断任务';
+    const msg = '已自动继续上次未完成的 ' + restoredN + ' 个任务';
     toastMsg(msg);
-    log.info('queue', msg + '（tasks.json 崩溃恢复）');
+    log.info('queue', msg);
   }
 
   // 订阅改名 → 队列历史任务标题同步（老任务入队时还带着「订阅 N」占位名，改名后追平）
@@ -707,6 +708,21 @@ app.whenReady().then(() => {
   // 更新源配置（只许写 updateUrl 字段，防 renderer 被攻破时改其它配置）
   ipcMain.handle('settings:setUpdateUrl', (e, { url }) => { settings.set({ updateUrl: String(url || '').trim() }); return { ok: true }; });
   ipcMain.handle('settings:setEngineAuto', (e, { on }) => { settings.set({ engineAutoUpdate: !!on }); return { ok: true }; });
+  // 开机自启动（主人 2026-10-25）：settings.autoStart → 系统 login item。
+  // dev 下 process.execPath 是 electron.exe，注册了也没意义 → 只记设置不注册（诚实返回）
+  function applyAutoStart() {
+    if (!app.isPackaged) return;
+    try { app.setLoginItemSettings({ openAtLogin: !!settings.get().autoStart, path: process.execPath, args: [] }); }
+    catch (e) { console.warn('[autostart]', e.message); }
+  }
+  applyAutoStart();
+  ipcMain.handle('settings:setAutoStart', (e, { on }) => {
+    settings.set({ autoStart: !!on });
+    applyAutoStart();
+    if (!app.isPackaged) return { ok: true, openAtLogin: false, dev: true };
+    const cur = app.getLoginItemSettings();
+    return { ok: cur.openAtLogin === !!on, openAtLogin: cur.openAtLogin };
+  });
   // 通知设置：on=是否弹下载完成通知；mode=each 单项即通知 / batch 全部完成后统一通知
   ipcMain.handle('settings:setNotify', (e, { on, mode }) => {
     settings.set({ notifyDone: on !== false, notifyMode: mode === 'batch' ? 'batch' : 'each' });
@@ -1721,13 +1737,11 @@ app.on('window-all-closed', () => {
 
 app.on('before-quit', () => {
   quitting = true;
-  // 杀掉活动引擎子进程——防孤儿 yt-dlp/gallery-dl 与下次启动的重复任务并发写同一文件
+  // 未完成任务续跑（主人 2026-10-25）：退出不再取消任务——
+  // downloading 杀子进程防孤儿后标 queued，queued/held 原样落盘；下次启动 restore 自动续跑。
+  // （旧行为 before-quit 全取消，重启后队列是空的，与「自启动后继续未完成项目」矛盾）
   try {
-    if (queue) {
-      for (const it of [...queue.items.values()]) {
-        if (['downloading', 'held', 'queued'].includes(it.status)) { try { queue.cancel(it.id); } catch (e) {} }
-      }
-    }
+    if (queue) queue.killRunning();
   } catch (e) {}
   try { store.flushNow(); } catch (e) {}   // 防抖中的任务状态强制落盘
 });
