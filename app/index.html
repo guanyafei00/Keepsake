@@ -113,8 +113,11 @@
   .chip2 { display:inline-block; background:var(--panel2); color:var(--txt2); font-size:11px; border-radius:var(--r-sm); padding:2px 9px; margin:0 6px 6px 0; }
 
   /* ===== 设置页三段式（主人 2026-10-25 提案）：左列分类竖排 / 右侧具体设置项 ===== */
-  .setWrap { display:flex; gap:14px; align-items:flex-start; }
-  .setNav { width:168px; flex-shrink:0; background:var(--panel); border:1px solid var(--line); border-radius:var(--r); padding:8px; box-shadow:var(--shadow); position:sticky; top:12px; }
+  .setWrap { display:flex; gap:14px; align-items:stretch; }
+  .setNav { width:168px; flex-shrink:0; background:var(--panel); border:1px solid var(--line); border-radius:var(--r); padding:8px; box-shadow:var(--shadow); }
+  /* 导航框全高占满左列（主人 2026-10-25：别让它孤零零一坨），条目容器 sticky 跟滚——
+     之前 sticky 挂在框上、框只有内容高，占满和跟滚二选一；拆成内外两层后两个都要 */
+  .setNavInner { position:sticky; top:12px; }
   .setNavItem { padding:9px 12px; border-radius:var(--r-md); font-size:12.5px; color:var(--txt2); cursor:pointer; display:flex; gap:8px; align-items:center; margin-bottom:2px; }
   .setNavItem:hover { background:var(--panel2); color:var(--txt); }
   .setNavItem.on { background:var(--accbg); color:var(--acc2); font-weight:700; }
@@ -1765,6 +1768,7 @@ function initSettingsNav() {
   matched.sort((a, b) => SET_SECTIONS.findIndex(x => x[0] === a[1][0]) - SET_SECTIONS.findIndex(x => x[0] === b[1][0]));
   const wrap = document.createElement('div'); wrap.className = 'setWrap';
   const nav = document.createElement('div'); nav.className = 'setNav'; nav.id = 'setNav';
+  const navInner = document.createElement('div'); navInner.className = 'setNavInner';
   const main = document.createElement('div'); main.className = 'setMain';
   for (const [c, [id]] of matched) { c.id = id; c.classList.add('setCard'); main.appendChild(c); }
   for (const [id, icon, name] of SET_SECTIONS) {
@@ -1772,8 +1776,9 @@ function initSettingsNav() {
     d.className = 'setNavItem'; d.dataset.set = id;
     d.innerHTML = `<span>${icon}</span>${name}`;
     d.onclick = () => switchSet(id);
-    nav.appendChild(d);
+    navInner.appendChild(d);
   }
+  nav.appendChild(navInner);
   wrap.appendChild(nav); wrap.appendChild(main); page.appendChild(wrap);
   let last = null; try { last = localStorage.getItem('keepsake.setSection'); } catch (e) {}
   switchSet(SET_SECTIONS.some(x => x[0] === last) ? last : SET_SECTIONS[0][0]);
