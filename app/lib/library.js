@@ -22,6 +22,47 @@ function fileKind(ext) {
   return 'other';
 }
 
+// 文章归档目录（文章引擎 4 件套）识别：目录里有 index.html + meta.json 且 meta.kind === 'keepsake-article'
+// → 整目录算一个「article」条目（assets 里的图不再拆散进媒体库）。非文章目录返回 null（零成本跳过：
+// 只有存在 index.html 的目录才读一次 meta.json）
+function readArticleEntry(dir, rel) {
+  try {
+    if (!fs.existsSync(path.join(dir, 'index.html'))) return null;
+    const meta = JSON.parse(fs.readFileSync(path.join(dir, 'meta.json'), 'utf-8'));
+    if (!meta || meta.kind !== 'keepsake-article') return null;
+    let size = 0;
+    for (const f of ['index.html', 'article.md', 'meta.json']) {
+      try { size += fs.statSync(path.join(dir, f)).size; } catch (e) {}
+    }
+    const assets = path.join(dir, 'assets');
+    try {
+      for (const a of fs.readdirSync(assets)) {
+        try { const s = fs.statSync(path.join(assets, a)); if (s.isFile()) size += s.size; } catch (e) {}
+      }
+    } catch (e) {}
+    const st = fs.statSync(dir);
+    return {
+      name: meta.title || path.basename(dir),
+      path: dir,
+      rel,
+      size,
+      mtime: st.mtimeMs,
+      kind: 'article',
+      // 删帖检测最小版的状态（recheck 写回 meta.json）：UI 显示「源头已删除 / 内容有编辑」徽标
+      article: {
+        author: meta.author || '',
+        publishTime: meta.publishTime || '',
+        imagesTotal: meta.imagesTotal || 0,
+        imagesLocal: meta.imagesLocal || 0,
+        imagesFailed: meta.imagesFailed || 0,
+        status: meta.status || 'ok',
+        editedAt: meta.editedAt || null,
+        lastCheckedAt: meta.lastCheckedAt || null,
+      },
+    };
+  } catch (e) { return null; }
+}
+
 function fmtSize(bytes) {
   if (bytes >= 1 << 30) return (bytes / (1 << 30)).toFixed(2) + ' GB';
   if (bytes >= 1 << 20) return (bytes / (1 << 20)).toFixed(1) + ' MB';
@@ -39,6 +80,9 @@ async function walk(dir, base, out, ctx) {
     const full = path.join(dir, ent.name);
     if (ent.isSymbolicLink()) continue;   // junction/symlink：防目录循环与越界扫描
     if (ent.isDirectory()) {
+      // 文章归档目录：整目录一个条目，不再深入（assets 图不拆散）
+      const art = readArticleEntry(full, path.relative(base, full));
+      if (art) { out.push(art); ctx.files++; continue; }
       ctx.depth++;
       await walk(full, base, out, ctx);
       ctx.depth--;
@@ -92,6 +136,7 @@ async function scan() {
       fileCount: g.files.length,
       videoCount: g.files.filter(f => f.kind === 'video').length,
       imageCount: g.files.filter(f => f.kind === 'image').length,
+      articleCount: g.files.filter(f => f.kind === 'article').length,   // 文章归档条目数（渲染层 📄 角标）
       totalSize: g.totalSize,
       sizeText: fmtSize(g.totalSize),
       lastMtime: g.lastMtime,
@@ -100,6 +145,9 @@ async function scan() {
       files: g.files.sort((a, b) => b.mtime - a.mtime).map(f => ({
         name: f.name, path: f.path, size: f.size, sizeText: fmtSize(f.size),
         mtime: f.mtime, kind: f.kind,
+        // 文章条目状态（QA Bug 修复：map 重建对象时曾把 article 字段丢掉，
+        // UI 的「源头已删除/内容有编辑」徽标因此永不显示）
+        article: f.article || null,
         src: SOURCE_GET ? SOURCE_GET(f.path) : null   // 来源链接/订阅标记（老文件无记录 → null，UI 不显示）
       }))
     }))

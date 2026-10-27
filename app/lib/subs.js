@@ -12,6 +12,7 @@ function exe(n) { return process.platform === 'win32' ? n + '.exe' : n; }
 const https = require('https');
 const { spawn } = require('child_process');
 const { atomicWrite, readJson } = require('./jsonfile');
+const { isFeedUrl } = require('./identify');   // feed 链接识别（单一事实源，与 identify.js 共用同一套模式）
 
 let COOKIE = null;
 let BIN = null;
@@ -86,6 +87,9 @@ function classify(url) {
   const x = url.match(/^(?:https?:\/\/)?(?:www\.)?(?:twitter|x)\.com\/@?([A-Za-z0-9_]{1,15})\/?(\?.*)?$/i);
   if (x) return { kind: 'x', handle: x[1], url: 'https://x.com/' + x[1] };
   if (/youtube\.com\/(@|channel\/|c\/)/i.test(url) || /youtube\.com\/.*(\/videos)?$/i.test(url)) return { kind: 'youtube', url };
+  // RSS/Atom feed → 'rss' 订阅：HTTP 直拉 XML 追更（公开内容，不需要浏览器窗口/cookie/引擎进程）。
+  // 放在平台规则之后：B站/YouTube 等自家 URL 若撞上不会误判；判定在 gdl 通用规则之前（feed 不是图站用户页）
+  if (isFeedUrl(url)) return { kind: 'rss', url: url.trim() };
   // gallery-dl 通用订阅：用户/收藏/标签页 → simulate 清单做增量（机制对 gallery-dl 的 387 站通用）
   if (GDL_SITES.some(s => s.re.test(url))) return { kind: 'gdl', url: url.trim() };
   return null;
@@ -142,6 +146,10 @@ function fallbackName(url, kind, handle) {
   try { u = new URL(url); } catch (e) { return null; }
   const segs = u.pathname.split('/').filter(Boolean).map(s => { try { return decodeURIComponent(s); } catch (e) { return s; } });
   if (kind === 'x') return handle ? '@' + handle : null;
+  if (kind === 'rss') {
+    // feed URL 兜底名：域名本身（首检拉到 feed 后会被 feed 标题替换，_auto 标记可覆盖）
+    return u.hostname.replace(/^www\./i, '');
+  }
   if (kind === 'youtube') {
     const at = segs.find(s => s.startsWith('@'));
     if (at) return at;
@@ -354,6 +362,129 @@ function fetchBiliDynamic(uid, pages = 1) {
   });
 }
 
+// ---- RSS/Atom feed 拉取与轻量解析（RSS 订阅追更）----
+// 决策：不引重依赖——主进程没有 DOMParser，feed 需要的字段就标题/链接/id 几个，正则切块逐字段
+// 提取足够可靠（RSS 2.0 与 Atom 结构都高度规整）；引 xml 解析库反而多一份打包体积与供应链面
+const FEED_TIMEOUT_MS = 30 * 1000;   // feed 拉取上限（RSS/Atom 是公开 XML，30s 足够慢站）
+const FEED_MAX_BYTES = 20 * 1024 * 1024;   // 异常超大响应截断保护（正常 feed 很少超过 1MB）
+
+// HTTP(S) 拉 feed 原文：跟随重定向（feed 常见 301 换域名），30s 超时
+function fetchFeed(url) {
+  return new Promise((resolve, reject) => {
+    const doReq = (u, redirects) => {
+      if (redirects > 6) return reject(new Error('feed 跳转次数过多（检查订阅链接）'));   // 6 跳内视为正常换域链，死循环在第 7 请求被拒
+      let mod;
+      try { mod = require(/^https/i.test(u) ? 'https' : 'http'); } catch (e) { return reject(e); }
+      let settled = false;
+      const done = (fn, v) => { if (!settled) { settled = true; fn(v); } };
+      const req = mod.get(u, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/131.0 Safari/537.36',
+          'Accept': 'application/rss+xml, application/atom+xml, application/xml, text/xml, */*',
+        },
+        timeout: FEED_TIMEOUT_MS,
+      }, res => {
+        if ([301, 302, 303, 307, 308].includes(res.statusCode) && res.headers.location) {
+          res.resume();
+          // new URL(目标, 当前地址)：相对 Location（如 /feed.xml）以当前地址为 base 解析——
+          // 参数顺序写反会让相对 Location 直接 Invalid URL、绝对 Location 永远请求旧地址（QA 复核实锤）
+          try { return doReq(new URL(res.headers.location, u).href, redirects + 1); }
+          catch (e) { return done(reject, new Error('feed 跳转地址无效')); }
+        }
+        if (res.statusCode !== 200) {
+          res.resume();
+          return done(reject, new Error('feed 地址返回 HTTP ' + res.statusCode + '（检查订阅链接是否还有效）'));
+        }
+        const chunks = [];
+        let size = 0;
+        res.on('data', c => {
+          size += c.length;
+          if (size > FEED_MAX_BYTES) { req.destroy(); done(reject, new Error('feed 响应异常过大（>20MB），已中止')); return; }
+          chunks.push(c);
+        });
+        res.on('end', () => done(resolve, Buffer.concat(chunks).toString('utf-8')));
+        res.on('error', e => done(reject, new Error('feed 下载中断: ' + (e.message || e))));
+      });
+      req.on('timeout', () => req.destroy(new Error('feed 拉取超时 ' + (FEED_TIMEOUT_MS / 1000) + 's')));
+      req.on('error', e => done(reject, new Error('feed 拉取失败: ' + (e.message || e))));
+    };
+    doReq(url, 0);
+  });
+}
+
+// XML 实体解码（feed 标题/链接常见 &amp; &lt; 与数字/十六进制实体）
+function decodeXmlEntities(s) {
+  return String(s || '')
+    .replace(/&#x([0-9a-f]+);/gi, (m, h) => { try { return String.fromCodePoint(parseInt(h, 16)); } catch (e) { return m; } })
+    .replace(/&#(\d+);/g, (m, d) => { try { return String.fromCodePoint(parseInt(d, 10)); } catch (e) { return m; } })
+    .replace(/&(amp|lt|gt|quot|apos);/g, (m, n) => ({ amp: '&', lt: '<', gt: '>', quot: '"', apos: "'" }[n]));
+}
+
+// 取块内第一个 <tag> 的文本内容：CDATA 优先，非 CDATA 剥内嵌 HTML 标签（标题里 <b> 之类防串块），解实体
+function xmlTagText(block, tag) {
+  const m = new RegExp('<' + tag + '(?:\\s[^>]*)?>([\\s\\S]*?)<\\/' + tag + '>', 'i').exec(block);
+  if (!m) return '';
+  let v = m[1].trim();
+  const cd = /^<!\[CDATA\[([\s\S]*)\]\]>$/i.exec(v);
+  if (cd) v = cd[1];
+  v = v.replace(/<[^>]+>/g, ' ');
+  return decodeXmlEntities(v).replace(/\s+/g, ' ').trim();
+}
+
+// Atom 的 <link> 是属性形态且可能有多个（rel=self/alternate/enclosure）：
+// 优先 rel="alternate" 或无 rel 的第一个 href，其余（self/enclosure 等）退而求其次
+function atomLink(block) {
+  const re = /<link\b([^>]*)>/gi;
+  let m, fallback = '';
+  while ((m = re.exec(block))) {
+    const hrefM = /\bhref=["']([^"']*)["']/i.exec(m[1]);
+    if (!hrefM) continue;
+    const relM = /\brel=["']([^"']*)["']/i.exec(m[1]);
+    const rel = ((relM && relM[1]) || '').trim().toLowerCase();
+    const href = decodeXmlEntities(hrefM[1]).trim();
+    if (!href) continue;
+    if (!rel || rel === 'alternate') return href;
+    if (!fallback) fallback = href;
+  }
+  return fallback;
+}
+
+// feed XML → 条目数组 [{ id, type:'feed', text: 标题, url: 文章链接 }]，附带 feedTitle（频道标题，订阅命名用）
+// RSS 2.0（<item><link><guid>）与 Atom（<entry><link href><id>）两种都支持；解析失败抛错走 failStreak 链路
+function parseFeed(xml) {
+  const text = String(xml || '').replace(/^\uFEFF/, '');
+  const rssItems = text.match(/<item[\s>][\s\S]*?<\/item>/gi) || [];
+  const atomEntries = text.match(/<entry[\s>][\s\S]*?<\/entry>/gi) || [];
+  if (!rssItems.length && !atomEntries.length) {
+    throw new Error('不是有效的 RSS/Atom feed（页面上找不到文章条目，可能是普通网页或链接已失效）');
+  }
+  const useAtom = atomEntries.length > rssItems.length;
+  const blocks = useAtom ? atomEntries : rssItems;
+  const items = [];
+  for (const b of blocks) {
+    let id = xmlTagText(b, 'guid') || xmlTagText(b, 'id') || '';
+    let link = useAtom ? atomLink(b) : xmlTagText(b, 'link');
+    // RSS 的 guid 若是 permalink 形态（无独立 link 时）可直接当链接用
+    if (!link && /^[a-z][a-z0-9+.-]*:\/\//i.test(id)) link = id;
+    if (!id) id = link;
+    if (!link) continue;   // 没有文章链接的条目（纯聚合摘要等）无法下载，诚实跳过
+    items.push({ id, type: 'feed', text: xmlTagText(b, 'title') || '未命名文章', url: link });
+  }
+  // 同一篇文章在 feed 里重复出现（同 guid 多分类等）：按 id 去重，防止一次检查重复入队
+  const seen = new Set();
+  const uniq = items.filter(it => !seen.has(it.id) && seen.add(it.id));
+  if (!uniq.length) throw new Error('feed 里没有可下载的文章条目（条目均缺文章链接）');
+  // feed 标题：取第一个条目块之前的第一个 <title>（RSS=channel 标题 / Atom=feed 标题，用于订阅命名）
+  const head = text.split(useAtom ? /<entry[\s>]/i : /<item[\s>]/i)[0];
+  uniq.feedTitle = xmlTagText(head, 'title') || null;
+  return uniq;
+}
+
+async function fetchFeedItems(url) {
+  const xml = await fetchFeed(url);
+  return parseFeed(xml);
+}
+
 // YouTube 频道检查：yt-dlp flat-playlist（maxItems=0 时拉全部视频）
 function fetchViaYtDlp(url, maxItems = 5) {
   return new Promise((resolve, reject) => {
@@ -448,6 +579,8 @@ async function checkSub(sub, onNew) {
   }
   else if (sub.kind === 'gdl') items = await fetchViaGdl(sub.url, 20);
   else if (sub.kind === 'youtube') items = await fetchViaYtDlp(sub.url);
+  // RSS/Atom：HTTP 直拉 XML（公开内容，不需要浏览器窗口/cookie），解析后与 known 比对增量
+  else if (sub.kind === 'rss') items = await fetchFeedItems(sub.url);
   // 合集订阅：flat-playlist 全量秒回（实测 119 项几秒），必须拉全量——合集按时间正序追加，
   // 只看前 N 条永远看不到新集（新内容在尾部）；known 集合本身有去重，全量不炸
   else if (sub.kind === 'bili-collection') items = await fetchViaYtDlp(sub.url, 0);
@@ -469,7 +602,11 @@ async function checkSub(sub, onNew) {
   const nowMs = Date.now();
   const gone = [];
   let candidates;
-  if (sub.kind === 'bili-collection') {
+  if (sub.kind === 'rss') {
+    // RSS 不做源头删除感知（一期明确只追新）：feed 通常只保留最新 N 条，旧文滑出列表 =
+    // 正常翻页而非删帖，照搬现有 gone 判定误报率极高；卡上常驻「只追新」文案向用户交代边界
+    candidates = [];
+  } else if (sub.kind === 'bili-collection') {
     // 合集=全量拉取（flat-playlist 秒回）：known 与 visible 均为全量，直接比对。
     // 旧代码拿 lastSeen(tail 100) 对全量窗口，头部老条目每轮都「不在窗口」→ 连续 2 轮后
     // 被误判源头删除（>100 项的合集每轮检查必误报，确定性 bug，实测确认）
@@ -500,15 +637,17 @@ async function checkSub(sub, onNew) {
   }
   sub.goneSeen = gs;
   // lastSeen = 最近观察窗口（gone 判定基准）：普通订阅列表最新在前取头部；
-  // 合集按时间正序追加，新内容在尾部 → 取尾部 100，否则合集变长会误报「源头删帖」
+  // 合集按时间正序追加，新内容在尾部 → 取尾部 100，否则合集变长会误报「源头删帖」；
+  // RSS 无 gone 判定，不维护 lastSeen（省内存，也避免误用）
   const seenIds = items.map(it => it.id);
-  sub.lastSeen = (sub.kind === 'bili-collection' ? seenIds.slice(-100) : seenIds.slice(0, 100));
+  if (sub.kind !== 'rss') sub.lastSeen = (sub.kind === 'bili-collection' ? seenIds.slice(-100) : seenIds.slice(0, 100));
 
   // 基线判定：首次 或 known 为空（此前全失败空转的订阅，第一次真正拉到清单时也要做基线防轰炸）
   if (sub.checked === 0 || !(sub.known || []).length) {
     // 基线：只记录不下载；YouTube 用频道名，B 站由 card API 异步补，x/gdl 由元数据猜名
     sub.known = items.map(it => it.id);
-    if (sub.kind === 'bili-collection' && items.playlistTitle) { sub.name = items.playlistTitle.replace(/^合集·/, ''); sub._auto = false; }
+    if (sub.kind === 'rss' && items.feedTitle) { sub.name = String(items.feedTitle).slice(0, 40); sub._auto = false; }   // RSS：feed 频道标题认领订阅名
+    else if (sub.kind === 'bili-collection' && items.playlistTitle) { sub.name = items.playlistTitle.replace(/^合集·/, ''); sub._auto = false; }
     else if (items.channel) { sub.name = items.channel; sub._auto = false; }
     else if (sub.kind === 'gdl' || sub.kind === 'x') guessName(sub.id);   // 加订阅时没名字的（如当时缺 cookie），检查通了再补一次
   } else {
@@ -550,6 +689,7 @@ async function backfill(id, onItem) {
   else if (sub.kind === 'x') items = [];   // X 回溯由 main.js 的一个 gdl range 任务完成（yt-dlp 无时间线提取器，见 checkSub 注释）
   else if (sub.kind === 'youtube') items = await fetchViaYtDlp(sub.url, 0);
   else if (sub.kind === 'gdl') items = await fetchViaGdl(sub.url, 200);   // gallery-dl 型回溯：最近 200 项清单
+  else if (sub.kind === 'rss') items = await fetchFeedItems(sub.url);   // feed 本身只保留最新若干条，「全部内容」= feed 现存全部条目（不猜历史归档，诚实边界）
   if (!items) throw new Error('未知订阅类型');
   const media = items.filter(it => it.type !== 'text');
   for (const it of media) { if (onItem) onItem(sub, it); }
@@ -563,7 +703,8 @@ function itemUrl(sub, it) {
   if (sub.kind === 'bili-collection') return it.url || `https://www.bilibili.com/video/${it.id}`;
   if (sub.kind === 'x') return it.url || `https://x.com/i/web/status/${it.id}`;
   if (sub.kind === 'youtube') return `https://www.youtube.com/watch?v=${it.id}`;
+  if (sub.kind === 'rss') return it.url || null;   // feed 条目自带文章链接
   return null;
 }
 
-module.exports = { configure, list, get, add, remove, update, checkSub, itemUrl, backfill, setProxy, setCookieBrowser, refreshName, onNameChange, save, classify, resetCookieCache, gdlBaseArgs, pixivAuthorized, latestCut };
+module.exports = { configure, list, get, add, remove, update, checkSub, itemUrl, backfill, setProxy, setCookieBrowser, refreshName, onNameChange, save, classify, resetCookieCache, gdlBaseArgs, pixivAuthorized, latestCut, fetchFeed, parseFeed, fetchFeedItems };

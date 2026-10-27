@@ -36,27 +36,30 @@ function tokenize(text) {
   return [...out];
 }
 
-// 增量索引：entries = [{ path, title, up }]；文稿 = path 去扩展名 + .txt；mtime 没变跳过。
+// 增量索引：entries = [{ path, title, up, src?, key? }]；默认文稿 = path 去扩展名 + .txt，mtime 没变跳过。
+// 文章引擎接入（M-A3）：传 src = article.md 路径 + key = 文章目录路径——
+// key 用目录是为了渲染层按媒体条目 path 直接命中搜索徽标；docs 里记 src 供 snippet 读原文
 // 返回 { indexed, skipped, removed }
 function reindex(entries) {
   let indexed = 0, skipped = 0, removed = 0;
   const want = new Set();
   for (const e of (entries || [])) {
-    const txt = e.path.replace(/\.[^.\\/]+$/, '') + '.txt';
-    want.add(txt);
+    const src = e.src || (e.path.replace(/\.[^.\\/]+$/, '') + '.txt');
+    const key = e.key || src;
+    want.add(key);
     let st = null;
-    try { st = fs.statSync(txt); } catch { continue; }   // 无文稿的媒体跳过
-    const doc = data.docs[txt];
+    try { st = fs.statSync(src); } catch { continue; }   // 无文稿的媒体跳过
+    const doc = data.docs[key];
     if (doc && doc.mtime === st.mtimeMs) { skipped++; continue; }
     let text = '';
-    try { text = fs.readFileSync(txt, 'utf-8'); } catch { continue; }
-    removeDoc(txt);   // 先摘除旧 token
+    try { text = fs.readFileSync(src, 'utf-8'); } catch { continue; }
+    removeDoc(key);   // 先摘除旧 token
     const tokens = tokenize(text);
     for (const tk of tokens) {
       const arr = data.index[tk] || (data.index[tk] = []);
-      if (!arr.includes(txt)) arr.push(txt);
+      if (!arr.includes(key)) arr.push(key);
     }
-    data.docs[txt] = { mtime: st.mtimeMs, title: e.title || path.basename(txt), up: e.up || '', size: st.size, tokens: tokens.length };
+    data.docs[key] = { mtime: st.mtimeMs, title: e.title || path.basename(key), up: e.up || '', size: st.size, tokens: tokens.length, src: key === src ? undefined : src };
     indexed++;
   }
   // 媒体已删除/移动的文稿：从索引摘除
@@ -116,9 +119,11 @@ function search(q, limit = 30) {
   // snippet：读文件找首个命中位置（cap 30 篇，防大结果集读盘）
   for (const r of results.slice(0, limit)) {
     try {
+      const d = data.docs[r.path] || {};
+      const srcFile = d.src || r.path;   // 文章条目：key 是目录路径，正文实际在 article.md（docs.src 指路）
       // openSync/readSync 只读前 256KB——转写文稿可达数百 KB，整篇同步读会拖慢 IPC；
       // 尾部截断最多损失一个多字节字符（解码替换），snippet 足够
-      const fd = fs.openSync(r.path, 'r');
+      const fd = fs.openSync(srcFile, 'r');
       let text = '';
       try {
         const buf = Buffer.alloc(256 * 1024);

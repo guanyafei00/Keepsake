@@ -6,6 +6,7 @@ const path = require('path');
 function exe(n) { return process.platform === 'win32' ? n + '.exe' : n; }
 const fs = require('fs');
 const strategy = require('./strategy');
+const article = require('./article');   // 文章引擎：进程内执行（同 direct 先例，不 spawn 子进程）
 
 let BIN = path.join(__dirname, '..', 'resources', 'bin');
 let ENGINES = null;   // 可写引擎目录（userData/engines）：自更新落这里；spawn 时优先取新版
@@ -154,6 +155,14 @@ class DownloadQueue {
     if (['queued', 'downloading', 'held'].includes(it.status)) {
       // 直连引擎没有子进程，取消 = destroy 正在传输的请求（_child 为空 killTree 自然跳过）
       if (it._directReq) { try { it._directReq.destroy(); } catch (e) {} it._directReq = null; }
+      // 文章引擎同样无子进程：置取消标记，流水线在步骤间/图片循环内自检退出；
+      // 顺带 destroy 挂在控制对象上的抓取窗口——页面脚本卡死时标记永远不会被自检到，
+      // 不销毁窗口流水线就永远出不来（P1-1）
+      if (it._articleCtl) {
+        it._articleCtl.canceled = true;
+        try { if (it._articleCtl.win) it._articleCtl.win.destroy(); } catch (e) {}
+        it._articleCtl = null;
+      }
       killTree(it._child);
       if (it._wasActive) { this.active = Math.max(0, this.active - 1); it._wasActive = false; }
       // cancel 立即清磁盘巡检 timer（不留 30s 空转；兜底由 timer 自清分支与 close 事件覆盖）
@@ -173,6 +182,12 @@ class DownloadQueue {
     for (const it of this.items.values()) {
       if (it.status !== 'downloading') continue;
       if (it._directReq) { try { it._directReq.destroy(); } catch (e) {} it._directReq = null; }
+      // 同 cancel：退出前也 destroy 文章引擎的抓取窗口，防卡死窗口跨续跑泄漏（P1-1）
+      if (it._articleCtl) {
+        it._articleCtl.canceled = true;
+        try { if (it._articleCtl.win) it._articleCtl.win.destroy(); } catch (e) {}
+        it._articleCtl = null;
+      }
       killTree(it._child);
       if (it._wasActive) { this.active = Math.max(0, this.active - 1); it._wasActive = false; }
       if (it._diskTimer) { clearInterval(it._diskTimer); it._diskTimer = null; }
@@ -231,7 +246,7 @@ class DownloadQueue {
     return this.order.map(id => {
       // 保留 _range（先前被剥离导致范围任务崩溃恢复后全量重下）；_files 巨大且只供 onDone 钩子用，不入快照；
       // _runSeq 是 run 序号（内部幂等标记），不得泄漏给渲染层
-      const { _child, _wasActive, _files, _diskTimer, _diskHeld, _runSeq, ...rest } = this.items.get(id);
+      const { _child, _wasActive, _files, _diskTimer, _diskHeld, _runSeq, _articleCtl, ...rest } = this.items.get(id);
       if (rest.status === 'held') rest.heldRemainMs = strategy.breakerRemainMs(rest.url);
       return rest;
     });
@@ -341,6 +356,7 @@ class DownloadQueue {
 
     const args = this.buildArgs(it);
     if (it.engine === 'direct') return this.runDirect(it, done, seq);   // 直连引擎无子进程，独立执行路径
+    if (it.engine === 'article') return this.runArticle(it, done, seq); // 文章引擎同 direct：进程内执行
     if (!args) return done('error', { error: '不支持的引擎: ' + it.engine });
 
     fs.mkdirSync(OUTDIR, { recursive: true });
@@ -448,7 +464,7 @@ class DownloadQueue {
   buildArgs(it) {
     const ytdlp = pick(exe('yt-dlp'));
     const gdl = pick(exe('gallery-dl'));
-    if (it.engine === 'direct') return null;   // 不会被调用（run 已提前分流），防误用
+    if (it.engine === 'direct' || it.engine === 'article') return null;   // 进程内引擎不走 spawn（run 已提前分流），防误用
     if (it.engine === 'yt-dlp') {
       // 媒体库物理目录：{站点}/{UP主}/{标题} [id].ext（与 gallery-dl 的 bilibili/{作者}/ 结构对齐）
       const site = /bilibili\.com/i.test(it.url) ? 'bilibili'
@@ -607,6 +623,82 @@ class DownloadQueue {
       };
       doReq(r.url, 0);
     }).catch(e => fail(e && e.message || e));
+  }
+
+  // 文章引擎：lib/article.js 流水线进程内执行（隐藏窗口抓网页文章 → 4 件套归档）。
+  // 无子进程：看门狗/磁盘巡检与 direct 路径同节奏；取消走 cancel 里的 _articleCtl 标记分支
+  runArticle(it, done, seq) {
+    it._articleCtl = { canceled: false };
+    it._lastOutput = Date.now();
+    // 磁盘/看门狗巡检（与 spawn/direct 路径同节奏 30s，逻辑一致）
+    it._diskTimer = setInterval(() => {
+      if (seq !== it._runSeq || it.status !== 'downloading') { clearInterval(it._diskTimer); it._diskTimer = null; return; }
+      const wdReason = this._watchdogReason(it);
+      if (wdReason) {
+        if (it._articleCtl) { it._articleCtl.canceled = true; try { if (it._articleCtl.win) it._articleCtl.win.destroy(); } catch (e) {} it._articleCtl = null; }
+        it.status = 'error';
+        it.error = '看门狗：' + wdReason + '，已自动终止（任务可重试）';
+        this.active = Math.max(0, this.active - 1);
+        it._wasActive = false;
+        clearInterval(it._diskTimer); it._diskTimer = null;
+        this.tick(); this.push();
+        return;
+      }
+      if (diskLow()) {
+        if (it._articleCtl) { it._articleCtl.canceled = true; try { if (it._articleCtl.win) it._articleCtl.win.destroy(); } catch (e) {} it._articleCtl = null; }
+        it.status = 'held';
+        it._diskHeld = true;
+        it.error = '磁盘空间不足（剩余 ' + freeMB() + ' MB），已暂停——清理空间后自动继续';
+        this.active = Math.max(0, this.active - 1);
+        it._wasActive = false;
+        clearInterval(it._diskTimer); it._diskTimer = null;
+        this.tick(); this.push();
+      }
+    }, 30 * 1000);
+    const clearDiskTimer = () => { if (it._diskTimer) { clearInterval(it._diskTimer); it._diskTimer = null; } };
+
+    const fail = (msg, kind) => {
+      clearDiskTimer();
+      it._articleCtl = null;
+      if (seq !== it._runSeq || !it._wasActive || it.status === 'canceled') return;
+      // 删帖/付费墙/选不出正文 = 源头内容或版式问题，不是站点风控——不计熔断（P2-5），
+      // 否则几篇被删文章就把整个站点打成冷却，后续正常文章全部误挂起
+      if (kind === 'deleted' || kind === 'paywall' || kind === 'select') {
+        return done('error', { error: String(msg).slice(0, 300) });
+      }
+      const st = strategy.reportFailure(it.url, false);
+      done(strategy.isBreakered(it.url) ? 'held' : 'error', { error: String(msg).slice(0, 300), level: st.level });
+    };
+
+    article.fetchArticle({
+      url: it.url,
+      outDir: OUTDIR,
+      cancel: it._articleCtl,
+      // 进度回调：onProgress 百分比直接进进度条；任何回调都算「活着」（看门狗无输出判定）
+      onProgress: (pct) => {
+        if (seq !== it._runSeq) return;
+        it._lastOutput = Date.now();
+        it.progress = Math.min(99, Math.max(0, Math.round(pct)));
+        this.pushThrottled();
+      },
+    }).then(r => {
+      clearDiskTimer();
+      it._articleCtl = null;
+      if (seq !== it._runSeq || !it._wasActive || it.status === 'canceled') return;
+      it.title = (r.meta && r.meta.title) || it.title;   // URL 占位标题换成文章真名
+      it.filePath = r.dir;                               // 指向文章目录（📂 打开所在文件夹）
+      it.fileCount = r.fileCount;
+      if (!it._files.includes(r.dir)) it._files.push(r.dir);   // source.record 用（媒体库溯源）
+      strategy.reportSuccess(it.url);
+      done('done', { progress: 100, filePath: r.dir, fileCount: r.fileCount });
+    }).catch(e => {
+      clearDiskTimer();
+      it._articleCtl = null;
+      if (seq !== it._runSeq || !it._wasActive || it.status === 'canceled') return;
+      // 取消在流水线内部抛出：此时 cancel() 已把任务置 canceled，静默返回即可
+      if (e && e.kind === 'canceled') return;
+      fail((e && e.human) || (e && e.message) || String(e), e && e.kind);
+    });
   }
 
   parseOutput(it, chunk) {
