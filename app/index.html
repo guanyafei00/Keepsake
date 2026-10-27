@@ -159,7 +159,7 @@
   <div class="page on" id="page-tasks">
     <div class="paste-box">
       <span>🔗</span>
-      <textarea id="urls" rows="2" placeholder="粘贴视频 / 图片链接（B站、YouTube、Pixiv、X、Instagram…每行一个），自动识别并加入下载队列"></textarea>
+      <textarea id="urls" rows="2" placeholder="粘贴视频 / 图片 / 文章链接（B站、YouTube、Pixiv、公众号、知乎…每行一个），自动识别并加入下载队列"></textarea>
       <button class="btn-dl" id="btnAdd" onclick="addUrls()">＋ 加入队列</button>
     </div>
     <div id="probeStrip" style="display:none;margin:8px 2px 0;font-size:12.5px;color:var(--txt2);padding:7px 11px;background:var(--panel);border:1px dashed var(--line);border-radius:var(--r-md)"></div>
@@ -168,7 +168,7 @@
       <span class="pick" id="pickAudio" onclick="togglePick('pickAudio')"><span class="box">✓</span>🎧 仅音频 <span class="n">转 mp3，体积小</span></span>
       <span class="pick" id="pickTrans" onclick="togglePick('pickTrans')"><span class="box">✓</span>📝 转写 <span class="n">下载完出文字稿</span></span>
     </div>
-    <div class="hint">支持多行同时粘贴 · 视频→yt-dlp（最高 1080P，游客）· 图文→gallery-dl · UP 主动态页会抓取全部图片和视频 · B 站音视频由 ffmpeg 自动合并</div>
+    <div class="hint">支持多行同时粘贴 · 视频→yt-dlp（最高 1080P，游客）· 图文→gallery-dl · 公众号/知乎/B站专栏等文章→自动存档可离线阅读 · UP 主动态页会抓取全部图片和视频 · B 站音视频由 ffmpeg 自动合并</div>
 
     <div class="sec-t">⬇️ 任务队列 <span class="cnt" id="q-cnt2">0</span></div>
     <div id="queue"><div class="empty">队列空空如也——贴个链接试试，比如 B 站视频或 UP 主主页</div></div>
@@ -182,12 +182,12 @@
   <div class="page" id="page-rss">
     <div class="paste-box">
       <span>📡</span>
-      <input id="subUrl" placeholder="粘贴主页链接：B站UP主 / YouTube频道 / X用户 / Pixiv·微博·Danbooru·Reddit·Instagram 等图站用户页，更新即自动下载" style="flex:1;border:none;outline:none;font:inherit;font-size:13.5px;background:transparent;color:var(--txt)">
+      <input id="subUrl" placeholder="粘贴订阅链接：B站UP主 / YouTube频道 / X用户 / RSS·Atom feed（博客更新自动入库）/ Pixiv·微博·Danbooru·Reddit·Instagram 等图站用户页" style="flex:1;border:none;outline:none;font:inherit;font-size:13.5px;background:transparent;color:var(--txt)">
       <button class="btn-dl" onclick="addSub()">＋ 添加订阅</button>
     </div>
     <div class="hint">每 10 分钟自动增量检查（轻量单次请求，不触发风控）· 添加后会询问是否回溯全部历史 · 新内容自动入队 · <b>UP 主删除源视频不会删除你已下载的文件</b></div>
     <div class="sec-t">📡 我的订阅 <span class="cnt" id="s-cnt2">0</span> <select id="groupFilter" onchange="renderSubs()" style="margin-left:auto;font:inherit;font-size:12px;background:var(--panel2);color:var(--txt);border:1px solid var(--line);border-radius:var(--r-sm);padding:4px 10px;outline:none"><option value="">全部分组</option></select> <span class="act" style="cursor:pointer;font-size:12px" onclick="exportGone()" title="把判定为源头已删除的内容导出成 CSV 表格">📤 删帖清单</span> <span class="act" style="cursor:pointer;font-size:12px" onclick="checkAllSubs()">⟳ 立即检查</span></div>
-    <div id="subList"><div class="empty">还没有订阅——支持 B站UP主/合集 / YouTube频道 / X用户 / Pixiv / 微博 / Reddit / Instagram / Danbooru 等站点主页</div></div>
+    <div id="subList"><div class="empty">还没有订阅——支持 B站UP主/合集 / YouTube频道 / X用户 / RSS·Atom feed / Pixiv / 微博 / Reddit / Instagram / Danbooru 等站点主页</div></div>
     <div class="selbar" id="selBar">
       <span>已选 <b id="selCnt">0</b> 个订阅</span>
       <span class="sb-btn" onclick="batchSubBackfill()">⤓ 全量下载</span>
@@ -444,6 +444,7 @@ document.addEventListener('DOMContentLoaded', a11yEnhance);
 // 错误翻译层（把引擎的工程师语言翻译成用户能懂的行动建议；原文悬停可见
 function translateError(e) {
   const s = String(e || '');
+  if (/Keepsake 不会绕过访问限制|已被发布者删除|没有认出这篇文章/.test(s)) return s;   // 文章引擎的错误本就是人话，直通不走通用翻译
   if (/412|-352|请求过于频繁|Precondition/i.test(s)) return 'B 站风控限流中：稍等几分钟会自动重试，或到左下角扫码登录后再试';
   if (/\b403\b/.test(s)) return '站点拒绝访问：可能需要登录（左下角扫码）或链接已失效';
   if (/\b429\b|Too Many Requests|rate.?limit/i.test(s)) return '请求太快被限流：稍后会自动重试';
@@ -535,8 +536,8 @@ async function addUrls() {
   }
 }
 
-const engIcon = e => e === 'yt-dlp' ? '🎥' : e === 'gallery-dl' ? '🖼️' : e === 'direct' ? '⚡' : '❓';
-const engName = e => e === 'yt-dlp' ? '视频' : e === 'gallery-dl' ? '图文' : e === 'direct' ? '直连' : '识别中';
+const engIcon = e => e === 'yt-dlp' ? '🎥' : e === 'gallery-dl' ? '🖼️' : e === 'direct' ? '⚡' : e === 'article' ? '📄' : e === 'feed' ? '📡' : '❓';
+const engName = e => e === 'yt-dlp' ? '视频' : e === 'gallery-dl' ? '图文' : e === 'direct' ? '直连' : e === 'article' ? '文章' : e === 'feed' ? 'RSS 订阅' : '识别中';
 const stName = { queued:'排队中', downloading:'下载中', held:'风控冷却', done:'完成', error:'失败', canceled:'已取消' };
 const heldMin = ms => Math.max(1, Math.ceil(ms/60000));
 
@@ -727,10 +728,18 @@ async function loadAsr() {
         ${prog ? '<div class="bar"><i style="width:' + window._asrProg[m.id] + '%"></i></div>' : ''}
       </div>
       ${isActive ? '<span class="dl-state ok">使用中</span>'
-        : m.downloaded ? `<button type="button" class="btn-mini" style="color:var(--acc2)" onclick="setActiveModel('${m.id}')">设为默认</button>`
+        : m.downloaded ? `<button type="button" class="btn-mini" style="color:var(--acc2)" onclick="setActiveModel('${m.id}')">设为默认</button>
+        <button type="button" class="btn-mini" style="color:var(--danger,#e5484d)" onclick="delModel('${m.id}','${esc(m.label).replace(/'/g, '&#39;')}')" title="删除模型文件，释放磁盘空间">🗑 删除</button>`
         : prog ? '' : `<button type="button" class="btn-mini" style="color:var(--acc2)" onclick="dlModel('${m.id}')">⬇ 下载</button>`}
     </div>`;
   }).join('');
+}
+async function delModel(id, label) {
+  if (!confirm(`删除「${label}」的模型文件？删除后转写将不可用，直到重新下载其他模型。`)) return;
+  const r = await window.fetchie.asrDeleteModel(id);
+  if (!r.ok) return toast('删除失败：' + (r.reason || ''));
+  toast(`已删除，释放 ${r.freedMB}MB 磁盘空间 ✓`);
+  loadAsr();
 }
 async function setActiveModel(id) {
   const r = await window.fetchie.asrSetModel(id);
@@ -1178,13 +1187,15 @@ async function renderSubs() {
     const freqTag = s.intervalMin ? ` · 检查频率 ${s.intervalMin} 分钟` : '';
     const atTag = s.autoTranscribe ? ' · <span style="color:var(--acc2)">📝 自动转写</span>' : '';
     const lnTag = s.latestN ? ` · 只下最新 ${s.latestN} 条` : '';
+    // RSS 诚实边界：只追新，不做删帖检测（feed 翻页会让旧文章消失，误报率高）——卡上常驻交代
+    const rssTag = s.kind === 'rss' ? ' · <span title="RSS 订阅只自动追新文章；不做删帖检测（feed 翻页会让旧文章消失，误报率高）">📡 只追新</span>' : '';
     htmls.push(`
     <div class="task"${paused ? ' style="opacity:.62"' : ''}>
       <div class="pickbox${_subSel.has(s.id) ? ' on' : ''}" onclick="subPick(event,'${s.id}')" title="选中（Ctrl 切换 / Shift 范围选）">${_subSel.has(s.id) ? '✔' : ''}</div>
-      <div class="t-thumb">📡<span class="eng">${s.kind === 'bilibili' ? 'B站' : s.kind === 'bili-collection' ? '合集' : s.kind === 'x' ? 'X' : s.kind === 'youtube' ? 'YouTube' : s.kind === 'gdl' ? '图站' : '订阅'}</span></div>
+      <div class="t-thumb">📡<span class="eng">${s.kind === 'bilibili' ? 'B站' : s.kind === 'bili-collection' ? '合集' : s.kind === 'x' ? 'X' : s.kind === 'youtube' ? 'YouTube' : s.kind === 'rss' ? 'RSS' : s.kind === 'gdl' ? '图站' : '订阅'}</span></div>
       <div class="t-info">
         <div class="name">${esc(s.name)}</div>
-        <div class="meta">${groupTag}${pausedTag ? pausedTag + ' · ' : ''}${statusHtml} · 已跟踪 ${s.knownCount} 条${s.lastNew ? ` · 上轮新增 ${s.lastNew}` : ''}${s._pendingBackfill ? ' · <span style="color:var(--acc2)">⏳ 排队待回溯</span>' : ''}${s.autoBackfill ? ' · <span style="color:var(--acc2)">⤓ 自动全量下载中</span>' : ''}${s.kw && s.kw.length ? ' · 🏷 ' + esc(s.kw.join('/')) : ''}${freqTag}${atTag}${lnTag}${goneBadge(s)}</div>
+        <div class="meta">${groupTag}${pausedTag ? pausedTag + ' · ' : ''}${statusHtml} · 已跟踪 ${s.knownCount} 条${s.lastNew ? ` · 上轮新增 ${s.lastNew}` : ''}${rssTag}${s._pendingBackfill ? ' · <span style="color:var(--acc2)">⏳ 排队待回溯</span>' : ''}${s.autoBackfill ? ' · <span style="color:var(--acc2)">⤓ 自动全量下载中</span>' : ''}${s.kw && s.kw.length ? ' · 🏷 ' + esc(s.kw.join('/')) : ''}${freqTag}${atTag}${lnTag}${goneBadge(s)}</div>
       </div>
       <div class="x" onclick="openSubLink('${s.id}')" title="打开订阅原链接（浏览器）">🔗</div>
       <div class="x" onclick="checkSub('${s.id}')" title="立即检查">⟳</div>
@@ -1394,11 +1405,11 @@ async function openSubFolder(id) {
 }
 async function addSub() {
   const url = $('subUrl').value.trim();
-  if (!url) return toast('先粘贴 UP 主页或频道链接');
+  if (!url) return toast('先粘贴 UP 主页、频道或 RSS feed 链接');
   const r = await window.fetchie.subsAdd(url);
   if (!r.ok) return toast(r.reason);
   $('subUrl').value = '';
-  toast('订阅成功，正在记录内容清单…');
+  toast(r.sub && r.sub.kind === 'rss' ? '订阅成功，正在拉取 feed 记录已发布文章…' : '订阅成功，正在记录内容清单…');
   if (r.warning) toast('⚠ ' + r.warning);   // 缺登录态站点（Pixiv/IG/X 游客态实测必失败）提前告知；卡片上还会常驻失败原因
   loadSubs();
   // 自动跑首轮检查（建立基线，之后的更新才会自动下载）
@@ -1449,7 +1460,7 @@ let libData = null;
 let expandedKey = null;
 let libDirty = false;
 
-const siteIcon = s => s === 'bilibili' ? '📺' : s === 'youtube' ? '▶️' : s === '未分类' ? '📦' : '🌐';
+const siteIcon = s => s === 'bilibili' ? '📺' : s === 'youtube' ? '▶️' : s === 'article' ? '📄' : s === '未分类' ? '📦' : '🌐';
 const timeAgo = ms => {
   const m = Math.round((Date.now() - ms) / 60000);
   if (m < 1) return '刚刚';
@@ -1518,7 +1529,7 @@ function renderLibrary() {
       <div class="t-thumb" style="font-size:22px">${siteIcon(g.site)}</div>
       <div class="t-info">
         <div class="name">${esc(g.uploader)} <span style="font-size:11px;color:var(--txt2);background:var(--panel2);border-radius:var(--r-xs);padding:1px 6px">${esc(g.site)}</span></div>
-        <div class="meta">${g.fileCount} 个文件（🎥 ${g.videoCount} · 🖼️ ${g.imageCount}）· ${g.sizeText} · 最近更新 ${timeAgo(g.lastMtime)}${kwNote}</div>
+        <div class="meta">${g.fileCount} 个文件（🎥 ${g.videoCount} · 🖼️ ${g.imageCount}${g.articleCount ? ' · 📄 ' + g.articleCount : ''}）· ${g.sizeText} · 最近更新 ${timeAgo(g.lastMtime)}${kwNote}</div>
       </div>
       <div class="x" onclick="event.stopPropagation();openPath('${escAttr(g.files[0] ? g.files[0].path : g.key)}')" title="打开文件夹">📁</div>
       <div class="st flat">${open ? '收起 ▲' : '展开 ▼'}</div>
@@ -1527,8 +1538,9 @@ function renderLibrary() {
         <div class="t-thumb" style="width:36px;height:28px;font-size:14px">${kindIcon(f.kind)}</div>
         <div class="t-info">
           <div class="name" title="${esc(f.path)}">${esc(f.name)}</div>
-          <div class="meta">${f.sizeText} · ${timeAgo(f.mtime)}${_txtHits[f.path] ? ' · 📄 <span title="' + escAttr(_txtHits[f.path].snippet || '') + '" style="color:var(--acc2)">文稿匹配</span>' : ''}${asrStates[f.path] ? ' · 📝 ' + (asrStates[f.path].state === 'running' ? '转写中 ' + asrStates[f.path].pct + '%' : asrStates[f.path].state === 'done' ? '已转写' : '转写失败') : ''}${jobStatus(f)}${srcBadge(f)}</div>
+          <div class="meta">${f.kind === 'article' ? '文章存档 · ' + f.sizeText + ' · ' : f.sizeText + ' · '}${timeAgo(f.mtime)}${articleBadge(f)}${_txtHits[f.path] ? ' · 📄 <span title="' + escAttr(_txtHits[f.path].snippet || '') + '" style="color:var(--acc2)">文稿匹配</span>' : ''}${asrStates[f.path] ? ' · 📝 ' + (asrStates[f.path].state === 'running' ? '转写中 ' + asrStates[f.path].pct + '%' : asrStates[f.path].state === 'done' ? '已转写' : '转写失败') : ''}${jobStatus(f)}${srcBadge(f)}</div>
         </div>
+        ${f.kind === 'article' ? `<div class="x" onclick="event.stopPropagation();openArticle('${escAttr(f.path)}')" title="阅读（浏览器打开本地存档，离线可看）">📖</div><div class="x" onclick="event.stopPropagation();recheckArticle('${escAttr(f.path)}')" title="重新检查原文：是否被删除或编辑">⟳</div>` : ''}
         ${/\.(mp4|mkv|webm|mov|avi|flv|m4a|mp3|wav)$/i.test(f.name) ? `<div class="x" onclick="event.stopPropagation();transcribeFile('${escAttr(f.path)}')" title="本地转写出 SRT 字幕">📝</div><div class="x" onclick="event.stopPropagation();translateFile('${escAttr(f.path)}')" title="生成中英双语字幕（无字幕会先自动转写；需在设置页配置 AI）">🌐</div><div class="x" onclick="event.stopPropagation();burnFile('${escAttr(f.path)}')" title="把字幕硬烧进视频（生成新视频文件）">🎬</div><div class="x" onclick="event.stopPropagation();aiPanel('${escAttr(f.path)}')" title="AI 文稿助理（摘要/翻译）">✨</div>` : ''}
         <div class="x" onclick="event.stopPropagation();openLibSource('${escAttr(f.path)}')" title="打开来源链接（浏览器）">🔗</div>
         <div class="x" onclick="openPath('${escAttr(f.path)}')" title="打开所在文件夹">📁</div>
@@ -1596,6 +1608,30 @@ function srcBadge(f) {
 async function openSrc(u) {
   const r = await window.fetchie.openExternal(u);
   if (r && !r.ok) toast(r.reason);
+}
+
+// 文章存档（kind=article）状态徽标：删除态 / 内容有编辑 / 未本地化图片数（诚实降级提示）
+function articleBadge(f) {
+  const a = f.article;
+  if (!a) return '';
+  let s = '';
+  if (a.status === 'deleted') s += ' · <span style="color:var(--red);font-weight:600" title="重新检查时原文已被删除或无法查看；本地存档未受影响">源头已删除</span>';
+  else if (a.editedAt) s += ' · <span style="color:var(--yellow)" title="重新检查时原文与存档不一致——原文可能被编辑过；本地存档未改动">内容有编辑</span>';
+  if (a.imagesFailed) s += ` · <span title="这些图片下载失败保留了原链接，联网可看">${a.imagesFailed} 图未本地化</span>`;
+  return s;
+}
+async function openArticle(p) {
+  const r = await window.fetchie.articleOpen(p);
+  if (r && !r.ok) toast(r.reason || '打开失败');
+}
+async function recheckArticle(p) {
+  toast('正在重新检查原文…（会重新加载一次原文页面）');
+  const r = await window.fetchie.articleRecheck(p).catch(e => ({ ok: false, reason: String(e) }));
+  if (!r.ok) return toast('检查失败：' + (r.reason || '未知错误'));
+  if (r.status === 'deleted') toast('原文已被删除或无法查看——已在文章卡片标记（本地存档不受影响）');
+  else if (r.edited) toast('原文内容与存档时不一致：可能被编辑过，已在卡片标记');
+  else toast('原文正常 ✓');
+  loadLibrary(true);
 }
 
 function fmtBytes(b) {

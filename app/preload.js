@@ -37,6 +37,8 @@ contextBridge.exposeInMainWorld('fetchie', {
   settingsSetQueue: (max, rate) => ipcRenderer.invoke('settings:setQueue', { max, rate }),
   libTrash: (filePath) => ipcRenderer.invoke('lib:trash', { filePath }),
   libraryScan: () => ipcRenderer.invoke('library:scan'),
+  articleOpen: (filePath) => ipcRenderer.invoke('article:open', { filePath }),     // 文章引擎：浏览器打开本地存档
+  articleRecheck: (filePath) => ipcRenderer.invoke('article:recheck', { filePath }), // 文章引擎：重新检查原文（删帖/编辑检测）
   openFolder: (p) => ipcRenderer.invoke('app:openFolder', p),
   openExternal: (url) => ipcRenderer.invoke('app:openExternal', url),
   aiGetConfig: () => ipcRenderer.invoke('ai:getConfig'),
@@ -66,6 +68,7 @@ contextBridge.exposeInMainWorld('fetchie', {
   asrSetMirror: (id) => ipcRenderer.invoke('asr:setMirror', { id }),
   asrDownload: (id) => ipcRenderer.invoke('asr:download', { id }),
   asrSetModel: (id) => ipcRenderer.invoke('asr:setModel', { id }),
+  asrDeleteModel: (id) => ipcRenderer.invoke('asr:deleteModel', { id }),
   asrTranscribe: (filePath) => ipcRenderer.invoke('asr:transcribe', { filePath }),
   asrBatch: (paths) => ipcRenderer.invoke('asr:batch', { paths }),
   srtTranslate: (filePath) => ipcRenderer.invoke('srt:translate', { filePath }),

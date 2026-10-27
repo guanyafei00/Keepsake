@@ -49,6 +49,7 @@ const source = require('./lib/source');
 const srtLib = require('./lib/srt');
 const backup = require('./lib/backup');
 const textindex = require('./lib/textindex');
+const articleLib = require('./lib/article');   // 文章引擎（M-A2/A3）：公众号/知乎/B站专栏等网页文章归档 + 删帖复查
 const { atomicWrite } = require('./lib/jsonfile');   // 迁移包导出防半截文件
 
 const CHECK_INTERVAL_MS = 10 * 60 * 1000;   // 每站 10 分钟增量检查
@@ -158,7 +159,11 @@ function createWindow() {
     win.webContents.once('did-finish-load', () => {
       console.log('[capture] did-finish-load 进入截图流程');
       const fsx = require('fs');
-      const outDir = path.join(__dirname, '..', 'screenshots');
+      // 截图输出：开发模式写仓库 screenshots/；打包后 __dirname 在安装目录里（应只读），
+      // 改写 userData，不再污染安装目录（v0.2.15 前的安装目录 screenshots 残留即此来源）
+      const outDir = app.isPackaged
+        ? path.join(app.getPath('userData'), 'capture-screenshots')
+        : path.join(__dirname, '..', 'screenshots');
       fsx.mkdirSync(outDir, { recursive: true });
       const withTimeout = (p, ms, tag) => Promise.race([
         p,
@@ -904,6 +909,10 @@ app.whenReady().then(() => {
         invalid.push({ url: url.trim(), reason: meta.reason || '无法识别' });
         continue;
       }
+      if (meta.engine === 'feed') {   // feed 不是单篇内容：入队必然失败，提前指路订阅页
+        invalid.push({ url: url.trim(), reason: '这是 RSS 订阅源：到「📡 订阅」页粘贴添加，更新即自动下载' });
+        continue;
+      }
       const item = queue.add(url.trim(), { ...meta, _subs: !!(opts && opts.subs), _audio: !!(opts && opts.audio), _transcribe: !!(opts && opts.trans) });
       if (!item) continue;
       if (item.duplicate) duplicates.push(url.trim());
@@ -1004,9 +1013,13 @@ app.whenReady().then(() => {
   ipcMain.handle('library:scan', async () => {
     const r = await library.scan();
     // #70③：顺带增量重建文稿索引（扫描结果里全是媒体文件，文稿=同名 .txt；mtime 没变的跳过）
+    // 文章条目（kind=article）：索引本体是 article.md，key 用目录路径（渲染层按条目 path 命中徽标）
     try {
       const entries = [];
-      for (const g of r.groups) for (const f of g.files) entries.push({ path: f.path, title: f.name, up: g.uploader });
+      for (const g of r.groups) for (const f of g.files) {
+        if (f.kind === 'article') entries.push({ path: f.path, src: path.join(f.path, 'article.md'), key: f.path, title: f.name, up: g.uploader });
+        else entries.push({ path: f.path, title: f.name, up: g.uploader });
+      }
       const s = textindex.reindex(entries);
       if (s.indexed) log.info('textindex', `文稿索引更新 ${s.indexed} 篇（共 ${textindex.stats().docs} 篇）`);
     } catch (e) { log.warn('textindex', '索引更新失败: ' + e.message); }
@@ -1090,6 +1103,14 @@ app.whenReady().then(() => {
     const t = String(text || '').toLowerCase();
     return sub.kw.some(k => t.includes(String(k).toLowerCase()));
   }
+  // feed 条目链接 → 引擎分流（RSS 语义）：视频/图站/直连按现有 identify 规则走对应引擎，
+  // 不硬塞 article（博客 feed 里混播客/视频也能走对）；剩余 unknown（普通网页）→ article 引擎
+  // （RSS 订阅的本意就是文字内容，article 引擎有 Readability 兜底，覆盖绝大多数博客文章页）
+  function engineForFeedItem(url) {
+    const cls = identify.classify(url);
+    if (cls.engine === 'yt-dlp' || cls.engine === 'gallery-dl' || cls.engine === 'direct') return cls.engine;
+    return 'article';
+  }
   async function doCheckAllSubs(onlyId) {
     try {
       const results = [];
@@ -1117,6 +1138,14 @@ app.whenReady().then(() => {
             if (it.type === 'text') return;   // 纯文字动态无媒体，只记录不入队
             if (!kwMatch(real, it.text)) return;   // 关键词不匹配：记 known 但不入队
             if (it.type === 'gdl') { gdlSeqs.push(it.seq); return; }
+            // RSS feed 条目：按链接分流引擎（文章/视频/图站各自走对），不硬塞 article
+            if (it.type === 'feed') {
+              const url2 = subs.itemUrl(s, it);
+              if (!url2) return;
+              const t2 = queue.add(url2, { engine: engineForFeedItem(url2), title: `[订阅] ${s.name} · ${(it.text || '新文章').slice(0, 40)}`, _subId: s.id, _transcribe: !!real.autoTranscribe });
+              if (t2 && t2.duplicate) return false;   // 同 URL 已在队列：不记 known，下轮重查防吞
+              return true;
+            }
             const engine = it.type === 'video' ? 'yt-dlp' : 'gallery-dl';
             // #70④：订阅开启「自动转写」→ 新任务带转写标记（下载完自动出字幕/文稿）
             const t = queue.add(subs.itemUrl(s, it), { engine, title: `[订阅] ${s.name} · ${it.text || it.type}`, _subId: s.id, _transcribe: !!real.autoTranscribe });
@@ -1335,7 +1364,8 @@ app.whenReady().then(() => {
       if (!url) return;
       if (!kwMatch(real, it.text)) return;   // 关键词过滤
       if ([...queue.items.values()].some(x => x.url === url)) { skipped++; return; }
-      const engine = it.type === 'video' ? 'yt-dlp' : 'gallery-dl';
+      // RSS feed 条目回溯：同样按链接分流引擎（与增量检查同一套规则）
+      const engine = it.type === 'feed' ? engineForFeedItem(url) : (it.type === 'video' ? 'yt-dlp' : 'gallery-dl');
       queue.add(url, { engine, title: `[订阅回溯] ${s.name} · ${(it.text || it.type || '').slice(0, 30)}`, _subId: s.id });
       added++;
     });
@@ -1419,6 +1449,7 @@ app.whenReady().then(() => {
     const ok = asr.setActive(id);
     return ok ? { ok: true, activeModel: asr.anyModel() } : { ok: false, reason: '该模型尚未下载或不存在' };
   });
+  ipcMain.handle('asr:deleteModel', (e, { id }) => asr.deleteModel(id));
   ipcMain.handle('asr:download', (e, { id }) => {
     // 防双击并发下载（同一模型同时只允许一个下载任务
     if (_asrDownloading.has(id)) return { ok: false, reason: '该模型正在下载中' };
@@ -1478,6 +1509,35 @@ app.whenReady().then(() => {
     }
     if (win && !win.isDestroyed()) win.webContents.send('library:changed');
     return { ok: true };
+  });
+
+  // ===== 文章引擎（M-A2/A3）=====
+  // 阅读已存档文章：article 目录里的 index.html 用系统默认浏览器/浏览器内核打开
+  // （内嵌阅读样式、图片全本地化，离线可看）
+  ipcMain.handle('article:open', (e, { filePath }) => {
+    const dir = insideOutDir(filePath);
+    if (!dir) return { ok: false, reason: '只允许打开下载目录内的文章' };
+    const idx = path.join(dir, 'index.html');
+    if (!fs.existsSync(idx)) return { ok: false, reason: '文章文件缺失（目录里没有 index.html）' };
+    return shell.openPath(idx).then(err => err ? { ok: false, reason: err } : { ok: true });
+  });
+  // 重新检查（删帖检测最小版）：重抓原文页——
+  // 404 /「内容已被发布者删除」/「此内容因违规无法查看」→ meta 标记删除态；
+  // 正文 hash 变化 → 标记「内容有编辑」（本地存档不动，是否重新存档由用户决定）
+  ipcMain.handle('article:recheck', async (e, { filePath }) => {
+    const dir = insideOutDir(filePath);
+    if (!dir) return { ok: false, reason: '只允许检查下载目录内的文章' };
+    try {
+      // cancel 语义补齐（P1-1）：传入 cancel 控制对象（窗口会挂其上，供后续取消扩展）；
+      // recheck 内部每个 executeJavaScript 均有 30s 超时兜底，页面卡死时最坏几十秒内
+      // reject，此 IPC 绝不永挂
+      const r = await articleLib.recheck({ dir, cancel: { canceled: false } });
+      log.info('article', `重新检查 ${path.basename(dir)}: status=${r.status} edited=${r.edited}`);
+      if (win && !win.isDestroyed()) win.webContents.send('library:changed');
+      return { ok: true, ...r };
+    } catch (err) {
+      return { ok: false, reason: (err && err.human) || String((err && err.message) || err).slice(0, 160) };
+    }
   });
 
   createWindow();

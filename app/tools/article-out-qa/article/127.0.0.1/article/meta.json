@@ -1,0 +1,20 @@
+{
+  "kind": "keepsake-article",
+  "engine": "article",
+  "url": "http://127.0.0.1:18742/post",
+  "finalUrl": "http://127.0.0.1:18742/post",
+  "title": "未命名文章",
+  "author": "",
+  "publishTime": "",
+  "site": "127.0.0.1",
+  "archivedAt": "2026-10-26T11:59:18.968Z",
+  "contentHash": "e944d22135d22043199886bdf4588f03e31ffa351dbcddcd28f7e641c48af907",
+  "textLength": 44,
+  "imagesTotal": 1,
+  "imagesLocal": 1,
+  "imagesFailed": 0,
+  "status": "ok",
+  "lastCheckedAt": null,
+  "editedAt": null,
+  "deletedAt": null
+}

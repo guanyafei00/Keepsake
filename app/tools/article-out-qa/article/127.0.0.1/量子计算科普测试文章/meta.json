@@ -1,0 +1,20 @@
+{
+  "kind": "keepsake-article",
+  "engine": "article",
+  "url": "http://127.0.0.1:18744/qa-article",
+  "finalUrl": "http://127.0.0.1:18744/qa-article",
+  "title": "量子计算科普测试文章",
+  "author": "",
+  "publishTime": "",
+  "site": "127.0.0.1",
+  "archivedAt": "2026-10-26T12:00:12.008Z",
+  "contentHash": "c19961dac0e94612d1763c6cb64287cdfc0927121fbb5d9c37ae5e781f6e7d52",
+  "textLength": 96,
+  "imagesTotal": 2,
+  "imagesLocal": 2,
+  "imagesFailed": 0,
+  "status": "ok",
+  "lastCheckedAt": null,
+  "editedAt": null,
+  "deletedAt": null
+}

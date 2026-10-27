@@ -3,3 +3,9 @@ node_modules/
 downloads/
 dist/
 resources/cookies.txt
+
+# QA 测试产物(本地运行生成,不入库)
+tools/article-out
+tools/article-out-qa
+tools/qa-state
+tools/bili-edit-*.js

@@ -1,7 +1,7 @@
 {
   "name": "keepsake",
   "productName": "Keepsake",
-  "version": "0.2.14",
+  "version": "0.2.15",
   "description": "Keepsake - Local AI media library - download videos & images from 1000+ sites",
   "author": "Keepsake",
   "license": "UNLICENSED",
@@ -86,6 +86,14 @@
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": "always",
       "allowElevation": false
-    }
+    },
+    "electronLanguages": [
+      "zh-CN",
+      "en-US",
+      "en-GB"
+    ]
+  },
+  "dependencies": {
+    "@mozilla/readability": "^0.6.0"
   }
 }

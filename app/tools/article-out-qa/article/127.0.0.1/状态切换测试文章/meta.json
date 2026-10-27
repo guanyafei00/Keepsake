@@ -1,0 +1,20 @@
+{
+  "kind": "keepsake-article",
+  "engine": "article",
+  "url": "http://127.0.0.1:18745/live",
+  "finalUrl": "http://127.0.0.1:18745/live",
+  "title": "状态切换测试文章",
+  "author": "",
+  "publishTime": "",
+  "site": "127.0.0.1",
+  "archivedAt": "2026-10-26T12:01:02.854Z",
+  "contentHash": "4871cfa0fea3c4c531cd8eef5c991bdf97eab09ff8b5b6b68c9475a982c218ce",
+  "textLength": 94,
+  "imagesTotal": 0,
+  "imagesLocal": 0,
+  "imagesFailed": 0,
+  "status": "deleted",
+  "lastCheckedAt": 1793016209580,
+  "editedAt": 1793016196329,
+  "deletedAt": 1793016209580
+}

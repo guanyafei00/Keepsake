@@ -21,12 +21,15 @@ function configure({ binDir, modelsDir, onPersist }) {
 }
 
 // Whisper 模型目录（ggerganov/whisper.cpp 官方 ggml 量化模型）
+// v0.2.15 修正：Turbo 此前标 547MB，实测 ggml-large-v3-turbo.bin 是 1.55GB——
+// 错值除了误导用户（默默吃掉 1.6G 磁盘），还让 downloaded() 的 0.8 阈值校验形同虚设
+//（下载一半的 900MB 残件会过 547*0.8 的线被误判完整）。sizeMB 必须如实。
 const MODELS = [
-  { id: 'tiny',             file: 'ggml-tiny.bin',             sizeMB: 75,   label: 'Tiny · 75MB · 最快，够用',  rec: false },
-  { id: 'base',             file: 'ggml-base.bin',             sizeMB: 142,  label: 'Base · 142MB · 快，更好',   rec: false },
-  { id: 'small',            file: 'ggml-small.bin',            sizeMB: 466,  label: 'Small · 466MB · 均衡',      rec: false },
-  { id: 'large-v3-turbo',   file: 'ggml-large-v3-turbo.bin',   sizeMB: 547,  label: 'Turbo · 547MB · 推荐，快且准', rec: true },
-  { id: 'medium',           file: 'ggml-medium.bin',           sizeMB: 1530, label: 'Medium · 1.5GB · 慢，更准',  rec: false },
+  { id: 'tiny',             file: 'ggml-tiny.bin',             sizeMB: 75,    label: 'Tiny · 75MB · 最快，够用',        rec: false },
+  { id: 'base',             file: 'ggml-base.bin',             sizeMB: 142,   label: 'Base · 142MB · 快，更好',        rec: false },
+  { id: 'small',            file: 'ggml-small.bin',            sizeMB: 466,   label: 'Small · 466MB · 均衡，推荐',      rec: true },
+  { id: 'large-v3-turbo',   file: 'ggml-large-v3-turbo.bin',   sizeMB: 1550,  label: 'Turbo · 1.5GB · 最准，体积大',   rec: false },
+  { id: 'medium',           file: 'ggml-medium.bin',           sizeMB: 1530,  label: 'Medium · 1.5GB · 慢，更准',      rec: false },
 ];
 const MIRRORS = [
   { id: 'mirror', label: '国内镜像（hf-mirror，推荐）', base: 'https://hf-mirror.com/ggerganov/whisper.cpp/resolve/main/' },
@@ -69,6 +72,22 @@ function setActive(id) {
   return true;
 }
 function restoreActive(id) { if (id && MODELS.some(m => m.id === id) && downloaded(id)) activeModelId = id; }
+
+// 删除已下载的模型文件，释放磁盘。使用中的模型不允许删（先切换到别的模型）——
+// 否则转写队列跑到一半模型文件没了，报错比拦截难看得多。
+function deleteModel(id) {
+  const m = MODELS.find(x => x.id === id);
+  if (!m) return { ok: false, reason: '未知模型' };
+  if (!downloaded(id)) return { ok: false, reason: '该模型未下载' };
+  if (activeModelId === id) return { ok: false, reason: '该模型正在使用中，请先切换到其他模型' };
+  try {
+    const sizeMB = Math.round(fs.statSync(modelPath(id)).size / 1048576);
+    fs.unlinkSync(modelPath(id));
+    return { ok: true, freedMB: sizeMB };
+  } catch (e) {
+    return { ok: false, reason: '删除失败：' + e.message };
+  }
+}
 
 // 下载模型（content-length + chunk 计数报进度，onProgress(0-100)）
 function downloadModel(id, onProgress) {
@@ -180,4 +199,4 @@ function transcribe(mediaPath, opts = {}) {
   });
 }
 
-module.exports = { configure, MODELS, MIRRORS, setMirror, listModels, downloadModel, transcribe, anyModel, downloaded, getActive, setActive, restoreActive };
+module.exports = { configure, MODELS, MIRRORS, setMirror, listModels, downloadModel, transcribe, anyModel, downloaded, getActive, setActive, restoreActive, deleteModel };
