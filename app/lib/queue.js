@@ -68,12 +68,14 @@ function warnOnce(msg) {
 
 // 浏览器登录态读取失败的错误翻译：引擎原始报错是英文技术细节（yt-dlp 的
 // "Could not copy Chrome cookie database" / "Permission denied ... Cookies"）用户看不懂，
-// 替换成人话并附带原文（方便排查）。判定收敛避免误翻：Permission denied 必须同段出现
-// Cookies 字样（Cookie 数据库路径）才算文件锁问题，普通文件权限错误不动
+// 替换成人话并附带原文（方便排查）。判定收敛避免误翻：Permission denied 与 Cookies 必须
+// 同一行且 Cookies 带词边界（\b）——真实报错是 Cookie 数据库路径（...\Network\Cookies），
+// 而「Permission denied: D:/Downloads/MyCookies Backup/file.jpg」这类普通文件权限错误里
+// MyCookies 不构成词边界（y 与 C 都是字母），不会被误翻成浏览器锁文案
 function translateCookieError(text) {
   const s = String(text || '');
   const locked = /Could not copy Chrome cookie database/i.test(s)
-    || (/Permission denied/i.test(s) && /Cookies/i.test(s));
+    || /Permission denied[^\n]*\bCookies\b/i.test(s);
   if (!locked) return null;
   return '无法读取浏览器登录态（浏览器正在运行，Windows 锁定了 Cookie 文件）——请完全退出该浏览器后重试，或改用手动导入的 cookies.txt｜原始报错：' + s.slice(0, 120);
 }

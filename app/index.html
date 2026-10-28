@@ -1260,7 +1260,11 @@ async function batchSubCheck() {
   _subSel.clear(); _subAnchor = null;
   loadSubs();
   const bad = all.filter(r => r.ok === false && r.name && !/间隔未到|已暂停/.test(r.reason || ''));
-  toast(bad.length ? `检查完毕：${bad.length} 个失败（${bad.slice(0, 2).map(b => b.name).join('、')}${bad.length > 2 ? ' 等' : ''}）— 卡片上红字就是原因` : '选中订阅检查完毕，全部正常 ✓');
+  // 浏览器登录态警告：文案不含订阅名，多个订阅命中同一条 → Set 去重后拼进同一条 toast
+  // （toast 是单元素，连弹会互相覆盖，逐条弹只能看到最后一条）
+  const warns = [...new Set(all.filter(r => r.warning).map(r => String(r.warning)))];
+  const wTail = warns.length ? '；⚠ ' + warns.join('；⚠ ') : '';
+  toast(bad.length ? `检查完毕：${bad.length} 个失败（${bad.slice(0, 2).map(b => b.name).join('、')}${bad.length > 2 ? ' 等' : ''}）— 卡片上红字就是原因${wTail}` : '选中订阅检查完毕，全部正常 ✓' + wTail);
 }
 function clearSubSel() { _subSel.clear(); _subAnchor = null; renderSubs(); }
 
@@ -1443,17 +1447,24 @@ async function checkSub(id) {
   toast('检查中…');
   const rs = await window.fetchie.subsCheck(id);
   loadSubs();
-  const bad = (Array.isArray(rs) ? rs : []).filter(r => r.ok === false && r.name && !/间隔未到|已暂停/.test(r.reason || ''));
-  if (bad.length) toast(`「${bad[0].name}」检查失败：${friendlySubFail(bad[0].reason)}（卡片上有详情）`);
-  else toast('检查完成 ✓');
+  const list = Array.isArray(rs) ? rs : [];
+  const bad = list.filter(r => r.ok === false && r.name && !/间隔未到|已暂停/.test(r.reason || ''));
+  // 浏览器登录态警告：Set 去重（同浏览器多个订阅命中同一条文案）拼进同一条 toast，防连弹覆盖/刷屏
+  const warns = [...new Set(list.filter(r => r.warning).map(r => String(r.warning)))];
+  const wTail = warns.length ? '；⚠ ' + warns.join('；⚠ ') : '';
+  if (bad.length) toast(`「${bad[0].name}」检查失败：${friendlySubFail(bad[0].reason)}（卡片上有详情）${wTail}`);
+  else toast('检查完成 ✓' + wTail);
 }
 async function checkAllSubs() {
   toast('检查全部订阅中…');
   const rs = await window.fetchie.subsCheck(null);
   loadSubs();
-  const bad = (Array.isArray(rs) ? rs : []).filter(r => r.ok === false && r.name && !/间隔未到|已暂停/.test(r.reason || ''));
-  if (bad.length) toast(`检查完毕：${bad.length} 个失败（${bad.slice(0, 2).map(b => b.name).join('、')}${bad.length > 2 ? ' 等' : ''}）— 卡片上红字就是原因，悬停看技术详情`);
-  else toast('检查完毕，全部正常 ✓');
+  const list = Array.isArray(rs) ? rs : [];
+  const bad = list.filter(r => r.ok === false && r.name && !/间隔未到|已暂停/.test(r.reason || ''));
+  const warns = [...new Set(list.filter(r => r.warning).map(r => String(r.warning)))];
+  const wTail = warns.length ? '；⚠ ' + warns.join('；⚠ ') : '';
+  if (bad.length) toast(`检查完毕：${bad.length} 个失败（${bad.slice(0, 2).map(b => b.name).join('、')}${bad.length > 2 ? ' 等' : ''}）— 卡片上红字就是原因，悬停看技术详情${wTail}`);
+  else toast('检查完毕，全部正常 ✓' + wTail);
 }
 window.fetchie.onSubs(() => { loadSubs(); });
 
