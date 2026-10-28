@@ -276,7 +276,7 @@
           <option value="brave">自动读 Brave</option>
         </select>
       </div>
-      <div class="note" style="margin:6px 0 0">选了浏览器后下载与订阅检查直接带该浏览器的登录态，<b>免手动导出 cookies.txt</b>（需浏览器已登录目标站点；Chrome 新版部分站点可能加密读不到，读不到时再回落手动导入）。改完即时生效。</div>
+      <div class="note" style="margin:6px 0 0">选了浏览器后下载与订阅检查直接带该浏览器的登录态，<b>免手动导出 cookies.txt</b>（需浏览器已登录目标站点；Chrome 新版部分站点可能加密读不到，读不到时再回落手动导入）。改完即时生效。注意：该浏览器正在运行时 Windows 会锁定 Cookie 文件导致读取失败——请先完全退出它再下载/订阅。</div>
       <div class="row" style="margin:12px 0 0">
         <label>漫画册打包</label>
         <input type="checkbox" id="autoCbzChk" onchange="saveAutoCbz(this.checked)">
@@ -1024,9 +1024,11 @@ window.fetchie.onClipboardUrl(({ url }) => {
 });
 // ★★#6 输入框探测：停止输入 600ms 后识别首条链接亮预览
 $('urls').addEventListener('input', probeUrls);
-// 浏览器登录态来源：引擎 --cookies-from-browser 直读，改完即时生效
+// 浏览器登录态来源：引擎 --cookies-from-browser 直读，改完即时生效。
+// 主进程会顺带检测浏览器状态（未安装/正在运行会被 Windows 锁 Cookie），有警告优先展示警告
 async function saveCookieBrowser() {
   const r = await window.fetchie.settingsSetCookieBrowser($('cookieBrowserSel').value);
+  if (r.warning) { toast(r.warning); return; }
   toast(r.cookieBrowser ? '已切换：自动读取 ' + r.cookieBrowser + ' 登录态 ✓' : '已关闭浏览器直读（用 cookies.txt）✓');
 }
 // 图站任务自动打包 CBZ

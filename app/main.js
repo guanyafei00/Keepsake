@@ -35,6 +35,7 @@ const strategy = require('./lib/strategy');
 const autoupdate = require('./lib/autoupdate');
 const store = require('./lib/store');
 const subs = require('./lib/subs');
+const { cookieBrowserWarning } = require('./lib/browsercookies');   // 浏览器登录态预警（Windows 文件锁根因见该文件头注释）
 const library = require('./lib/library');
 const login = require('./lib/login');
 const pixivauth = require('./lib/pixivauth');
@@ -544,6 +545,10 @@ app.whenReady().then(() => {
     log.info('queue', 'CBZ 打包完成: ' + out);
   };
 
+  // 浏览器登录态预警（任务启动时检测到未装/正在运行，queue 去重后转发）：
+  // toast 提醒用户先退出浏览器或换 cookies.txt，别等下载失败/静默游客态才发
+  queue.onWarn = msg => toastMsg(msg);
+
   // ★★#4 崩溃恢复（机制借鉴 Parabolic RecoverableDownload，clean-room）：tasks.json 每次 push 都
   // 落盘（1s 防抖），崩溃/强关时「downloading」状态原样留在盘上——与正常退出（before-quit 先 cancel
   // 再 flush，盘上全是终态）天然区分。这里把中断任务自动重排回队 + 提示用户
@@ -764,7 +769,10 @@ app.whenReady().then(() => {
     const r = settings.set({ cookieBrowser: String(b || '') });
     setCookieBrowser(r.cookieBrowser);
     subs.setCookieBrowser(r.cookieBrowser);
-    return { ok: true, cookieBrowser: r.cookieBrowser };
+    // 选了未安装/正在运行的浏览器 → 立刻口头提醒（切完等下载才暴露就太晚了）
+    const warning = r.cookieBrowser ? cookieBrowserWarning(r.cookieBrowser) : null;
+    if (warning) toastMsg(warning);
+    return { ok: true, cookieBrowser: r.cookieBrowser, warning: warning || undefined };
   });
   // 图站任务完成后自动打包 CBZ（漫画归档）
   ipcMain.handle('settings:setCbz', (e, { on }) => {

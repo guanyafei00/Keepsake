@@ -13,6 +13,7 @@ const https = require('https');
 const { spawn } = require('child_process');
 const { atomicWrite, readJson } = require('./jsonfile');
 const { isFeedUrl } = require('./identify');   // feed 链接识别（单一事实源，与 identify.js 共用同一套模式）
+const { cookieBrowserWarning } = require('./browsercookies');   // 浏览器登录态预警（Windows 文件锁根因见该文件头注释）
 
 let COOKIE = null;
 let BIN = null;
@@ -585,6 +586,10 @@ async function checkSub(sub, onNew) {
   // 只看前 N 条永远看不到新集（新内容在尾部）；known 集合本身有去重，全量不炸
   else if (sub.kind === 'bili-collection') items = await fetchViaYtDlp(sub.url, 0);
   if (!items) return { ok: false, reason: '未知订阅类型' };
+  // 浏览器登录态预警：选了浏览器且（未安装/正在运行）→ 本次 gdl/yt-dlp 检查大概率按游客态跑
+  // （gallery-dl 静默回落，结果看着正常实则没带登录态）或直接失败。塞进返回值的 warning
+  // 字段透传（前端订阅卡片已会显示）；检查频率低（默认 10 分钟一轮），无需做去重
+  const cbWarn = COOKIE_BROWSER ? cookieBrowserWarning(COOKIE_BROWSER) : null;
 
   const known = new Set(sub.known || []);
   const fresh = items.filter(it => !known.has(it.id));
@@ -673,7 +678,7 @@ async function checkSub(sub, onNew) {
   sub.sourceDeleted = gone.length ? gone.length : 0;   // 仅提示用
   sub.gone = gone.slice(0, 20);   // 具体哪几条：供 UI 展示明细（只存 id，链回源用 itemUrl 规则）
   save();
-  return { ok: true, fresh: fresh.length, total: items.length, gone: gone.length, skippedLatest: sub.lastSkippedLatest || 0, items: items.map(i => ({ id: i.id, type: i.type })) };
+  return { ok: true, fresh: fresh.length, total: items.length, gone: gone.length, skippedLatest: sub.lastSkippedLatest || 0, warning: cbWarn || undefined, items: items.map(i => ({ id: i.id, type: i.type })) };
 }
 
 // 回溯下载（用户需求「订阅后立即下载」）：拉全部动态并逐条回调，不管 known——

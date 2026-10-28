@@ -7,6 +7,7 @@ function exe(n) { return process.platform === 'win32' ? n + '.exe' : n; }
 const fs = require('fs');
 const strategy = require('./strategy');
 const article = require('./article');   // 文章引擎：进程内执行（同 direct 先例，不 spawn 子进程）
+const { cookieBrowserWarning } = require('./browsercookies');   // 浏览器登录态预警（Windows 文件锁根因见该文件头注释）
 
 let BIN = path.join(__dirname, '..', 'resources', 'bin');
 let ENGINES = null;   // 可写引擎目录（userData/engines）：自更新落这里；spawn 时优先取新版
@@ -53,6 +54,28 @@ function cookieArgs() {
   if (COOKIE_BROWSER) return ['--cookies-from-browser', COOKIE_BROWSER];
   if (fs.existsSync(COOKIE)) return ['--cookies', COOKIE];
   return [];
+}
+
+// 浏览器登录态预警去重：run() 每个任务都会跑，同一条警告 10 分钟内只放行一次，
+// 否则队列连跑 N 个任务就 toast 刷屏 N 次（用户反馈过 toast 骚扰）
+let _lastWarn = { msg: '', t: 0 };
+function warnOnce(msg) {
+  const now = Date.now();
+  if (msg === _lastWarn.msg && now - _lastWarn.t < 10 * 60 * 1000) return false;
+  _lastWarn = { msg, t: now };
+  return true;
+}
+
+// 浏览器登录态读取失败的错误翻译：引擎原始报错是英文技术细节（yt-dlp 的
+// "Could not copy Chrome cookie database" / "Permission denied ... Cookies"）用户看不懂，
+// 替换成人话并附带原文（方便排查）。判定收敛避免误翻：Permission denied 必须同段出现
+// Cookies 字样（Cookie 数据库路径）才算文件锁问题，普通文件权限错误不动
+function translateCookieError(text) {
+  const s = String(text || '');
+  const locked = /Could not copy Chrome cookie database/i.test(s)
+    || (/Permission denied/i.test(s) && /Cookies/i.test(s));
+  if (!locked) return null;
+  return '无法读取浏览器登录态（浏览器正在运行，Windows 锁定了 Cookie 文件）——请完全退出该浏览器后重试，或改用手动导入的 cookies.txt｜原始报错：' + s.slice(0, 120);
 }
 // gallery-dl 启动参数前缀（所有 spawn 共用）
 function gdlBaseArgs() {
@@ -359,6 +382,14 @@ class DownloadQueue {
     if (it.engine === 'article') return this.runArticle(it, done, seq); // 文章引擎同 direct：进程内执行
     if (!args) return done('error', { error: '不支持的引擎: ' + it.engine });
 
+    // 浏览器登录态预警：选了浏览器且（未安装/正在运行）就提前口头提示——
+    // 未装的任务照样会失败，正在运行 gallery-dl 会静默回落游客态，都等引擎报错就太晚了。
+    // 放在 spawn 之前但不阻塞热路径（检测是一次 tasklist，几十毫秒）；direct/article 不用 cookieArgs 不检测
+    if (COOKIE_BROWSER) {
+      const cbw = cookieBrowserWarning(COOKIE_BROWSER);
+      if (cbw && warnOnce(cbw) && this.onWarn) { try { this.onWarn(cbw); } catch (e) {} }
+    }
+
     fs.mkdirSync(OUTDIR, { recursive: true });
     // 编码：两引擎输出均为 UTF-8（yt-dlp 用 --encoding；gallery-dl 用 --config 强制 stdout/stderr 为 UTF-8）
     const ytdlpDec = 'utf-8';
@@ -417,7 +448,9 @@ class DownloadQueue {
         const rate = isRateLimitError(it.error);
         const st = strategy.reportFailure(it.url, rate);
         const breakerNow = strategy.isBreakered(it.url);
-        const msg = (rate ? '[风控/限流] ' : '') + (it.error || ('引擎退出 code=' + code));
+        // Cookie 文件锁错误优先翻译成人话（translateCookieError 已附带原文）；风控/限流标记照旧叠加
+        const base = translateCookieError(it.error) || it.error || ('引擎退出 code=' + code);
+        const msg = (rate ? '[风控/限流] ' : '') + base;
         done(breakerNow ? 'held' : 'error', {
           error: msg.slice(0, 300),
           level: st.level
