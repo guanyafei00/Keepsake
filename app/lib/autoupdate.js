@@ -14,7 +14,8 @@ function configure({ binDir, fallbackBinDir }) { BIN = binDir; FALLBACK_BIN = fa
 // 国内镜像回退（用户反馈：直连 GitHub/Codeberg 失败时自动换镜像重试）
 // ghfast.top / gh-proxy.com 是通用 URL 前缀代理：原样转发官方文件，不改动内容；
 // yt-dlp 下载后仍有官方 SHA2-256SUMS 校验兜底，gallery-dl 走 engine-stable.json 里的哈希（有就验）
-const GH_MIRRORS = ['https://ghfast.top/', 'https://gh-proxy.com/'];
+// 仅保留 gh-proxy.com：ghfast.top 实测 SSL 握手失败(exit 35)已失效
+const GH_MIRRORS = ['https://gh-proxy.com/'];
 function urlCandidates(url) {
   const u = String(url || '');
   if (/^https:\/\/(github\.com|codeberg\.org)\//.test(u)) return [u, ...GH_MIRRORS.map(m => m + u)];

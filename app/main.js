@@ -673,7 +673,10 @@ app.whenReady().then(() => {
   async function appCheckUpdate() {
     const updateUrl = settings.get().updateUrl || UPDATE_URL_PRESET;
     if (!updateUrl) return { ok: false, reason: '未配置更新源（设置页填写 updateUrl 后可用）' };
-    const j = await autoupdate.getJsonPublic(updateUrl);
+    // cache-busting：Pages/Fastly 有 10 分钟 CDN 缓存，修正清单后旧哈希可能被节点续命——
+    // 带 _t 参数强制回源（0.2.15 哈希事故教训：线上改对了，用户拉到的还是缓存旧值）
+    const bust = (updateUrl.includes('?') ? '&' : '?') + '_t=' + Date.now();
+    const j = await autoupdate.getJsonPublic(updateUrl + bust);
     const remote = j.version;
     if (!remote) return { ok: false, reason: '更新源格式错误（需要 {"version":"x.y.z","url":"安装包下载地址"}）' };
     // 发布闸门③：更新清单必须带 Ed25519 签名，验证失败一律拒绝（防更新通道劫持 = 持久化 RCE）
@@ -692,6 +695,10 @@ app.whenReady().then(() => {
   // url/sha256 一律取自主进程留存验签后的清单，忽略渲染层回传（防渲染层失守被静默装包）
   let _verifiedUpdate = null;
   ipcMain.handle('app:applyUpdate', async () => {
+    // 安装前强制重新拉一次清单：_verifiedUpdate 是内存变量，app 长期驻留托盘时
+    // 会拿着发版当天之前的旧清单去校验新 exe——线上改对了也照样报「哈希校验失败」
+    //（0.2.0 用户实锤：今天上午拉的清单，下午修好线上后没重启就点安装，永远失败）
+    try { await appCheckUpdate(); } catch (e) { return { ok: false, reason: '刷新更新清单失败（' + String(e.message || e).slice(0, 80) + '），请检查网络后重试' }; }
     const mu = _verifiedUpdate;
     if (!mu || !mu.url) return { ok: false, reason: '请先在设置页检查更新' };
     if (!mu.sha256) return { ok: false, reason: '更新清单未带 sha256，已拒绝安装（完整性无法验证）' };
@@ -701,10 +708,18 @@ app.whenReady().then(() => {
     await autoupdate.downloadPublic(mu.url, inst);
     const size = fs.existsSync(inst) ? fs.statSync(inst).size : 0;
     if (size < 10 * 1024 * 1024) { try { fs.unlinkSync(inst); } catch (e2) {} return { ok: false, reason: '安装包异常（' + Math.round(size / 1048576) + 'MB），已取消' }; }
-    // 发布闸门③：安装包 sha256 与签名清单核对，不一致即销毁
-    if (!(await updateSign.sha256ok(inst, mu.sha256))) {   // 流式版改为 async（外部
+    // PE 魔数校验：镜像/被墙网络把网页当文件返回时（200+大 HTML），
+    // 明确报「下载到的是网页」而不是误导性的哈希不符
+    const mz = Buffer.alloc(2);
+    const fd = fs.openSync(inst, 'r'); fs.readSync(fd, mz, 0, 2, 0); fs.closeSync(fd);
+    if (mz.toString('hex') !== '4d5a') { try { fs.unlinkSync(inst); } catch (e2) {} return { ok: false, reason: '下载到的不是安装包（可能被网络拦截/重定向到网页），已取消' }; }
+    // 发布闸门③：安装包 sha256 与签名清单核对，不一致即销毁。
+    // 报错必须带「期望/实得」哈希——排查更新问题最需要的就是实得值（0.2.15 事故教训：
+    // 没有实得哈希，同一个报错可能是清单错/下载错/缓存错三种原因，排查绕一大圈）
+    if (!(await updateSign.sha256ok(inst, mu.sha256))) {   // sha256ok 为流式 async 版，与签名清单核对
+      const got = await autoupdate.sha256File(inst);
       try { fs.unlinkSync(inst); } catch (e2) {}
-      return { ok: false, reason: '安装包哈希校验失败（可能被篡改或下载损坏），已取消安装' };
+      return { ok: false, reason: '安装包哈希校验失败（期望 ' + String(mu.sha256).slice(0, 12) + '…，实得 ' + String(got).slice(0, 12) + '…）——多为缓存了旧更新清单，请完全退出应用重新打开后再试，或到 GitHub 页手动下载安装包' };
     }
     // NSIS /D= 必须不带引号（含空格目录也裸写），改用 shell 串拼装
     const dir = path.dirname(process.execPath).replace(/[\\"]+$/, '');
