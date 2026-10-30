@@ -1068,10 +1068,12 @@ app.whenReady().then(() => {
     const target = cookieFile();
     const before = safeSize(target);
     return await new Promise(resolve => {
-      // yt-dlp 的 --cookies FILE 语义是「读入并 dump cookie jar 进 FILE」：把浏览器登录态合并导出到现有 cookies.txt
+      // yt-dlp 的 --cookies FILE 语义是「读入并 dump cookie jar 进 FILE」：把浏览器登录态合并导出到现有 cookies.txt。
+      // 注意：不能用 --simulate（其语义是「不向磁盘写任何东西」，会连同 cookie jar 一起禁止落盘，功能悄悄变 no-op）；
+      // 仅用 --skip-download（不下载媒体但允许写入相关文件，含 cookie jar），确保登录态真正导出。
       const child = spawn(path.join(binDir(), exe('yt-dlp')), [
         '--cookies-from-browser', b, '--cookies', target,
-        '--simulate', '--no-warnings', '--skip-download', 'https://www.bilibili.com/',
+        '--no-warnings', '--skip-download', 'https://www.bilibili.com/',
       ], { windowsHide: true });
       let err = '';
       const dec = new TextDecoder('utf-8');
