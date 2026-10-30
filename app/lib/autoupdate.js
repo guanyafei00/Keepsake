@@ -288,7 +288,14 @@ async function updateEngine(engine, url, onProgress, expectSha) {
   // 目标目录必须先建：userData/engines 平时不存在（Windows 引擎装在随包 resources/bin，
   // 只有自更新第一次落 userData）——不建目录 createWriteStream 直接 ENOENT（0.2.5 用户机器实锤，
   // 全新环境第一次引擎自动更新 100% 复现）
-  try { fs.mkdirSync(BIN, { recursive: true }); } catch (e) {}
+  // #10 加固：可写性探针——装到 Program Files / 只读卷时 userData/engines 建不出也不报错，
+  // 写文件时才炸且信息含糊 → 这里提前用 W_OK 探一次，给出明确中文报错
+  try {
+    fs.mkdirSync(BIN, { recursive: true });
+    fs.accessSync(BIN, fs.constants.W_OK);
+  } catch (e) {
+    throw new Error('引擎安装目录不可写（' + BIN + '）：请检查磁盘/权限，或将应用安装到非系统保护目录后再更新');
+  }
   const exe = path.join(BIN, engine);
   const tmp = exe + '.new';
   const bak = exe + '.bak';

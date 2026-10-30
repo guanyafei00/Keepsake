@@ -5,6 +5,7 @@
 // 只读不写、永不删除——本地媒体库是用户资产。
 
 const fs = require('fs');
+const fsp = fs.promises;   // #22：全量改用 Promise 版 fs，彻底避免同步 IO 阻塞 IPC 主线程
 const path = require('path');
 
 let OUTDIR = null;
@@ -25,22 +26,23 @@ function fileKind(ext) {
 // 文章归档目录（文章引擎 4 件套）识别：目录里有 index.html + meta.json 且 meta.kind === 'keepsake-article'
 // → 整目录算一个「article」条目（assets 里的图不再拆散进媒体库）。非文章目录返回 null（零成本跳过：
 // 只有存在 index.html 的目录才读一次 meta.json）
-function readArticleEntry(dir, rel) {
+// #22：全程 fs.promises，不阻塞事件循环
+async function readArticleEntry(dir, rel) {
   try {
-    if (!fs.existsSync(path.join(dir, 'index.html'))) return null;
-    const meta = JSON.parse(fs.readFileSync(path.join(dir, 'meta.json'), 'utf-8'));
+    try { await fsp.access(path.join(dir, 'index.html')); } catch { return null; }   // index.html 不存在直接跳过
+    const meta = JSON.parse(await fsp.readFile(path.join(dir, 'meta.json'), 'utf-8'));
     if (!meta || meta.kind !== 'keepsake-article') return null;
     let size = 0;
     for (const f of ['index.html', 'article.md', 'meta.json']) {
-      try { size += fs.statSync(path.join(dir, f)).size; } catch (e) {}
+      try { size += (await fsp.stat(path.join(dir, f))).size; } catch (e) {}
     }
     const assets = path.join(dir, 'assets');
     try {
-      for (const a of fs.readdirSync(assets)) {
-        try { const s = fs.statSync(path.join(assets, a)); if (s.isFile()) size += s.size; } catch (e) {}
+      for (const a of await fsp.readdir(assets)) {
+        try { const s = await fsp.stat(path.join(assets, a)); if (s.isFile()) size += s.size; } catch (e) {}
       }
     } catch (e) {}
-    const st = fs.statSync(dir);
+    const st = await fsp.stat(dir);
     return {
       name: meta.title || path.basename(dir),
       path: dir,
@@ -71,17 +73,18 @@ function fmtSize(bytes) {
 }
 
 // 递归扫描（异步分片让出主线程 + 文件数/深度上限 + 跳过符号链接防循环
+// #22：readdir/stat/readFile 全部走 fs.promises；每 200 个文件 await setImmediate 让出事件循环，IPC 不冻结
 async function walk(dir, base, out, ctx) {
   if (ctx.files >= ctx.maxFiles || ctx.depth >= ctx.maxDepth) return;
   let entries;
-  try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch { return; }
+  try { entries = await fsp.readdir(dir, { withFileTypes: true }); } catch { return; }
   for (const ent of entries) {
     if (ctx.files >= ctx.maxFiles) return;
     const full = path.join(dir, ent.name);
     if (ent.isSymbolicLink()) continue;   // junction/symlink：防目录循环与越界扫描
     if (ent.isDirectory()) {
       // 文章归档目录：整目录一个条目，不再深入（assets 图不拆散）
-      const art = readArticleEntry(full, path.relative(base, full));
+      const art = await readArticleEntry(full, path.relative(base, full));
       if (art) { out.push(art); ctx.files++; continue; }
       ctx.depth++;
       await walk(full, base, out, ctx);
@@ -92,7 +95,7 @@ async function walk(dir, base, out, ctx) {
       if (ext === '.part' || ext === '.tmp') continue;
       if (!VIDEO_EXT.has(ext) && !IMG_EXT.has(ext)) continue;
       let st;
-      try { st = fs.statSync(full); } catch { continue; }
+      try { st = await fsp.stat(full); } catch { continue; }
       ctx.files++;
       if (ctx.files % 200 === 0) await new Promise(r => setImmediate(r));   // 每 200 个文件让出主线程，IPC 不冻结
       const rel = path.relative(base, full);
@@ -110,7 +113,8 @@ async function walk(dir, base, out, ctx) {
 
 // 扫描并聚合：rel 第一段=站点、第二段=UP主；不足两段的归入「未分类」（async：IPC 层自动等待）
 async function scan() {
-  if (!OUTDIR || !fs.existsSync(OUTDIR)) return { groups: [], totalFiles: 0, totalSize: 0, scannedAt: Date.now() };
+  if (!OUTDIR) return { groups: [], totalFiles: 0, totalSize: 0, scannedAt: Date.now() };
+  try { await fsp.access(OUTDIR); } catch { return { groups: [], totalFiles: 0, totalSize: 0, scannedAt: Date.now() }; }
   const files = [];
   await walk(OUTDIR, OUTDIR, files, { files: 0, depth: 0, maxFiles: 50000, maxDepth: 12 });
 

@@ -364,6 +364,7 @@ class DownloadQueue {
       this.push();
     } else {
       it.status = 'error';
+      it._done = true;   // 看门狗终态同样走幂等守卫
       it.error = '下载长时间无响应（看门狗已自动中止并重试 ' + WATCHDOG_MAX_RETRIES + ' 次仍失败）：' + wdReason + '。请检查网络或站点是否可用，稍后可点 ⟳ 手动重试';
       this.tick(); this.push();
     }
@@ -386,6 +387,7 @@ class DownloadQueue {
     // run 序号——重试/磁盘挂起重跑会再次 run 同一 it，旧 run 的 close/error/磁盘巡检
     // 事件晚到时凭 seq 识别并丢弃，绝不误清新一轮的 timer 或把新任务打成 error
     const seq = (it._runSeq = (it._runSeq || 0) + 1);
+    it._done = false;   // 新一轮 run 重置幂等守卫（重试/磁盘挂起重跑都算新 run）
     it.status = 'downloading';
     it._startedAt = Date.now();   // 看门狗：总时长基准（恢复的重试任务重新计时）
     it._lastOutput = Date.now();  // 看门狗：无输出判定基准
@@ -393,7 +395,9 @@ class DownloadQueue {
     this.active++;
     it._wasActive = true;
     const done = (status, extra = {}) => {
-      if (!it._wasActive) return;   // 幂等守卫（spawn 的 error+close 双触发只算一次
+      if (!it._wasActive) return;   // 旧 run 的迟到事件（重试/磁盘挂起已把 _wasActive 置 false）
+      if (it._done) return;         // 幂等守卫（#20）：spawn 的 error+close 双触发只算一次
+      it._done = true;
       it.status = status;
       if (status === 'done') it._watchdogRetries = 0;   // 成功即清零看门狗重试计数（避免历史失败拖累后续重试额度）
       Object.assign(it, extra);
