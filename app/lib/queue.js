@@ -20,6 +20,7 @@ let RATE_LIMIT = 0;       // 下载限速字节/秒（0=不限；yt-dlp --limit-
 let GDL_CFG = null;   // gallery-dl 配置：stdout/stderr 强制 UTF-8（韩/日/emoji 否则被内部替换成 '???')
 let PIXIV_CFG = null;   // gdl-pixiv.json：Pixiv OAuth refresh-token 配置（授权后存在，spawn 时才查 → 即时生效）
 let COOKIE_BROWSER = '';   // 浏览器登录态来源（''=用 cookies.txt 文件；chrome/edge/firefox/brave=引擎 --cookies-from-browser 直读）
+let BILI_LINE = '';   // B站 CDN/线路手动选线（''=自动；baidu/tencent/aliyun/wscloud/huawei=国内 CDN 线路枚举，经 --extractor-args "bilibili:cdn=<值>" 透传）
 let AUTO_CBZ = false;   // gallery-dl 任务完成后自动把图片目录打包 CBZ
 const CBZ_MIN_IMAGES = 3;   // 目录内图片少于该数不打包（避免把单图/缩略图目录也卷进去）
 const CBZ_IMG_RE = /\.(jpe?g|png|webp|gif|bmp|avif)$/i;
@@ -47,6 +48,8 @@ function configure({ binDir, cookiePath, outDir, proxy, minFreeMB, enginesDir, w
 
 // 运行时可调项（设置页热更；与 configure 分开避免整包重读）
 function setCookieBrowser(b) { COOKIE_BROWSER = ['', 'chrome', 'edge', 'firefox', 'brave'].includes(b) ? b : ''; }
+// B站 线路/CDN 手动选线（#15）：热更新；选中非自动时透传进 bilibili 下载的 yt-dlp 参数
+function setBiliLine(l) { BILI_LINE = ['', 'baidu', 'tencent', 'aliyun', 'wscloud', 'huawei'].includes(l) ? l : ''; }
 function setAutoCbz(on) { AUTO_CBZ = !!on; }
 
 // cookie 来源参数：浏览器直读优先（免导出），回落 cookies.txt。两引擎同款参数（各自原生支持）
@@ -530,6 +533,10 @@ class DownloadQueue {
       if (RATE_LIMIT > 0) args.push('--limit-rate', Math.floor(RATE_LIMIT / (1024 * 1024)) + 'M');
       if (PROXY) args.push('--proxy', PROXY);   // YouTube 等被墙站点走用户代理
       args.push(...cookieArgs());
+      // B站 线路/CDN 手动选线（#15）：选中非自动时透传 --extractor-args "bilibili:cdn=<线路>"。
+      // 当前 yt-dlp(2026.08.19) 的 bilibili 提取器未注册 cdn extractor-arg，属前向兼容钩子——
+      // 引擎仅告警忽略、不影响下载；待上游/分支支持后无需改码即生效。
+      if (BILI_LINE && site === 'bilibili') args.push('--extractor-args', 'bilibili:cdn=' + BILI_LINE);
       args.push('-P', OUTDIR, it.url);
       return { exe: ytdlp, args };
     }
@@ -786,4 +793,4 @@ class DownloadQueue {
   }
 }
 
-module.exports = { DownloadQueue, configure, reconfigure: configure, setCookieBrowser, setAutoCbz };
+module.exports = { DownloadQueue, configure, reconfigure: configure, setCookieBrowser, setAutoCbz, setBiliLine };

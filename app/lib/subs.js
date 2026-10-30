@@ -23,6 +23,7 @@ let GDL_CFG = null;   // gallery-dl 配置：stdout/stderr 强制 UTF-8（否则
 let PIXIV_AUTH = null;   // pixiv-auth.json：OAuth refresh_token 存放处（cookie 对 Pixiv 完全无效，见 lib/pixivauth.js）
 let PIXIV_CFG = null;    // gdl-pixiv.json：gallery-dl 的 refresh-token 配置（授权后由 pixivauth 写入）
 let COOKIE_BROWSER = ''; // 浏览器登录态来源（''=用 cookies.txt；chrome/edge/firefox/brave=引擎 --cookies-from-browser 直读，主程序经 setCookieBrowser 热更）
+let BILI_LINE = ''; // B站 CDN/线路手动选线（''=自动；baidu/tencent/aliyun/wscloud/huawei=国内 CDN 线路枚举，经 --extractor-args "bilibili:cdn=<值>" 透传，主程序经 setBiliLine 热更）
 let subs = [];
 
 function configure({ binDir, cookiePath, file }) {
@@ -48,6 +49,8 @@ function gdlBaseArgs() {
   return args;
 }
 function setCookieBrowser(b) { COOKIE_BROWSER = ['', 'chrome', 'edge', 'firefox', 'brave'].includes(b) ? b : ''; }
+// B站 线路/CDN 手动选线（#15）：热更新；bilibili URL 的检查/回溯命令里透传 --extractor-args "bilibili:cdn=<值>"
+function setBiliLine(l) { BILI_LINE = ['', 'baidu', 'tencent', 'aliyun', 'wscloud', 'huawei'].includes(l) ? l : ''; }
 
 // cookie 来源参数（gallery-dl 用）：浏览器直读优先，回落 cookies.txt
 function cookieArgs() {
@@ -493,6 +496,8 @@ function fetchViaYtDlp(url, maxItems = 5) {
     if (maxItems > 0) args.push('--playlist-items', `1-${maxItems}`);
     if (COOKIE_BROWSER) args.push('--cookies-from-browser', COOKIE_BROWSER);
     else if (fs.existsSync(COOKIE)) args.push('--cookies', COOKIE);
+    // B站 线路/CDN 手动选线（#15）：bilibili URL 透传 --extractor-args "bilibili:cdn=<线路>"（前向兼容钩子）
+    if (BILI_LINE && /bilibili\.com/i.test(url)) args.push('--extractor-args', 'bilibili:cdn=' + BILI_LINE);
     if (PROXY) args.push('--proxy', PROXY);
     args.push(url);
     // 编码：yt-dlp 已强制 --encoding utf-8，按 UTF-8 解码；全量/大量条目清单超时放宽（X 时间线 200 条约需数分钟）
@@ -712,4 +717,4 @@ function itemUrl(sub, it) {
   return null;
 }
 
-module.exports = { configure, list, get, add, remove, update, checkSub, itemUrl, backfill, setProxy, setCookieBrowser, refreshName, onNameChange, save, classify, resetCookieCache, gdlBaseArgs, pixivAuthorized, latestCut, fetchFeed, parseFeed, fetchFeedItems };
+module.exports = { configure, list, get, add, remove, update, checkSub, itemUrl, backfill, setProxy, setCookieBrowser, setBiliLine, refreshName, onNameChange, save, classify, resetCookieCache, gdlBaseArgs, pixivAuthorized, latestCut, fetchFeed, parseFeed, fetchFeedItems };

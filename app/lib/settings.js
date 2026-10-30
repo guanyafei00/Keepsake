@@ -25,6 +25,10 @@ function configure({ file, defaultOutDir }) {
   // 浏览器登录态来源（''=不读浏览器，用 cookies.txt；chrome/edge/firefox/brave=引擎 --cookies-from-browser 直读该浏览器）。
   // 引擎原生能力（yt-dlp 与 gallery-dl 均支持），本程序只拼参数不碰 cookie 解密——Chromium v20 app-bound 加密无解，交给引擎处理
   if (!['', 'chrome', 'edge', 'firefox', 'brave'].includes(data.cookieBrowser)) data.cookieBrowser = '';
+  // B站 线路/CDN 手动选线（''=自动不指定；baidu/tencent/aliyun/wscloud/huawei=国内 CDN 线路枚举）。
+  // 注：当前 yt-dlp(2026.08.19) 的 bilibili 提取器未注册 cdn extractor-arg，该值经 --extractor-args "bilibili:cdn=<值>"
+  // 透传为前向兼容钩子；待上游/分支支持后无需改码即可生效（详见 #15 说明）
+  if (!['', 'baidu', 'tencent', 'aliyun', 'wscloud', 'huawei'].includes(data.biliLine)) data.biliLine = '';
   // 图站（gallery-dl）任务完成后自动把图片目录打包成 CBZ（漫画归档友好；0 依赖，用系统自带 bsdtar）
   if (data.autoCbz === undefined) data.autoCbz = false; else data.autoCbz = !!data.autoCbz;
   // 剪贴板监听（复制链接自动填入输入框；默认关——后台读剪贴板属于敏感行为，让用户显式打开）
@@ -41,6 +45,7 @@ function set(patch) {
   if (p.rateLimitMB !== undefined) p.rateLimitMB = Math.min(100, Math.max(0, Math.floor(Number(p.rateLimitMB) || 0)));
   // 浏览器来源/CBZ 开关归一化（与 configure 同规则，双保险）
   if (p.cookieBrowser !== undefined && !['', 'chrome', 'edge', 'firefox', 'brave'].includes(p.cookieBrowser)) p.cookieBrowser = '';
+  if (p.biliLine !== undefined && !['', 'baidu', 'tencent', 'aliyun', 'wscloud', 'huawei'].includes(p.biliLine)) p.biliLine = '';
   if (p.autoCbz !== undefined) p.autoCbz = !!p.autoCbz;
   if (p.clipboardWatch !== undefined) p.clipboardWatch = !!p.clipboardWatch;
   Object.assign(data, p);

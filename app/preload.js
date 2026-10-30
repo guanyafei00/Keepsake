@@ -1,6 +1,6 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
-contextBridge.exposeInMainWorld('fetchie', {
+contextBridge.exposeInMainWorld('keepsake', {
   probe: () => ipcRenderer.invoke('engine:probe'),
   checkUpdate: () => ipcRenderer.invoke('engine:checkUpdate'),
   applyUpdate: (engine, url, sha256) => ipcRenderer.invoke('engine:applyUpdate', { engine, url, sha256 }),
@@ -48,6 +48,7 @@ contextBridge.exposeInMainWorld('fetchie', {
   settingsPickDir: () => ipcRenderer.invoke('settings:pickDir'),
   settingsSetProxy: (proxy) => ipcRenderer.invoke('settings:setProxy', { proxy }),
   settingsSetCookieBrowser: (b) => ipcRenderer.invoke('settings:setCookieBrowser', { b }),
+  settingsSetBiliLine: (l) => ipcRenderer.invoke('settings:setBiliLine', { line: l }),
   settingsSetCbz: (on) => ipcRenderer.invoke('settings:setCbz', { on }),
   appVersion: () => ipcRenderer.invoke('app:version'),
   appCheckUpdate: () => ipcRenderer.invoke('app:checkUpdate'),
@@ -62,6 +63,8 @@ contextBridge.exposeInMainWorld('fetchie', {
   cookieInfo: () => ipcRenderer.invoke('cookie:info'),
   cookieImport: () => ipcRenderer.invoke('cookie:import'),
   cookieOpenDir: () => ipcRenderer.invoke('cookie:openDir'),
+  cookieState: () => ipcRenderer.invoke('cookie:state'),
+  cookieReadBrowser: () => ipcRenderer.invoke('cookie:readBrowser'),
   pixivLogin: () => ipcRenderer.invoke('pixiv:login'),
   pixivState: () => ipcRenderer.invoke('pixiv:state'),
   asrModels: () => ipcRenderer.invoke('asr:models'),

@@ -251,6 +251,18 @@
         </div>
         <button class="btn-mini" style="color:var(--acc2)" onclick="saveQueue()">💾 保存</button>
       </div>
+      <div class="row" style="margin:12px 0 0">
+        <label>B站 线路/CDN</label>
+        <select id="biliLineSel" onchange="saveBiliLine()" style="max-width:220px;padding:8px 11px;border:1px solid var(--line);border-radius:var(--r-md);font:inherit;background:var(--panel2);color:var(--txt)">
+          <option value="">自动（不指定）</option>
+          <option value="baidu">百度云加速</option>
+          <option value="tencent">腾讯云</option>
+          <option value="aliyun">阿里云 CDN</option>
+          <option value="wscloud">网宿</option>
+          <option value="huawei">华为云</option>
+        </select>
+      </div>
+      <div class="note" style="margin:6px 0 0">B站 视频可手动指定 CDN 线路（部分网络环境下换线路能改善连接质量）；留「自动」即交给引擎默认。</div>
       <div class="note" style="margin:6px 0 0">调小并发立即生效；调大立即补位启动排队任务 · 限速对视频下载（yt-dlp / 直连引擎）生效；图文站（gallery-dl）走请求间隔保护，不限速</div>
     </div>
 
@@ -277,6 +289,12 @@
         </select>
       </div>
       <div class="note" style="margin:6px 0 0">选了浏览器后下载与订阅检查直接带该浏览器的登录态，<b>免手动导出 cookies.txt</b>（需浏览器已登录目标站点；Chrome 新版部分站点可能加密读不到，读不到时再回落手动导入）。改完即时生效。注意：该浏览器正在运行时 Windows 会锁定 Cookie 文件导致读取失败——请先完全退出它再下载/订阅。</div>
+      <div id="cookieBrowserHint" class="note" style="margin:8px 0 0;display:none"></div>
+      <div class="row" style="margin:10px 0 0" id="cookieReadRow">
+        <label></label>
+        <button class="btn-mini" id="cookieReadBtn" onclick="readBrowserCookies()">🔄 一键读取并保存登录态</button>
+        <span id="cookieReadState" class="note"></span>
+      </div>
       <div class="row" style="margin:12px 0 0">
         <label>漫画册打包</label>
         <input type="checkbox" id="autoCbzChk" onchange="saveAutoCbz(this.checked)">
@@ -467,7 +485,7 @@ function togglePick(pickId) {
 }
 function syncPicks() {
   let saved = {};
-  try { saved = JSON.parse(localStorage.getItem('dgo-opts') || '{}'); } catch (e) {}
+  try { saved = JSON.parse(localStorage.getItem('keepsake-opts') || '{}'); } catch (e) {}
   for (const [pickId, key] of PICKS) $(pickId).classList.toggle('on', !!saved[key]);
 }
 function currentOpts() {
@@ -475,12 +493,13 @@ function currentOpts() {
   for (const [pickId, key] of PICKS) o[key] = $(pickId).classList.contains('on');
   return o;
 }
-function saveOpts() { localStorage.setItem('dgo-opts', JSON.stringify(currentOpts())); }
-// localStorage key 迁移：fetchie-opts → dgo-opts，兼容读旧值（
+function saveOpts() { localStorage.setItem('keepsake-opts', JSON.stringify(currentOpts())); }
+// localStorage key 迁移：fetchie-opts / dgo-opts → keepsake-opts（历史品牌名 Fetchie → DGO → Keepsake，兼容读旧值）
 try {
-  const old = localStorage.getItem('fetchie-opts');
-  if (old && !localStorage.getItem('dgo-opts')) localStorage.setItem('dgo-opts', old);
+  const legacy = localStorage.getItem('fetchie-opts') || localStorage.getItem('dgo-opts');
+  if (legacy && !localStorage.getItem('keepsake-opts')) localStorage.setItem('keepsake-opts', legacy);
   localStorage.removeItem('fetchie-opts');
+  localStorage.removeItem('dgo-opts');
 } catch (e) {}
 try { syncPicks(); } catch (e) { console.warn('syncPicks fail:', e.message); }   // 顶层初始化防再犯：崩了也不能断掉后续绑定
 
@@ -497,7 +516,7 @@ function probeUrls() {
   if (!urls.length || !/^https?:\/\//i.test(urls[0])) { strip.style.display = 'none'; return; }
   _probeTimer = setTimeout(async () => {
     try {
-      const meta = await window.fetchie.identify(urls[0]);
+      const meta = await window.keepsake.identify(urls[0]);
       if (seq !== _probeSeq) return;   // 用户已继续输入，本轮结果作废
       if (meta.engine === 'invalid') {
         strip.textContent = '❓ 无法识别：' + (meta.reason || '不支持的链接');
@@ -520,7 +539,7 @@ async function addUrls() {
     $('urls').value = '';
     $('probeStrip').style.display = 'none';
     const opts = currentOpts();
-    const r = await window.fetchie.addTasks(urls, opts);
+    const r = await window.keepsake.addTasks(urls, opts);
     const n = (r && r.added ? r.added.length : 0);
     const dup = (r && r.duplicates ? r.duplicates.length : 0);
     const inv = (r && r.invalid ? r.invalid.length : 0);
@@ -665,22 +684,22 @@ function openFileFolderById(id) {
   if (!p) return toast('找不到该任务的文件路径');
   openFileFolder(p);
 }
-function openSubLink(id) { window.fetchie.openSubUrl(id).then(r => { if (r && !r.ok) toast(r.reason || '打开失败'); }).catch(() => toast('打开失败')); }
+function openSubLink(id) { window.keepsake.openSubUrl(id).then(r => { if (r && !r.ok) toast(r.reason || '打开失败'); }).catch(() => toast('打开失败')); }
 async function openLibSource(p) {
   let r = null;
-  try { r = await window.fetchie.openLibSource(p); } catch (e) {}
+  try { r = await window.keepsake.openLibSource(p); } catch (e) {}
   if (r && r.ok) return;
   toast((r && r.reason) || '打开失败');
 }
-function openFileFolder(p) { window.fetchie.openFolder(p).then(r => { if (r && !r.ok) toast(r.reason || '打开失败'); }); }
+function openFileFolder(p) { window.keepsake.openFolder(p).then(r => { if (r && !r.ok) toast(r.reason || '打开失败'); }); }
 
 async function removeTask(id) {
   if (!confirm('删除这条任务记录？\n（只清除列表记录，磁盘上的文件不会被删除）')) return;
-  await window.fetchie.removeTask(id);
+  await window.keepsake.removeTask(id);
   _filePathMap.delete(id);
 }
 async function clearFinishedTasks() {
-  const n = await window.fetchie.clearFinished();
+  const n = await window.keepsake.clearFinished();
   toast(n ? `已清空 ${n} 条记录（磁盘文件保留）` : '没有可清空的记录');
 }
 
@@ -696,16 +715,16 @@ function asrStatus(t) {
   if (s.state === 'error') return '转写失败';
   return '';
 }
-window.fetchie.onAsrProgress(d => {
+window.keepsake.onAsrProgress(d => {
   asrStates[d.filePath] = { state: 'running', pct: d.pct };
   if (document.getElementById('page-lib').classList.contains('on')) loadLibrary(true);
 });
-window.fetchie.onAsrDone(d => {
+window.keepsake.onAsrDone(d => {
   asrStates[d.filePath] = { state: 'done' };
   toast('转写完成 ✓ 已生成 SRT 字幕和文字稿');
   if (document.getElementById('page-lib').classList.contains('on')) loadLibrary(true);
 });
-window.fetchie.onAsrError(d => {
+window.keepsake.onAsrError(d => {
   asrStates[d.filePath] = { state: 'error', reason: d.reason };
   toast('转写失败：' + (d.reason || '').slice(0, 80));
   if (document.getElementById('page-lib').classList.contains('on')) loadLibrary(true);
@@ -713,7 +732,7 @@ window.fetchie.onAsrError(d => {
 
 // ===== 模型目录 =====
 async function loadAsr() {
-  const r = await window.fetchie.asrModels();
+  const r = await window.keepsake.asrModels();
   window._asrData = r;
   const active = r.activeModel;
   $('asrModelList').innerHTML = r.models.map(m => {
@@ -736,13 +755,13 @@ async function loadAsr() {
 }
 async function delModel(id, label) {
   if (!confirm(`删除「${label}」的模型文件？删除后转写将不可用，直到重新下载其他模型。`)) return;
-  const r = await window.fetchie.asrDeleteModel(id);
+  const r = await window.keepsake.asrDeleteModel(id);
   if (!r.ok) return toast('删除失败：' + (r.reason || ''));
   toast(`已删除，释放 ${r.freedMB}MB 磁盘空间 ✓`);
   loadAsr();
 }
 async function setActiveModel(id) {
-  const r = await window.fetchie.asrSetModel(id);
+  const r = await window.keepsake.asrSetModel(id);
   if (!r.ok) return toast('切换失败：' + (r.reason || ''));
   toast('已设为默认转写模型 ✓');
   loadAsr();
@@ -751,19 +770,19 @@ async function dlModel(id) {
   toast('开始下载模型…（完成后自动可用）');
   window._asrProg = window._asrProg || {};
   try {
-    await window.fetchie.asrDownload(id);
+    await window.keepsake.asrDownload(id);
     window._asrProg[id] = 100;
     toast('模型下载完成 ✓');
     loadAsr();
   } catch (e) { toast('下载失败：' + e.message); loadAsr(); }
 }
-window.fetchie.onAsrDownloadProgress(d => {
+window.keepsake.onAsrDownloadProgress(d => {
   window._asrProg = window._asrProg || {};
   window._asrProg[d.id] = d.pct;
   if (document.getElementById('page-settings').classList.contains('on') && d.pct % 5 === 0) loadAsr();
 });
 async function initMirrorSelect() {
-  const r = window._asrData || await window.fetchie.asrModels();
+  const r = window._asrData || await window.keepsake.asrModels();
   const sel = $('asrMirror');
   if (sel.options.length) return;
   for (const m of r.mirrors) {
@@ -773,12 +792,12 @@ async function initMirrorSelect() {
   }
 }
 async function switchMirror() {
-  await window.fetchie.asrSetMirror($('asrMirror').value);
+  await window.keepsake.asrSetMirror($('asrMirror').value);
   toast('已切换模型下载源');
 }
 
-async function cancel(id) { await window.fetchie.cancel(id); }
-async function retryTask(id) { await window.fetchie.retry(id); }
+async function cancel(id) { await window.keepsake.cancel(id); }
+async function retryTask(id) { await window.keepsake.retry(id); }
 
 // ===== 页面切换 =====
 function switchPage(p) {
@@ -794,7 +813,7 @@ function switchPage(p) {
 
 // ===== 设置：下载目录 =====
 async function loadSettings() {
-  const s = await window.fetchie.settingsGet();
+  const s = await window.keepsake.settingsGet();
   $('outDirInput').value = s.outDir;
   $('proxyInput').value = s.proxy || '';
   $('updateUrlInput').value = s.updateUrl || '';
@@ -805,48 +824,50 @@ async function loadSettings() {
   $('maxConcurrentSel').value = String(Math.min(5, Math.max(1, s.maxConcurrent || 2)));
   $('rateLimitInput').value = s.rateLimitMB || 0;
   $('cookieBrowserSel').value = s.cookieBrowser || '';
+  $('biliLineSel').value = s.biliLine || '';
   $('autoCbzChk').checked = !!s.autoCbz;
   $('clipChk').checked = !!s.clipboardWatch;
   loadAiConfig();
   $('engineAutoChk').checked = s.engineAutoUpdate !== false;
-  $('appVer').textContent = '当前 ' + await window.fetchie.appVersion();
+  $('appVer').textContent = '当前 ' + await window.keepsake.appVersion();
+  refreshCookieUI();
 }
 // #70① 数据安全包
 async function saveMinFree() {
-  const r = await window.fetchie.settingsSetMinFree(Number($('minFreeInput').value) || 0);
+  const r = await window.keepsake.settingsSetMinFree(Number($('minFreeInput').value) || 0);
   toast(r.minFreeMB === 0 ? '磁盘保护已关闭' : `磁盘保护已设为 ${r.minFreeMB} MB ✓`);
 }
 // v0.1.9 并发/限速（队列参数进设置页）
 async function saveQueue() {
-  const r = await window.fetchie.settingsSetQueue(Number($('maxConcurrentSel').value) || 2, Number($('rateLimitInput').value) || 0);
+  const r = await window.keepsake.settingsSetQueue(Number($('maxConcurrentSel').value) || 2, Number($('rateLimitInput').value) || 0);
   if (!r.ok) return toast('保存失败');
   toast(`已保存：同时 ${r.maxConcurrent} 个任务${r.rateLimitMB ? ' · 限速 ' + r.rateLimitMB + ' MB/s' : ' · 不限速'} ✓`);
 }
 // 删帖清单导出（CSV，Excel 可直接打开）
 async function exportGone() {
-  const r = await window.fetchie.subsExportGone();
+  const r = await window.keepsake.subsExportGone();
   if (!r.ok) { if (r.reason !== '已取消') toast(r.reason); return; }
   toast(`删帖清单已导出 ✓（${r.count} 条）— ${r.path}`);
 }
 async function doExport() {
-  const r = await window.fetchie.settingsExport();
+  const r = await window.keepsake.settingsExport();
   if (!r.ok) { if (r.reason !== '已取消') toast('导出失败：' + r.reason); return; }
   toast(`迁移包已导出 ✓（${r.counts.subs} 个订阅，${r.counts.settings} 项设置）— 含 AI Key 明文，请妥善保管`);   // 明文 Key 风险提示
 }
 async function doImport() {
-  const r = await window.fetchie.settingsImport();
+  const r = await window.keepsake.settingsImport();
   if (!r.ok) { if (r.reason !== '已取消') toast('导入失败：' + (r.reason || '')); return; }
   toast(`导入完成 ✓ 设置 ${r.settingsApplied} 项 · 订阅 +${r.subsAdded}${r.subsSkipped ? `（跳过已有 ${r.subsSkipped}）` : ''}${r.errors && r.errors.length ? ` · ${r.errors.length} 条失败` : ''}`);
   loadSettings();
 }
 async function saveUpdateUrl() {
-  await window.fetchie.setUpdateUrl($('updateUrlInput').value.trim());
+  await window.keepsake.setUpdateUrl($('updateUrlInput').value.trim());
   toast('更新源已保存');
 }
 async function checkAppUpdate() {
   const el = $('appUpdateResult');
   el.textContent = '检查中…';
-  const r = await window.fetchie.appCheckUpdate();
+  const r = await window.keepsake.appCheckUpdate();
   if (!r.ok) { el.textContent = r.reason; return; }
   if (!r.hasUpdate) { el.textContent = `已是最新（${r.current}）`; return; }
   window._pendingAppUpdate = { url: r.url, sha256: r.sha256 || '' };   // 签名清单的哈希，安装前核对
@@ -861,7 +882,7 @@ async function applyAppUpdate() {
   if (!u || !u.url) return toast('请先检查更新');
   if (!confirm('下载新版本并静默安装？\n安装时 Keepsake 会自动退出，完成后重新打开即可。')) return;
   toast('正在下载新版本…（几百 MB，请稍候）');
-  const r = await window.fetchie.appApplyUpdate(u.url, u.sha256);
+  const r = await window.keepsake.appApplyUpdate(u.url, u.sha256);
   if (!r.ok) return toast('更新失败：' + (r.reason || ''));
   toast('安装已启动，Keepsake 即将退出…重新打开就是新版本');
 }
@@ -914,7 +935,7 @@ function engSelChange(engine) {
 let _engRetryUsed = false;   // loadEngines 失败自动重试只用一次（渲染错误类重试无意义，防循环）
 async function loadEngines() {
   try {
-    const list = await window.fetchie.checkUpdate();
+    const list = await window.keepsake.checkUpdate();
     window._engineCh = window._engineCh || {};
     $('engineList').innerHTML = list.map(u => {
       const local = u.local || '';
@@ -974,7 +995,7 @@ async function pickLocalEngine() {
   const n = prompt('输入要安装的引擎文件名（如 gallery-dl.exe / ffmpeg.exe）：', 'gallery-dl.exe');
   if (!n) return;
   toast('选择文件后自动安装…');
-  const r = await window.fetchie.pickLocalEngine(n.trim());
+  const r = await window.keepsake.pickLocalEngine(n.trim());
   if (!r.ok) return toast('安装失败：' + (r.reason || ''));
   toast('引擎已安装 ✓ ' + (r.dest || ''));
   loadEngines();
@@ -986,7 +1007,7 @@ async function applyEngineUpdate(engine, url, sha256) {
   if (prog) prog.style.display = 'block';
   if (txt) txt.textContent = '正在下载新引擎…';
   try {
-    const r = await window.fetchie.applyUpdate(engine, url, sha256 || undefined);
+    const r = await window.keepsake.applyUpdate(engine, url, sha256 || undefined);
     if (prog) prog.style.display = 'none';
     if (!r || !r.ok) {
       if (btns) btns.style.display = '';
@@ -1001,7 +1022,7 @@ async function applyEngineUpdate(engine, url, sha256) {
   }
 }
 // 引擎下载进度（主进程 engine:progress 事件）：行内进度条 + MB 计数
-window.fetchie.onEngineProgress(d => {
+window.keepsake.onEngineProgress(d => {
   const bar = $('engProgBar-' + d.engine), txt = $('engProgTxt-' + d.engine);
   const mb = b => (b / 1048576).toFixed(1);
   if (d.done) { if (txt) txt.textContent = '正在替换引擎文件…（若正被任务调用会稍等）'; return; }
@@ -1011,12 +1032,12 @@ window.fetchie.onEngineProgress(d => {
     : `下载中 ${mb(d.received)} MB…`;
 });
 async function saveEngineAuto(on) {
-  await window.fetchie.setEngineAuto(on);
+  await window.keepsake.setEngineAuto(on);
   toast(on ? '已开启引擎每日自动更新' : '已关闭引擎自动更新');
 }
-window.fetchie.onToast(d => toast(d.msg));
+window.keepsake.onToast(d => toast(d.msg));
 // ★★#5 剪贴板监听回填：主进程检测到新链接 → 填进输入框（绝不自动入队，入队必须点按钮）
-window.fetchie.onClipboardUrl(({ url }) => {
+window.keepsake.onClipboardUrl(({ url }) => {
   const box = $('urls');
   if (box.value.includes(url)) return;   // 已在输入框里，不重复填
   box.value = (box.value.trim() ? box.value.trimEnd() + '\n' : '') + url;
@@ -1027,38 +1048,39 @@ $('urls').addEventListener('input', probeUrls);
 // 浏览器登录态来源：引擎 --cookies-from-browser 直读，改完即时生效。
 // 主进程会顺带检测浏览器状态（未安装/正在运行会被 Windows 锁 Cookie），有警告优先展示警告
 async function saveCookieBrowser() {
-  const r = await window.fetchie.settingsSetCookieBrowser($('cookieBrowserSel').value);
-  if (r.warning) { toast(r.warning); return; }
+  const r = await window.keepsake.settingsSetCookieBrowser($('cookieBrowserSel').value);
+  if (r.warning) { toast(r.warning); refreshCookieUI(); return; }
   toast(r.cookieBrowser ? '已切换：自动读取 ' + r.cookieBrowser + ' 登录态 ✓' : '已关闭浏览器直读（用 cookies.txt）✓');
+  refreshCookieUI();
 }
 // 图站任务自动打包 CBZ
 async function saveAutoCbz(on) {
-  await window.fetchie.settingsSetCbz(on);
+  await window.keepsake.settingsSetCbz(on);
   toast(on ? '已开启：图站下载完成自动打包 .cbz 漫画册 ✓' : '已关闭漫画册自动打包');
 }
 // 剪贴板监听（复制链接自动填输入框，不自动入队）
 async function saveClipboardWatch(on) {
-  await window.fetchie.settingsSetClipboardWatch(on);
+  await window.keepsake.settingsSetClipboardWatch(on);
   toast(on ? '已开启：复制链接后自动填入输入框 ✓' : '已关闭剪贴板监听');
 }
 async function saveProxy() {
-  const r = await window.fetchie.settingsSetProxy($('proxyInput').value);
+  const r = await window.keepsake.settingsSetProxy($('proxyInput').value);
   if (!r.ok) return toast(r.reason);
   toast(r.proxy ? '代理已保存 ✓ 新任务立即生效' : '代理已清除');
 }
 async function saveNotify() {
-  await window.fetchie.setNotify({ on: $('notifyChk').checked, mode: $('notifyModeSel').value });
+  await window.keepsake.setNotify({ on: $('notifyChk').checked, mode: $('notifyModeSel').value });
   toast($('notifyChk').checked ? ($('notifyModeSel').value === 'batch' ? '已设为：全部完成后统一通知' : '已设为：每个任务完成即通知') : '已关闭下载完成通知');
 }
 // 开机自启动（用户反馈）：注册系统 login item；未完成任务开机自动续跑
 async function saveAutoStart() {
   const on = $('autoStartChk').checked;
-  const r = await window.fetchie.setAutoStart(on);
+  const r = await window.keepsake.setAutoStart(on);
   if (!r || r.ok === false) { $('autoStartChk').checked = !on; return toast('自启动设置失败：' + ((r && r.reason) || '未知原因')); }
   toast(on ? '已开启开机自启动 ✓（开机自动运行，继续订阅检查与未完成任务）' : '已关闭开机自启动');
 }
 async function pickOutDir() {
-  const r = await window.fetchie.settingsPickDir();
+  const r = await window.keepsake.settingsPickDir();
   if (!r.ok) { if (r.reason !== '已取消') toast('更改失败：' + r.reason); return; }
   $('outDirInput').value = r.outDir;
   toast('下载目录已更新 ✓ 新任务将保存到新位置');
@@ -1067,27 +1089,63 @@ async function pickOutDir() {
 // ===== Cookie 管理 =====
 async function loadCookieInfo() {
   try {
-    const r = await window.fetchie.cookieInfo();
+    const r = await window.keepsake.cookieInfo();
     $('cookieDomains').innerHTML = r.domains.length
       ? r.domains.map(d => `<span class="chip2">🌐 ${esc(d)}</span>`).join('')
       : '<span class="chip2">（暂无，B 站登录后自动出现 bilibili.com）</span>';
   } catch (e) {}
 }
 async function importCookies() {
-  const r = await window.fetchie.cookieImport();
+  const r = await window.keepsake.cookieImport();
   if (!r.ok) { if (r.reason !== '已取消') toast('导入失败：' + r.reason); return; }
   toast('Cookie 导入成功 ✓ 共 ' + r.count + ' 条');
   loadCookieInfo();
 }
 async function openCookieDir() {
-  const r = await window.fetchie.cookieOpenDir();
+  const r = await window.keepsake.cookieOpenDir();
   if (r && !r.ok) toast('打开失败：' + r.reason);
+}
+// B站 线路/CDN 手动选线（#15）：即时生效，热更新进下载参数
+async function saveBiliLine() {
+  const r = await window.keepsake.settingsSetBiliLine($('biliLineSel').value);
+  toast(r.biliLine ? ('已设为 B站 线路：' + r.biliLine + ' ✓（新任务生效）') : '已恢复 B站 线路：自动 ✓');
+}
+// ===== 浏览器登录态一键读取闭环（#12，不做 VSS）=====
+// 依据主进程返回的浏览器状态刷新提示与按钮：未选浏览器→整段隐藏；
+// 已选→展示按钮，并按「未安装/正在运行(锁文件)/已就绪」给出人话提示（运行时提示里带「已退出？点此一键读取」）
+async function refreshCookieUI() {
+  const sel = $('cookieBrowserSel').value;
+  const row = $('cookieReadRow'); const hint = $('cookieBrowserHint');
+  if (!sel) { row.style.display = 'none'; hint.style.display = 'none'; return; }
+  row.style.display = 'flex';
+  try {
+    const st = await window.keepsake.cookieState();
+    if (st.warning) {
+      hint.style.display = 'block'; hint.style.color = 'var(--warn, #c97a00)';
+      hint.textContent = st.warning + '（已退出浏览器？点上方「一键读取并保存登录态」即可把登录态存进 cookies.txt）';
+    } else {
+      hint.style.display = 'block'; hint.style.color = 'var(--txt2)';
+      hint.textContent = '已就绪：点「一键读取并保存登录态」可把 ' + (st.name || sel) + ' 的登录态导出存为 cookies.txt（下载/订阅都能直接用）';
+    }
+  } catch (e) { hint.style.display = 'none'; }
+}
+// 一键读取并保存：主进程用 yt-dlp --cookies-from-browser 导出浏览器登录态到现有 cookies.txt
+async function readBrowserCookies() {
+  const state = $('cookieReadState');
+  state.textContent = '读取中…';
+  try {
+    const r = await window.keepsake.cookieReadBrowser();
+    if (!r.ok) { state.textContent = ''; toast('读取失败：' + (r.reason || '未知原因')); return; }
+    state.textContent = '✓ 已保存 ' + (r.count || 0) + ' 条';
+    toast('浏览器登录态已读取并保存到 cookies.txt ✓');
+    loadCookieInfo();
+  } catch (e) { state.textContent = ''; toast('读取异常：' + e.message); }
 }
 
 // ===== Pixiv OAuth 授权 =====
 async function loadPixivState() {
   try {
-    const r = await window.fetchie.pixivState();
+    const r = await window.keepsake.pixivState();
     const el = $('pixivState');
     if (!el) return;
     el.textContent = r.authorized ? '✓ 已授权' + (r.userName ? '：' + r.userName : '') : '未授权';
@@ -1096,7 +1154,7 @@ async function loadPixivState() {
 }
 async function pixivAuthorize() {
   toast('已打开 Pixiv 官方登录窗，登录成功后自动完成授权…');
-  const r = await window.fetchie.pixivLogin();
+  const r = await window.keepsake.pixivLogin();
   if (r.ok) { toast('Pixiv 授权成功 ✓（' + (r.userName || '已登录') + '）'); loadPixivState(); }
   else if (r.reason !== '已取消') toast('Pixiv 授权失败：' + r.reason);
 }
@@ -1106,7 +1164,7 @@ let subsItems = [];
 let _goneFilesMap = {};   // subId -> { goneId: [本地文件路径...] }
 let _goneFilesKey = {};   // subId -> 缓存键（gone 清单未变则跳过重扫，防 renderSubs 并发重复走查）
 async function loadSubs() {
-  subsItems = await window.fetchie.subsList();
+  subsItems = await window.keepsake.subsList();
   // #70② 分组过滤下拉：同步分组清单
   const sel = $('groupFilter');
   if (sel) {
@@ -1179,7 +1237,7 @@ async function renderSubs() {
       // gone 清单未变直接复用缓存，不再每次渲染都发 subsGoneFiles（主进程全目录走查）
       const gk = s.id + '|' + (s.gone || []).join(',');
       if (_goneFilesKey[s.id] !== gk) {
-        try { const r = await window.fetchie.subsGoneFiles(s.id); _goneFilesMap[s.id] = (r && r.files) || {}; _goneFilesKey[s.id] = gk; } catch (e) {}
+        try { const r = await window.keepsake.subsGoneFiles(s.id); _goneFilesMap[s.id] = (r && r.files) || {}; _goneFilesKey[s.id] = gk; } catch (e) {}
       }
     }
     const paused = s.userPaused || s.paused;
@@ -1243,7 +1301,7 @@ async function batchSubBackfill() {
   let ok = 0, fail = 0, queued = 0;
   for (const id of ids) {
     try {
-      const r = await window.fetchie.subsBackfill(id);
+      const r = await window.keepsake.subsBackfill(id);
       if (r && r.ok) { ok++; if (r.queued) queued++; } else fail++;
     } catch (e) { fail++; }
   }
@@ -1256,7 +1314,7 @@ async function batchSubCheck() {
   if (!ids.length) return;
   toast(`检查 ${ids.length} 个订阅中…（自动依次进行，完成后提示）`);
   const all = [];
-  for (const id of ids) { try { const rs = await window.fetchie.subsCheck(id); if (Array.isArray(rs)) all.push(...rs); } catch (e) {} }
+  for (const id of ids) { try { const rs = await window.keepsake.subsCheck(id); if (Array.isArray(rs)) all.push(...rs); } catch (e) {} }
   _subSel.clear(); _subAnchor = null;
   loadSubs();
   const bad = all.filter(r => r.ok === false && r.name && !/间隔未到|已暂停/.test(r.reason || ''));
@@ -1306,7 +1364,7 @@ function editSubOpts(id) {
     <div style="text-align:right;margin-top:14px"><button class="btn-mini" style="color:var(--acc2)" onclick="saveSubOpts('${id}')">💾 保存</button></div>`);
 }
 async function saveSubOpts(id) {
-  const r = await window.fetchie.subsUpdate(id, {
+  const r = await window.keepsake.subsUpdate(id, {
     name: $('soName').value,
     userPaused: $('soPaused').checked,
     autoTranscribe: $('soTranscribe').checked,
@@ -1343,7 +1401,7 @@ function goneBadge(s) {
 }
 function locateGoneFile(subId, gid) {
   const f = (_goneFilesMap[subId] || {})[gid];
-  if (f && f.length) window.fetchie.openFolder(f[0]);
+  if (f && f.length) window.keepsake.openFolder(f[0]);
   else toast('未找到对应本地文件');
 }
 
@@ -1365,7 +1423,7 @@ function editKw(id) {
   setTimeout(() => { const i = $('kwInput'); if (i) i.focus(); }, 60);
 }
 async function saveKw(id) {
-  const r = await window.fetchie.subsSetKw(id, $('kwInput').value);
+  const r = await window.keepsake.subsSetKw(id, $('kwInput').value);
   if (!r.ok) return toast(r.reason || '保存失败');
   closeModal(); toast('关键词过滤已保存 ✓'); loadSubs();
 }
@@ -1373,13 +1431,13 @@ async function saveKw(id) {
 // ===== AI 文稿助理 =====
 async function loadAiConfig() {
   try {
-    const c = await window.fetchie.aiGetConfig();
+    const c = await window.keepsake.aiGetConfig();
     $('aiUrl').value = c.url || ''; $('aiKey').value = c.key || ''; $('aiModel').value = c.model || '';
     $('aiCfgState').textContent = c.ready ? '✓ 已就绪' : '未配置';
   } catch (e) {}
 }
 async function saveAiConfig() {
-  const r = await window.fetchie.aiSaveConfig({ url: $('aiUrl').value, key: $('aiKey').value, model: $('aiModel').value });
+  const r = await window.keepsake.aiSaveConfig({ url: $('aiUrl').value, key: $('aiKey').value, model: $('aiModel').value });
   $('aiCfgState').textContent = r.ready ? '✓ 已就绪' : '未配置完整';
   toast(r.ready ? 'AI 配置已保存 ✓' : '已保存（信息不完整，暂不可用）');
 }
@@ -1400,26 +1458,26 @@ async function aiRun(p, task) {
   const out = $('aiOut');
   out.style.display = 'block';
   out.textContent = 'AI 思考中…';
-  const r = await window.fetchie.aiRun(p, task).catch(e => ({ ok: false, reason: String(e) }));
+  const r = await window.keepsake.aiRun(p, task).catch(e => ({ ok: false, reason: String(e) }));
   _aiBusy = false;
   if (!r.ok) { out.textContent = '失败：' + (r.reason || '未知错误'); return; }
   out.textContent = r.text;
 }
 
 async function openSubFolder(id) {
-  await window.fetchie.subsOpenFolder(id);
+  await window.keepsake.subsOpenFolder(id);
 }
 async function addSub() {
   const url = $('subUrl').value.trim();
   if (!url) return toast('先粘贴 UP 主页、频道或 RSS feed 链接');
-  const r = await window.fetchie.subsAdd(url);
+  const r = await window.keepsake.subsAdd(url);
   if (!r.ok) return toast(r.reason);
   $('subUrl').value = '';
   toast(r.sub && r.sub.kind === 'rss' ? '订阅成功，正在拉取 feed 记录已发布文章…' : '订阅成功，正在记录内容清单…');
   if (r.warning) toast('⚠ ' + r.warning);   // 缺登录态站点（Pixiv/IG/X 游客态实测必失败）提前告知；卡片上还会常驻失败原因
   loadSubs();
   // 自动跑首轮检查（建立基线，之后的更新才会自动下载）
-  try { await window.fetchie.subsCheck(r.sub.id); } catch (e) {}
+  try { await window.keepsake.subsCheck(r.sub.id); } catch (e) {}
   loadSubs();
   const info = subsItems.find(s => s.id === r.sub.id) || {};
   // 用户需求：订阅后询问是否立即回溯下载
@@ -1429,13 +1487,13 @@ async function addSub() {
     toast('之后 TA 有更新会自动下载；存量想下时点订阅卡片的 ⤓ 按钮');
   }
 }
-async function removeSub(id) { await window.fetchie.subsRemove(id); loadSubs(); }
-async function resumeSub(id) { await window.fetchie.subsResume(id); toast('已恢复检查'); loadSubs(); }
+async function removeSub(id) { await window.keepsake.subsRemove(id); loadSubs(); }
+async function resumeSub(id) { await window.keepsake.subsResume(id); toast('已恢复检查'); loadSubs(); }
 async function backfillSub(id) {
   if (!confirm('把这个订阅已发布的全部内容（视频+图文，含历史）加入下载队列？\n内容多时清单要拉一会儿，入队后按风控策略自动限速慢慢下。')) return;
   toast('正在拉取内容清单…');
   try {
-    const r = await window.fetchie.subsBackfill(id);
+    const r = await window.keepsake.subsBackfill(id);
     if (!r.ok) return toast(r.reason);
     if (r.queued) return toast('队列正忙，已排入待回溯队列——当前任务完成后自动开始');
     if (!r.added && !r.skipped) return toast('未发现可下载的内容（纯文字动态无媒体）');
@@ -1445,7 +1503,7 @@ async function backfillSub(id) {
 }
 async function checkSub(id) {
   toast('检查中…');
-  const rs = await window.fetchie.subsCheck(id);
+  const rs = await window.keepsake.subsCheck(id);
   loadSubs();
   const list = Array.isArray(rs) ? rs : [];
   const bad = list.filter(r => r.ok === false && r.name && !/间隔未到|已暂停/.test(r.reason || ''));
@@ -1457,7 +1515,7 @@ async function checkSub(id) {
 }
 async function checkAllSubs() {
   toast('检查全部订阅中…');
-  const rs = await window.fetchie.subsCheck(null);
+  const rs = await window.keepsake.subsCheck(null);
   loadSubs();
   const list = Array.isArray(rs) ? rs : [];
   const bad = list.filter(r => r.ok === false && r.name && !/间隔未到|已暂停/.test(r.reason || ''));
@@ -1466,7 +1524,7 @@ async function checkAllSubs() {
   if (bad.length) toast(`检查完毕：${bad.length} 个失败（${bad.slice(0, 2).map(b => b.name).join('、')}${bad.length > 2 ? ' 等' : ''}）— 卡片上红字就是原因，悬停看技术详情${wTail}`);
   else toast('检查完毕，全部正常 ✓' + wTail);
 }
-window.fetchie.onSubs(() => { loadSubs(); });
+window.keepsake.onSubs(() => { loadSubs(); });
 
 // ===== 媒体库 =====
 let libData = null;
@@ -1485,7 +1543,7 @@ const kindIcon = k => k === 'video' ? '🎥' : k === 'image' ? '🖼️' : '📄
 
 async function loadLibrary(force) {
   if (libData && !force) { renderLibrary(); return; }
-  libData = await window.fetchie.libraryScan();
+  libData = await window.keepsake.libraryScan();
   renderLibrary();
 }
 
@@ -1502,7 +1560,7 @@ function setLibKw(v) {
   _txtSearchTimer = setTimeout(async () => {
     const q = libKw;   // 闭包捕获本次查询词，在途旧查询返回后不再覆盖新输入的结果
     try {
-      const r = await window.fetchie.textSearch(q, 50);
+      const r = await window.keepsake.textSearch(q, 50);
       if (libKw !== q) return;
       _txtHits = {};
       for (const it of (r.results || [])) _txtHits[it.path] = it;
@@ -1572,22 +1630,22 @@ function jobStatus(f) {
   if (s.state === 'error') return ' · 🌐 <span style="color:var(--red)">失败：' + esc((s.note || '').slice(0, 60)) + '</span>';
   return '';
 }
-window.fetchie.onLibJob(d => {
+window.keepsake.onLibJob(d => {
   jobStates[d.filePath] = { state: d.state, note: d.note };
   if (document.getElementById('page-lib').classList.contains('on')) loadLibrary(true);
 });
 function translateFile(p) {
-  window.fetchie.srtTranslate(p).then(r => { if (r && !r.ok) toast(r.reason); else if (r && r.ok) toast('已加入双语字幕队列（串行处理，可继续浏览）'); });
+  window.keepsake.srtTranslate(p).then(r => { if (r && !r.ok) toast(r.reason); else if (r && r.ok) toast('已加入双语字幕队列（串行处理，可继续浏览）'); });
 }
 function burnFile(p) {
-  window.fetchie.srtBurn(p).then(r => { if (r && !r.ok) toast(r.reason); else if (r && r.ok) toast('已加入烧字幕队列（视频重编码较慢，请耐心等待）'); });
+  window.keepsake.srtBurn(p).then(r => { if (r && !r.ok) toast(r.reason); else if (r && r.ok) toast('已加入烧字幕队列（视频重编码较慢，请耐心等待）'); });
 }
 function transcribeGroup(key) {
   const g = (libData.groups || []).find(x => x.key === key);
   if (!g) return;
   const paths = g.files.filter(f => /\.(mp4|mkv|webm|mov|avi|flv|m4a|mp3|wav)$/i.test(f.name)).map(f => f.path);
   if (!paths.length) return toast('该组没有可转写的音视频');
-  window.fetchie.asrBatch(paths);
+  window.keepsake.asrBatch(paths);
 }
 
 // #70④ 组级 AI 摘要：组内文稿交给 AI 做结构化总结，结果存组目录 AI摘要-日期.md
@@ -1599,7 +1657,7 @@ async function summarizeGroup(key) {
     <div id="gsumOut" style="white-space:pre-wrap;font-size:13px;line-height:1.7;background:rgba(127,127,127,.08);border-radius:9px;padding:12px;max-height:46vh;overflow:auto">⏳ 生成中…</div>`);
   try {
     // 文件清单由前端 libData 提供，主进程不再全量重扫媒体库
-    const r = await window.fetchie.libSummarize(key, g.files.map(f => f.path));
+    const r = await window.keepsake.libSummarize(key, g.files.map(f => f.path));
     if (!r.ok) { $('gsumOut').textContent = '失败：' + (r.reason || '未知错误'); return; }
     $('gsumOut').textContent = r.md;
     const div = document.createElement('div');
@@ -1619,7 +1677,7 @@ function srcBadge(f) {
   return ` · ${via} <a href="#" onclick="openSrc('${escAttr(s.url)}');return false" title="打开来源页面：${escAttr(s.url)}" style="text-decoration:none">🔗 来源</a>`;
 }
 async function openSrc(u) {
-  const r = await window.fetchie.openExternal(u);
+  const r = await window.keepsake.openExternal(u);
   if (r && !r.ok) toast(r.reason);
 }
 
@@ -1634,12 +1692,12 @@ function articleBadge(f) {
   return s;
 }
 async function openArticle(p) {
-  const r = await window.fetchie.articleOpen(p);
+  const r = await window.keepsake.articleOpen(p);
   if (r && !r.ok) toast(r.reason || '打开失败');
 }
 async function recheckArticle(p) {
   toast('正在重新检查原文…（会重新加载一次原文页面）');
-  const r = await window.fetchie.articleRecheck(p).catch(e => ({ ok: false, reason: String(e) }));
+  const r = await window.keepsake.articleRecheck(p).catch(e => ({ ok: false, reason: String(e) }));
   if (!r.ok) return toast('检查失败：' + (r.reason || '未知错误'));
   if (r.status === 'deleted') toast('原文已被删除或无法查看——已在文章卡片标记（本地存档不受影响）');
   else if (r.edited) toast('原文内容与存档时不一致：可能被编辑过，已在卡片标记');
@@ -1657,23 +1715,23 @@ function fmtBytes(b) {
 function escAttr(s) { return String(s ?? '').replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '&quot;'); }
 function toggleGroup(key) { expandedKey = expandedKey === key ? null : key; renderLibrary(); }
 async function openPath(p) {
-  const r = await window.fetchie.openFolder(p);
+  const r = await window.keepsake.openFolder(p);
   if (r && !r.ok) toast('打开失败：' + r.reason);
 }
 async function trashFile(p) {
   const name = p.split('\\').pop().split('/').pop();
   if (!confirm(`把「${name}」移入系统回收站？\n（可在回收站恢复；订阅/任务记录不受影响）`)) return;
-  const r = await window.fetchie.libTrash(p);
+  const r = await window.keepsake.libTrash(p);
   if (!r.ok) return toast('删除失败：' + (r.reason || ''));
   toast('已移入回收站');
   loadLibrary(true);
 }
 async function transcribeFile(p) {
   toast('已加入转写队列…');
-  const r = await window.fetchie.asrTranscribe(p);
+  const r = await window.keepsake.asrTranscribe(p);
   if (!r.ok) toast('转写失败：' + r.reason);
 }
-window.fetchie.onLibraryRefresh(() => {
+window.keepsake.onLibraryRefresh(() => {
   libDirty = true;
   if (document.getElementById('page-lib').classList.contains('on')) { libDirty = false; loadLibrary(true); }
   else if (!libData) loadLibrary(true);   // 后台补扫：只为更新侧栏媒体库角标（不打断当前页）
@@ -1684,7 +1742,7 @@ function loadStrategySoon() { setTimeout(loadStrategy, 1200); }
 
 async function loadStrategy() {
   try {
-    const [snap, ver] = await Promise.all([window.fetchie.strategySnapshot(), window.fetchie.strategyVersion()]);
+    const [snap, ver] = await Promise.all([window.keepsake.strategySnapshot(), window.keepsake.strategyVersion()]);
     $('st-version').textContent = ver.version ? `线上 v${ver.version}` : '未拉取到线上版本';
     $('strategyList').innerHTML = `
       <div class="task" style="display:block;padding:12px 16px">
@@ -1726,7 +1784,7 @@ async function loadStrategy() {
 async function checkUpd() {
   toast('正在检查引擎更新…');
   try {
-    const list = await window.fetchie.checkUpdate();
+    const list = await window.keepsake.checkUpdate();
     const need = list.filter(u => u.needUpdate);
     if (!need.length) return toast('引擎全部是最新版 ✓');
     window._updList = need;
@@ -1740,7 +1798,7 @@ async function doUpdate() {
     toast('正在更新 ' + u.engine + ' …');
     try {
       // applyUpdate 失败返回 {ok:false,reason} 而非抛异常，必须判 r.ok，否则失败也提示成功
-      const r = await window.fetchie.applyUpdate(u.engine, u.url);
+      const r = await window.keepsake.applyUpdate(u.engine, u.url);
       if (!r || !r.ok) return toast('更新失败：' + ((r && r.reason) || '未知原因'));
       toast(u.engine + ' 已更新到 ' + u.remote);
     }
@@ -1753,35 +1811,35 @@ async function doUpdate() {
 // ===== 风控规则 / B 站登录 =====
 async function refreshRules() {
   toast('正在更新风控规则…');
-  const r = await window.fetchie.strategyRefresh();
+  const r = await window.keepsake.strategyRefresh();
   if (r.ok) { toast(`风控策略已更新 ✓ ${r.applied}/${r.total} 条规则 · 版本 ${r.version || '未知'}`); $('rulesVer').textContent = 'v' + (r.version || '?'); }
   else toast('策略更新失败（已沿用现有策略）：' + (r.reason || ''));
 }
 async function refreshLoginBadge() {
-  const s = await window.fetchie.loginState();
+  const s = await window.keepsake.loginState();
   const b = $('loginBadge');
   b.textContent = s.loggedIn ? '✅ 已登录 B 站' : '🔑 登录 B 站';
   b.onclick = s.loggedIn ? logoutBili : openLogin;
 }
 async function openLogin() {
   toast('已打开登录窗口，用 B 站 App 扫码或直接登录');
-  const r = await window.fetchie.openLogin();
+  const r = await window.keepsake.openLogin();
   if (r.ok) { toast('登录成功！下载走账号通道，更高清也更少风控'); refreshLoginBadge(); }
   else if (r.reason && r.reason !== '已取消') toast('登录失败：' + r.reason);
 }
 async function logoutBili() {
   if (!confirm('确定退出 B 站登录吗？退出后部分内容的下载可能受风控限制。')) return;
-  await window.fetchie.logout();
+  await window.keepsake.logout();
   refreshLoginBadge();
   toast('已退出 B 站登录');
 }
 refreshLoginBadge();
 
-window.fetchie.onQueue(snap => { items = snap; render(); });
-window.fetchie.snapshot().then(s => { items = s; render(); });
+window.keepsake.onQueue(snap => { items = snap; render(); });
+window.keepsake.snapshot().then(s => { items = s; render(); });
 // 侧栏角标首刷（用户反馈：不点开订阅/媒体库就看不到现有数量）
 // 订阅数立即取（读 json 秒回）；媒体库后台静默全扫一次（大目录不卡界面，扫完角标自然更新）
-window.fetchie.subsList().then(list => { subsItems = list || []; refreshNavCounts(); }).catch(() => {});
+window.keepsake.subsList().then(list => { subsItems = list || []; refreshNavCounts(); }).catch(() => {});
 loadLibrary(true).catch(() => {});
 
 // ===== 设置页三段式（用户提案：设置分类单独竖列，点击进入具体设置项）=====

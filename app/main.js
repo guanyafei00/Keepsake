@@ -30,12 +30,12 @@ if (process.env.KEEPSAKE_CAPTURE) {
 
 const identify = require('./lib/identify');
 const { ClipWatcher } = require('./lib/clipwatch');
-const { DownloadQueue, configure } = require('./lib/queue');
+const { DownloadQueue, configure, setBiliLine } = require('./lib/queue');
 const strategy = require('./lib/strategy');
 const autoupdate = require('./lib/autoupdate');
 const store = require('./lib/store');
 const subs = require('./lib/subs');
-const { cookieBrowserWarning } = require('./lib/browsercookies');   // 浏览器登录态预警（Windows 文件锁根因见该文件头注释）
+const { browserState, cookieBrowserWarning } = require('./lib/browsercookies');   // 浏览器登录态预警（Windows 文件锁根因见该文件头注释）
 const library = require('./lib/library');
 const login = require('./lib/login');
 const pixivauth = require('./lib/pixivauth');
@@ -61,6 +61,18 @@ let _rulesVersion = null;   // 最近一次成功应用的远程规则版本（U
 // 出厂预置更新源（A4 决策 2026-10-10：维护约定：每次发版同步更新线上 update.json）
 // 用户在设置页自己填的 updateUrl 优先于预置值；每次发版流程：签 update.json → 部署到该地址
 const UPDATE_URL_PRESET = 'https://guanyafei00.github.io/fetchie-rules/update.json';
+
+// 品牌读音映射（#45 改名 Keepsake）：app 当前未接入 TTS 引擎，但为将来「朗读 / 语音播报」预留正确读法，
+// 避免 TTS 把 Keepsake 读成别扭音节（老品牌 DGO 会被逐字母读成「迪-吉-欧」，Keepsake 则自然两音节）。
+// 英文自然读音 /ˈkiːpseɪk/ = keep + sake；中文 TTS 直读英文近似「基普塞克」，人耳自然、不逐字母。
+// 个别引擎切分异常时可用下方 SSML 显式停顿兜底（实测 edge-tts 对 Keepsake 可直接自然读出，无需强拆）。
+const BRAND_TTS = {
+  name: 'Keepsake',
+  ipa: 'ˈkiːpseɪk',
+  syllables: ['keep', 'seɪk'],                    // 自然音节拆分：keep-sake
+  zhReadAloud: '基普塞克',                          // 中文 TTS 直读英文的近似音
+  edgeTtsSsml: '<speak>keep<break time="120ms"/>sake</speak>',  // edge-tts 兜底：显式停顿防连读
+};
 
 async function refreshRemoteRules() {
   try {
@@ -351,6 +363,8 @@ app.whenReady().then(() => {
   setCookieBrowser(settings.get().cookieBrowser);
   setAutoCbz(settings.get().autoCbz);
   subs.setCookieBrowser(settings.get().cookieBrowser);
+  setBiliLine(settings.get().biliLine);
+  subs.setBiliLine(settings.get().biliLine);
   // ★★#5 剪贴板监听：复制到链接时自动填入任务输入框。安全边界（机制借鉴 RipMe，clean-room）：
   // 只读文本 + 只填输入框，绝不自动入队——入队必须用户点「加入队列」确认；开关默认关
   let clipWatcher = null;
@@ -774,6 +788,13 @@ app.whenReady().then(() => {
     if (warning) toastMsg(warning);
     return { ok: true, cookieBrowser: r.cookieBrowser, warning: warning || undefined };
   });
+  // B站 线路/CDN 手动选线（#15）：热更新进下载参数（前向兼容钩子，待 yt-dlp 支持 cdn extractor-arg 生效）
+  ipcMain.handle('settings:setBiliLine', (e, { line }) => {
+    const r = settings.set({ biliLine: String(line || '') });
+    setBiliLine(r.biliLine);
+    subs.setBiliLine(r.biliLine);
+    return { ok: true, biliLine: r.biliLine };
+  });
   // 图站任务完成后自动打包 CBZ（漫画归档）
   ipcMain.handle('settings:setCbz', (e, { on }) => {
     const r = settings.set({ autoCbz: !!on });
@@ -1022,6 +1043,55 @@ app.whenReady().then(() => {
     if (!fs.existsSync(f)) { fs.writeFileSync(f, '# Netscape HTTP Cookie File\n'); }
     shell.showItemInFolder(f);
     return { ok: true };
+  });
+  // ===== 浏览器登录态一键读取闭环（#12，不做 VSS）=====
+  function safeSize(f) { try { return fs.statSync(f).size; } catch (e) { return 0; } }
+  function countCookies(f) {
+    let n = 0;
+    try { for (const l of fs.readFileSync(f, 'utf-8').split('\n')) { const p = l.replace(/^#HttpOnly_/, '').split('\t'); if (p.length >= 7 && p[0].trim().startsWith('.')) n++; } } catch (e) {}
+    return n;
+  }
+  // 返回当前所选浏览器的安装/运行状态 + 人话预警（renderer 据此展示按钮与提示）
+  ipcMain.handle('cookie:state', () => {
+    const b = settings.get().cookieBrowser;
+    if (!b) return { browser: '', installed: false, running: false, warning: null };
+    const st = browserState(b);
+    return { browser: b, name: st.name, installed: st.installed, running: st.running, warning: cookieBrowserWarning(b) };
+  });
+  // 一键读取：用 yt-dlp 把浏览器登录态导出到现有 cookies.txt（复用落盘路径；浏览器运行时锁文件则友好报错）
+  ipcMain.handle('cookie:readBrowser', async () => {
+    const b = settings.get().cookieBrowser;
+    if (!b) return { ok: false, reason: '请先在「浏览器登录态」里选择已登录的浏览器' };
+    const st = browserState(b);
+    if (!st.installed) return { ok: false, reason: '未检测到已安装的 ' + st.name + '，无法读取登录态' };
+    if (st.running) return { ok: false, reason: st.name + ' 正在运行，Windows 锁定了 Cookie 文件——请先在任务管理器结束 ' + st.exe + ' 进程后再读取' };
+    const target = cookieFile();
+    const before = safeSize(target);
+    return await new Promise(resolve => {
+      // yt-dlp 的 --cookies FILE 语义是「读入并 dump cookie jar 进 FILE」：把浏览器登录态合并导出到现有 cookies.txt
+      const child = spawn(path.join(binDir(), exe('yt-dlp')), [
+        '--cookies-from-browser', b, '--cookies', target,
+        '--simulate', '--no-warnings', '--skip-download', 'https://www.bilibili.com/',
+      ], { windowsHide: true });
+      let err = '';
+      const dec = new TextDecoder('utf-8');
+      child.stderr.on('data', d => { err += dec.decode(d, { stream: true }); });
+      const timer = setTimeout(() => { try { child.kill('SIGKILL'); } catch (e) {} resolve({ ok: false, reason: '读取超时（45s），请确认浏览器已完全退出后重试' }); }, 45000);
+      child.on('error', e => { clearTimeout(timer); resolve({ ok: false, reason: '启动 yt-dlp 失败：' + e.message }); });
+      child.on('close', code => {
+        clearTimeout(timer);
+        const lock = /Could not copy Chrome cookie database/i.test(err) || /Permission denied[^\n]*\bCookies\b/i.test(err);
+        if (lock) return resolve({ ok: false, reason: st.name + ' 仍在运行或 Cookie 文件被锁——请完全退出浏览器后重试' });
+        const after = safeSize(target);
+        const hasBili = fs.existsSync(target) && /bilibili\.com/i.test(fs.readFileSync(target, 'utf-8'));
+        if (after > before || hasBili) {
+          try { subs.resetCookieCache(); } catch (e) {}   // 域清单缓存失效：订阅添加时的「需要 cookie」提醒按最新文件判断
+          return resolve({ ok: true, count: countCookies(target) });
+        }
+        if (code !== 0) return resolve({ ok: false, reason: (err.split('\n').find(l => /error/i.test(l)) || ('yt-dlp 退出码 ' + code)).slice(0, 120) });
+        resolve({ ok: true, count: countCookies(target) });
+      });
+    });
   });
 
   // ===== Pixiv OAuth 授权（gallery-dl 的 Pixiv 通道只认 refresh-token，cookie 完全无效——2026-10-17 实测）=====
