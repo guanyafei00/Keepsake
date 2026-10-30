@@ -111,6 +111,7 @@ function killTree(child) {
 // #70① 磁盘空间检测：下载目录所在盘剩余 < MIN_FREE_MB 视为不足。
 let WATCHDOG_TOTAL_MIN = 240;   // 下载总时长上限（分钟）：超时杀进程标 error，任务可重试；0=关闭（外部
 let WATCHDOG_STALL_MIN = 15;    // 连续无输出判定（分钟）：引擎网络挂死防永久占用队列；0=关闭
+const WATCHDOG_MAX_RETRIES = 2;   // 看门狗触发后自动重试上限：真挂死最多重试 2 次，仍失败才最终标 error（不误杀正常长任务）
 
 // 引擎解析：userData/engines 有自更新新版优先，否则用随包 resources/bin
 function pick(name) {
@@ -233,6 +234,7 @@ class DownloadQueue {
     it.error = null;
     it.progress = 0;
     it.fileCount = 0;
+    it._watchdogRetries = 0;   // 手动重试 = 重置看门狗额度，给用户一个干净的重跑机会
     it._diskHeld = false;   // 手动重试 = 用户确认空间已处理，清磁盘挂起标记
     this.tick(); this.push();
     return true;
@@ -343,6 +345,30 @@ class DownloadQueue {
     return null;
   }
 
+  // 看门狗触发后的统一处置：先杀进程/断请求（killFn），再按「自动重试 ≤ WATCHDOG_MAX_RETRIES 次」闭环；
+  // 重试耗尽才标 error 并附人话原因。只在真静默/超时触发（_watchdogReason 已把关），绝不误杀正常长任务；
+  // 重试直接重跑（本轮看门狗计时在 run 内清零，引擎幂等跳过已存在文件，不重复下载）。
+  _watchdogFail(it, wdReason, seq, killFn) {
+    if (seq !== it._runSeq || it.status !== 'downloading') return;   // 旧 run 的迟到事件 / 已结束，丢弃
+    if (typeof killFn === 'function') { try { killFn(); } catch (e) {} }   // 杀子进程 / 断直连请求 / 关文章抓取窗口
+    if (it._diskTimer) { clearInterval(it._diskTimer); it._diskTimer = null; }
+    this.active = Math.max(0, this.active - 1);
+    it._wasActive = false;
+    it._watchdogRetries = (it._watchdogRetries || 0) + 1;
+    if (it._watchdogRetries <= WATCHDOG_MAX_RETRIES) {
+      // 自动重试：直接重跑（不排队、立即占回原并发槽）；_startedAt/_lastOutput 在 run() 内已重置
+      it.status = 'queued';
+      it.error = null;
+      it.progress = 0;
+      this.run(it);
+      this.push();
+    } else {
+      it.status = 'error';
+      it.error = '下载长时间无响应（看门狗已自动中止并重试 ' + WATCHDOG_MAX_RETRIES + ' 次仍失败）：' + wdReason + '。请检查网络或站点是否可用，稍后可点 ⟳ 手动重试';
+      this.tick(); this.push();
+    }
+  }
+
   // 磁盘挂起任务：空间恢复即回队（#70①）
   wakeHeld() {
     if (diskLow()) return;
@@ -369,6 +395,7 @@ class DownloadQueue {
     const done = (status, extra = {}) => {
       if (!it._wasActive) return;   // 幂等守卫（spawn 的 error+close 双触发只算一次
       it.status = status;
+      if (status === 'done') it._watchdogRetries = 0;   // 成功即清零看门狗重试计数（避免历史失败拖累后续重试额度）
       Object.assign(it, extra);
       if (status === 'done' && this.onDone) {
         try { this.onDone(it); } catch (e) { console.warn('[queue] onDone hook fail:', e.message); }   // 来源索引（媒体库溯源用）
@@ -408,16 +435,7 @@ class DownloadQueue {
     it._diskTimer = setInterval(() => {
       if (seq !== it._runSeq || it.status !== 'downloading') { clearInterval(it._diskTimer); it._diskTimer = null; return; }
       const wdReason = this._watchdogReason(it);
-      if (wdReason) {
-        killTree(child);
-        it.status = 'error';
-        it.error = '看门狗：' + wdReason + '，已自动终止（任务可重试）';
-        this.active = Math.max(0, this.active - 1);
-        it._wasActive = false;
-        clearInterval(it._diskTimer); it._diskTimer = null;
-        this.tick(); this.push();
-        return;
-      }
+      if (wdReason) { this._watchdogFail(it, wdReason, seq, () => killTree(child)); return; }
       if (diskLow()) {
         killTree(child);
         it.status = 'held';
@@ -565,16 +583,7 @@ class DownloadQueue {
     it._diskTimer = setInterval(() => {
       if (seq !== it._runSeq || it.status !== 'downloading') { clearInterval(it._diskTimer); it._diskTimer = null; return; }
       const wdReason = this._watchdogReason(it);
-      if (wdReason) {
-        if (it._directReq) { try { it._directReq.destroy(); } catch (e) {} }
-        it.status = 'error';
-        it.error = '看门狗：' + wdReason + '，已自动终止（任务可重试）';
-        this.active = Math.max(0, this.active - 1);
-        it._wasActive = false;
-        clearInterval(it._diskTimer); it._diskTimer = null;
-        this.tick(); this.push();
-        return;
-      }
+      if (wdReason) { this._watchdogFail(it, wdReason, seq, () => { if (it._directReq) { try { it._directReq.destroy(); } catch (e) {} } }); return; }
       if (diskLow()) {
         if (it._directReq) { try { it._directReq.destroy(); } catch (e) {} }
         it.status = 'held';
@@ -676,16 +685,7 @@ class DownloadQueue {
     it._diskTimer = setInterval(() => {
       if (seq !== it._runSeq || it.status !== 'downloading') { clearInterval(it._diskTimer); it._diskTimer = null; return; }
       const wdReason = this._watchdogReason(it);
-      if (wdReason) {
-        if (it._articleCtl) { it._articleCtl.canceled = true; try { if (it._articleCtl.win) it._articleCtl.win.destroy(); } catch (e) {} it._articleCtl = null; }
-        it.status = 'error';
-        it.error = '看门狗：' + wdReason + '，已自动终止（任务可重试）';
-        this.active = Math.max(0, this.active - 1);
-        it._wasActive = false;
-        clearInterval(it._diskTimer); it._diskTimer = null;
-        this.tick(); this.push();
-        return;
-      }
+      if (wdReason) { this._watchdogFail(it, wdReason, seq, () => { if (it._articleCtl) { it._articleCtl.canceled = true; try { if (it._articleCtl.win) it._articleCtl.win.destroy(); } catch (e) {} } }); return; }
       if (diskLow()) {
         if (it._articleCtl) { it._articleCtl.canceled = true; try { if (it._articleCtl.win) it._articleCtl.win.destroy(); } catch (e) {} it._articleCtl = null; }
         it.status = 'held';

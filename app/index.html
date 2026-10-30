@@ -135,6 +135,23 @@
   button { font-family:inherit; }
   input[type="checkbox"] { accent-color:var(--acc); width:15px; height:15px; vertical-align:-2px; }
   .t-info .meta, .nav .cnt, .sec-t .cnt, .st, table.stg, .dl-state, .chip2 { font-variant-numeric:tabular-nums; }
+
+  /* ===== 首启引导浮层（#28）===== */
+  .ob-mask { position:fixed; inset:0; background:rgba(16,24,40,.45); z-index:300; display:flex; align-items:center; justify-content:center; padding:24px; }
+  .ob-card { width:520px; max-width:100%; max-height:90vh; overflow-y:auto; background:var(--panel); border-radius:18px; box-shadow:var(--shadow-lg); padding:24px 26px; }
+  .ob-card h2 { font-size:18px; margin-bottom:4px; display:flex; align-items:center; gap:8px; }
+  .ob-sub { font-size:12.5px; color:var(--txt2); margin-bottom:16px; }
+  .ob-step { display:flex; gap:13px; padding:14px 0; border-top:1px solid var(--line); }
+  .ob-num { width:26px; height:26px; border-radius:50%; background:var(--accbg); color:var(--acc2); font-weight:800; font-size:13px; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+  .ob-body { flex:1; min-width:0; }
+  .ob-body h4 { font-size:13.5px; margin:0 0 5px; }
+  .ob-body p { font-size:12px; color:var(--txt2); line-height:1.7; margin:0; }
+  .ob-warn { color:var(--yellow); background:var(--yellowbg); border-radius:var(--r-sm); padding:6px 9px; margin-top:7px; font-size:11.5px; line-height:1.6; display:inline-block; }
+  .ob-warn strong { color:var(--yellow); }
+  .ob-go { margin-top:9px; display:flex; gap:8px; flex-wrap:wrap; }
+  .ob-foot { display:flex; justify-content:space-between; align-items:center; margin-top:18px; }
+  .ob-skip { font-size:12.5px; color:var(--txt2); cursor:pointer; }
+  .ob-skip:hover { color:var(--acc2); }
 </style>
 </head>
 <body>
@@ -433,6 +450,43 @@
     <div id="modalTitle" style="font-weight:700;margin-bottom:10px;font-size:15px"></div>
     <div id="modalBody"></div>
     <div style="text-align:right;margin-top:12px"><button class="btn-mini" onclick="closeModal()">关闭</button></div>
+  </div>
+</div>
+
+<!-- 首启引导浮层（#28）：首次启动弹 3 步引导；标记 onboarded 后不再出现 -->
+<div class="ob-mask" id="onboardMask" style="display:none">
+  <div class="ob-card" role="dialog" aria-modal="true" aria-label="首次使用引导">
+    <h2>💎 欢迎使用 Keepsake</h2>
+    <div class="ob-sub">三步快速上手，把喜欢的内容存进本地媒体库。</div>
+    <div class="ob-step">
+      <div class="ob-num">1</div>
+      <div class="ob-body">
+        <h4>添加订阅或粘贴链接下载</h4>
+        <p>订阅一个 B站UP主 / YouTube频道 / 图站用户，它会自动追更；或直接把视频/图片链接粘贴到首页「任务队列」点「加入队列」。</p>
+        <div class="ob-go"><button class="btn-mini" onclick="obGo('rss')">＋ 去添加订阅</button><button class="btn-mini" onclick="obGo('tasks')">📋 去粘贴链接</button></div>
+      </div>
+    </div>
+    <div class="ob-step">
+      <div class="ob-num">2</div>
+      <div class="ob-body">
+        <h4>设置浏览器登录态 / cookies</h4>
+        <p>想下载更高清、更少风控的内容？到设置里选一个已登录的浏览器（引擎自动读取），或导入 cookies.txt。登录态只存本机。</p>
+        <div class="ob-warn">⚠ 浏览器读取 Cookie 时请先<strong>完全退出</strong>该浏览器——Windows 会锁定 Cookie 文件，正在运行会导致读取失败（呼应之前的登录态锁检测）。</div>
+        <div class="ob-go"><button class="btn-mini" onclick="obGo('set-cookies')">🔑 去设置登录态</button></div>
+      </div>
+    </div>
+    <div class="ob-step">
+      <div class="ob-num">3</div>
+      <div class="ob-body">
+        <h4>删帖检测是什么</h4>
+        <p>订阅的博主如果删了某篇内容，Keepsake 会在下次检查时发现并标记「已删除」，你已存到本地的那份不会被动。可在订阅页导出「删帖清单」逐条核对。</p>
+        <div class="ob-go"><button class="btn-mini" onclick="obGo('rss')">📤 查看删帖清单</button></div>
+      </div>
+    </div>
+    <div class="ob-foot">
+      <span class="ob-skip" onclick="obClose(true)" role="button" tabindex="0">跳过引导 ›</span>
+      <button class="btn-dl" onclick="obClose(true)">开始使用</button>
+    </div>
   </div>
 </div>
 
@@ -1895,12 +1949,25 @@ function initSettingsNav() {
 }
 initSettingsNav();
 
-// 首启引导（只在第一次弹，三步说清核心用法
+// ===== 首启引导（#28）：只在首次启动弹 3 步引导浮层；标记 onboarded 后不再烦 =====
+// 兼容历史品牌名遗留标记（dgo-onboarded），老用户也算已引导过，不重复弹
+function obShow() { const m = $('onboardMask'); if (m) m.style.display = 'flex'; }
+function obClose(mark) {
+  const m = $('onboardMask'); if (m) m.style.display = 'none';
+  if (mark) { try { localStorage.setItem('keepsake-onboarded', '1'); } catch (e) {} }
+}
+// obGo：关闭浮层并跳转到对应入口（订阅页 / 任务页 / 设置-Cookie 管理分段）
+function obGo(target) {
+  obClose(true);
+  if (target === 'set-cookies') { switchPage('settings'); switchSet('set-cookies'); }
+  else switchPage(target);
+}
 try {
-  if (!localStorage.getItem('dgo-onboarded')) {
-    localStorage.setItem('dgo-onboarded', '1');
-    setTimeout(() => toast('欢迎使用 Keepsake 💎 ①粘贴视频/图片链接点「加入队列」②文件自动存到设置里的下载目录③关窗会缩到右下角托盘继续下载'), 800);
-  }
+  let _onb = null, _legacy = null;
+  try { _onb = localStorage.getItem('keepsake-onboarded'); } catch (e) {}
+  try { _legacy = localStorage.getItem('dgo-onboarded'); } catch (e) {}
+  // 首次启动（无订阅且未看过引导）→ 稍候等首屏渲染完再弹，避免抢在初始快照/toast 前
+  if (!_onb && !_legacy) setTimeout(obShow, 700);
 } catch (e) {}
 </script>
 </body>
