@@ -136,7 +136,14 @@ function createWindow() {
     width: 1180, height: 800,
     minWidth: 940, minHeight: 640,   // 防止缩到极小破版
     icon: appIconPath(),
-    webPreferences: { preload: path.join(__dirname, 'preload.js') }
+    // 安全加固（#17）：禁用 Node 集成 + 开启上下文隔离 + 启用渲染进程沙箱。
+    // sandbox 下 preload 仅能经 require('electron') 拿 contextBridge/ipcRenderer——本 preload 正是此模式，不破坏渲染。
+    webPreferences: {
+      preload: path.join(__dirname, 'preload.js'),
+      nodeIntegration: false,
+      contextIsolation: true,
+      sandbox: true
+    }
   });
   win.loadFile('index.html');
   // README 截图模式：KEEPSAKE_CAPTURE=1 用演示数据自动切页截 3 张图后退出（数据隔离见文件头部）
@@ -274,58 +281,19 @@ app.whenReady().then(() => {
   const userData = app.getPath('userData');
   pixivauth.installPixivProtocol();   // pixiv:// 内部协议 handler（注册privileged见文件顶部注释）
 
-  // 改名迁移：Fetchie → DGO，旧 %APPDATA%\Fetchie 的数据一次性搬入（
-  // 逐文件断点续迁 + 完成写标记 + 旧目录改名封存（内含明文 cookies.txt，凭证不散落））
+  // 改名迁移：Fetchie → Keepsake（2026-10-20 品牌改名前的历史数据一次性搬入）
+  // 逐文件断点续迁 + 全成功后写标记 + 旧目录改名封存（内含明文 cookies.txt，凭证不散落）
   try {
-    const legacy = path.join(path.dirname(userData), 'Fetchie');
-    const doneMark = path.join(userData, '.fetchie-migrate-done');
-    if (fs.existsSync(legacy) && !fs.existsSync(doneMark)) {
-      let copied = 0;
-      for (const f of ['settings.json', 'cookies.txt', 'tasks.json', 'subs.json', 'site-state.json', 'remote-rules.json']) {
-        const s = path.join(legacy, f), d = path.join(userData, f);
-        if (fs.existsSync(s) && !fs.existsSync(d)) {
-          try { fs.copyFileSync(s, d); copied++; } catch (e) { console.warn('[migrate] copy fail:', f, e.message); }
-        }
-      }
-      const oldModels = path.join(legacy, 'asr-models');
-      const newModels = path.join(userData, 'asr-models');
-      if (fs.existsSync(oldModels) && !fs.existsSync(newModels)) {
-        try { fs.renameSync(oldModels, newModels); copied++; }   // 同盘改名瞬间完成
-        catch (e) { console.warn('[migrate] asr-models rename fail（不做同步大拷贝防冻启动，稍后手动迁）:', e.message); }
-      }
-      try { fs.writeFileSync(doneMark, String(Date.now())); } catch (e) {}
-      try { fs.renameSync(legacy, legacy + '.migrated-bak'); }   // 封存旧目录
-      catch (e) { try { fs.unlinkSync(path.join(legacy, 'cookies.txt')); } catch (e2) {} }   // 改名不成至少删明文凭证
-      console.log('[migrate] Fetchie → DGO 数据迁移完成:', copied, '项');
-    }
+    migrateLegacyDir('Fetchie', path.join(userData, '.fetchie-migrate-done'),
+      ['settings.json', 'cookies.txt', 'tasks.json', 'subs.json', 'site-state.json', 'remote-rules.json'], ['asr-models']);
   } catch (e) { console.log('[migrate] 迁移失败(不影响启动):', e.message); }
 
-  // 改名迁移 v2：DGO → Keepsake（2026-10-20 品牌改名，同 Fetchie 模式）。
-  // 除配置文件外连 asr-models/engines（同盘 rename 瞬间完成，引擎免重新下载）与
-  // Local Storage（下载选项偏好）一并迁移；失败项各自吞掉不阻塞启动
+  // 改名迁移 v2：DGO → Keepsake（2026-10-20 品牌改名）。除配置文件外连 asr-models/engines
+  // （同盘 rename 瞬间完成，引擎免重新下载）与 Local Storage（下载选项偏好）一并迁移
   try {
-    const legacyDGO = path.join(path.dirname(userData), 'DGO');
-    const doneMark2 = path.join(userData, '.keepsake-migrate-done');
-    if (fs.existsSync(legacyDGO) && !fs.existsSync(doneMark2)) {
-      let copied = 0;
-      for (const f of ['settings.json', 'cookies.txt', 'tasks.json', 'subs.json', 'site-state.json', 'remote-rules.json', 'pixiv-auth.json']) {
-        const s = path.join(legacyDGO, f), d = path.join(userData, f);
-        if (fs.existsSync(s) && !fs.existsSync(d)) {
-          try { fs.copyFileSync(s, d); copied++; } catch (e) { console.warn('[migrate] copy fail:', f, e.message); }
-        }
-      }
-      for (const dir of ['asr-models', 'engines', 'Local Storage']) {
-        const s = path.join(legacyDGO, dir), d = path.join(userData, dir);
-        if (fs.existsSync(s) && !fs.existsSync(d)) {
-          try { fs.renameSync(s, d); copied++; }   // 同盘改名瞬间完成
-          catch (e) { console.warn('[migrate] rename fail:', dir, e.message); }   // engines 失败可重新下载，不阻塞
-        }
-      }
-      try { fs.writeFileSync(doneMark2, String(Date.now())); } catch (e) {}
-      try { fs.renameSync(legacyDGO, legacyDGO + '.migrated-bak'); }   // 封存旧目录
-      catch (e) { try { fs.unlinkSync(path.join(legacyDGO, 'cookies.txt')); } catch (e2) {} }   // 改名不成至少删明文凭证
-      console.log('[migrate] DGO → Keepsake 数据迁移完成:', copied, '项');
-    }
+    migrateLegacyDir('DGO', path.join(userData, '.keepsake-migrate-done'),
+      ['settings.json', 'cookies.txt', 'tasks.json', 'subs.json', 'site-state.json', 'remote-rules.json', 'pixiv-auth.json'],
+      ['asr-models', 'engines', 'Local Storage']);
   } catch (e) { console.log('[migrate] 迁移失败(不影响启动):', e.message); }
 
   // 默认下载目录：系统「视频」文件夹下的 Keepsake（藏 AppData 用户找不到文件）。
@@ -1128,6 +1096,57 @@ app.whenReady().then(() => {
     const rel = path.relative(outDir, resolved.toLowerCase());
     return (rel === '' || (rel && !rel.startsWith('..') && !path.isAbsolute(rel))) ? resolved : null;
   }
+  // 允许打开的目录范围扩展（#18）：除下载目录外，再放行 userData 下的安全子目录（engines / asr-models），
+  // 供「打开引擎目录 / 模型目录」用。path.relative 规范化，防 ../ 越界与符号链接逃逸。
+  function insideAllowedDir(p) {
+    const out = insideOutDir(p);
+    if (out) return out;
+    const ud = app.getPath('userData');
+    const resolved = path.resolve(String(p || ''));          // 返回保持原始大小写（mac/linux 路径大小写敏感）
+    const resolvedLower = resolved.toLowerCase();
+    for (const sub of ['engines', 'asr-models']) {
+      const root = path.resolve(ud, sub).toLowerCase();
+      const rel = path.relative(root, resolvedLower);         // 比较统一小写，防 ../ 越界与符号链接逃逸
+      if (rel === '' || (rel && !rel.startsWith('..') && !path.isAbsolute(rel))) return resolved;
+    }
+    return null;
+  }
+  // 退出双保险（#19）：清掉可能残留的引擎子进程（队列 killRunning 之外再兜底一层，防退出后进程树孤儿）
+  function killEngineSubprocesses() {
+    const cp = require('child_process');
+    if (process.platform === 'win32') {
+      cp.spawn('taskkill', ['/F', '/T', '/IM', 'yt-dlp.exe', '/IM', 'gallery-dl.exe', '/IM', 'ffmpeg.exe', '/IM', 'whisper.exe'],
+        { windowsHide: true, stdio: 'ignore' });
+    } else {
+      cp.spawn('pkill', ['-f', 'yt-dlp|gallery-dl|ffmpeg|whisper'], { stdio: 'ignore' });
+    }
+  }
+  // 改名迁移通用函数（#27）：把 legacyName 目录下的 files（逐文件拷贝，断点续迁）/ dirs（同盘改名）搬入 userData。
+  // 关键加固：仅当所有拷贝/改名都成功才写 doneMark 并封存旧目录——否则不写标记，下次启动自动重试，
+  // 避免「标记已写但实际有文件漏迁」导致用户数据丢失（旧实现弱点在 doneMark 写在拷贝前、且失败也照写）。
+  function migrateLegacyDir(legacyName, doneMark, files, dirs) {
+    const userData = app.getPath('userData');
+    const legacy = path.join(path.dirname(userData), legacyName);
+    if (!fs.existsSync(legacy) || fs.existsSync(doneMark)) return;
+    let ok = true;
+    for (const f of files) {
+      const s = path.join(legacy, f), d = path.join(userData, f);
+      if (fs.existsSync(s) && !fs.existsSync(d)) {
+        try { fs.copyFileSync(s, d); } catch (e) { console.warn('[migrate] copy fail:', f, e.message); ok = false; }
+      }
+    }
+    for (const dir of dirs) {
+      const s = path.join(legacy, dir), d = path.join(userData, dir);
+      if (fs.existsSync(s) && !fs.existsSync(d)) {
+        try { fs.renameSync(s, d); } catch (e) { console.warn('[migrate] rename fail:', dir, e.message); ok = false; }
+      }
+    }
+    if (!ok) { console.log('[migrate] ' + legacyName + ' 部分迁移失败，不写完成标记，下次启动重试'); return; }
+    try { fs.writeFileSync(doneMark, String(Date.now())); } catch (e) {}
+    try { fs.renameSync(legacy, legacy + '.migrated-bak'); }   // 封存旧目录（内含明文 cookies.txt，凭证不散落）
+    catch (e) { try { fs.unlinkSync(path.join(legacy, 'cookies.txt')); } catch (e2) {} }   // 改名不成至少删明文凭证
+    console.log('[migrate] ' + legacyName + ' → Keepsake 数据迁移完成');
+  }
   // ===== AI 文稿后处理（BYOK：任意 OpenAI 兼容接口，key 存本地 settings.json）=====
   ipcMain.handle('ai:getConfig', () => {
     const c = settings.get();
@@ -1169,14 +1188,14 @@ app.whenReady().then(() => {
     const host = u.hostname.toLowerCase();
     const ok = ALLOW_HOSTS.some(h => host === h || host.endsWith('.' + h)) || /^pinterest\.\w+$/.test(host);
     if (!ok) return { ok: false, reason: '非白名单链接' };
-    shell.openExternal(url);
+    shell.openExternal(u.href);   // 用已校验过的规范化 URL，杜绝传入字符串被二次解析绕过
     return { ok: true };
   });
 
   // 打开文件夹/定位文件：只允许操作下载目录内部的路径（防任意路径注入）
   ipcMain.handle('app:openFolder', (e, p) => {
-    const resolved = insideOutDir(p);
-    if (!resolved) return { ok: false, reason: '只允许打开下载目录内的路径' };
+    const resolved = insideAllowedDir(p);
+    if (!resolved) return { ok: false, reason: '只允许打开下载目录或引擎/模型目录内的路径' };
     let st = null;
     try { st = fs.statSync(resolved); } catch { return { ok: false, reason: '路径不存在' }; }
     if (st.isFile()) { shell.showItemInFolder(resolved); return { ok: true }; }
@@ -1901,6 +1920,7 @@ app.on('before-quit', () => {
   try {
     if (queue) queue.killRunning();
   } catch (e) {}
+  try { killEngineSubprocesses(); } catch (e) {}   // 双保险：清掉残留的引擎子进程树
   try { store.flushNow(); } catch (e) {}   // 防抖中的任务状态强制落盘
 });
 }   // 单实例锁 else 分支闭合：只有拿到锁的实例才注册以上生命周期

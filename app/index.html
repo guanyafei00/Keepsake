@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <!-- CSP——渲染层失守后禁止加载远程脚本/连接外域（本应用全部走 IPC，无需外部资源；
      inline script/事件处理器依赖 unsafe-inline，本地 file:// 页面风险可控）-->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; object-src 'none'; frame-src 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; object-src 'none'; frame-src 'none'; base-uri 'self'; form-action 'none'; frame-ancestors 'none'">
 <title>Keepsake — 媒体下载与订阅</title>
 <style>
   :root {
