@@ -17,6 +17,8 @@ contextBridge.exposeInMainWorld('keepsake', {
   snapshot: () => ipcRenderer.invoke('queue:snapshot'),
   outDir: () => ipcRenderer.invoke('app:outDir'),
   subsList: () => ipcRenderer.invoke('subs:list'),
+  subsGetStatus: () => ipcRenderer.invoke('subs:getStatus'),
+  storageGetDownloadCapacity: () => ipcRenderer.invoke('storage:getDownloadCapacity'),
   subsAdd: (url, name) => ipcRenderer.invoke('subs:add', { url, name }),
   subsRemove: (id) => ipcRenderer.invoke('subs:remove', { id }),
   subsCheck: (id) => ipcRenderer.invoke('subs:check', { id }),

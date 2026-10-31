@@ -32,6 +32,8 @@ const identify = require('./lib/identify');
 const { ClipWatcher } = require('./lib/clipwatch');
 const { DownloadQueue, configure, setBiliLine } = require('./lib/queue');
 const strategy = require('./lib/strategy');
+const observability = require('./lib/observability');
+const { exportGone } = require('./lib/csv');
 const autoupdate = require('./lib/autoupdate');
 const store = require('./lib/store');
 const subs = require('./lib/subs');
@@ -1350,6 +1352,10 @@ app.whenReady().then(() => {
       return results;
     } finally { }
   }
+  // #43 只读订阅状态：不触发网络请求、不修改调度状态。订阅 URL 是现有已存映射依据；
+  // strategy 使用实际 URL host，只有已知策略域名且订阅 URL host 本身即目标 host 时才返回冷却，其他情况明确不可用。
+  ipcMain.handle('subs:getStatus', () => observability.subscriptionStatuses(subs.list(), strategy));
+  ipcMain.handle('storage:getDownloadCapacity', () => observability.downloadCapacity(fs, settings.get().outDir));
   ipcMain.handle('subs:list', () => subs.list());
   // 一键直达订阅原链接：URL 由主进程按 id 从订阅表取，不信任渲染层传 URL（防注入钓鱼）；
   // 只放行 https（订阅都是 http(s)），不做站点白名单——订阅本来就是用户自己加的，打开自己的订阅页没有额外风险
@@ -1455,30 +1461,18 @@ app.whenReady().then(() => {
   // 列：订阅名 / 类型 / 内容 ID / 源头链接 / 本地文件（; 分隔多文件）/ 本地是否还在
   ipcMain.handle('subs:exportGone', async () => {
     try {
-      const rows = [];
-      for (const s of subs.list()) {
-        if (!(s.gone || []).length) continue;
-        const files = goneFilesOf(subs.get(s.id));
-        for (const gid of s.gone) {
-          const local = files[gid] || [];
-          let src = '';
-          try { src = subs.itemUrl(s, { id: gid, type: 'video' }) || subs.itemUrl(s, { id: gid, type: 'text' }) || ''; } catch (e) {}
-          rows.push([s.name || '', s.kind || '', gid, src, local.join(' ; '), local.length ? '在' : '已不在本地']);
-        }
-      }
-      if (!rows.length) return { ok: false, reason: '当前没有被判定为「源头已删除」的内容' };
-      const esc = v => /[",\n]/.test(v) ? '"' + String(v).replace(/"/g, '""') + '"' : String(v);
-      const csv = '\uFEFF订阅名,类型,内容 ID,源头链接,本地文件,本地状态\n'
-        + rows.map(r => r.map(esc).join(',')).join('\n') + '\n';
-      const r = await dialog.showSaveDialog(win, {
-        title: '导出删帖清单',
-        defaultPath: 'Keepsake-删帖清单-' + new Date().toISOString().slice(0, 10) + '.csv',
-        filters: [{ name: 'CSV 表格', extensions: ['csv'] }],
+      const result = await exportGone({
+        subscriptions: subs.list(),
+        getFiles: s => goneFilesOf(subs.get(s.id)),
+        itemUrl: (s, item) => subs.itemUrl(s, item),
+        showSaveDialog: async defaultPath => dialog.showSaveDialog(win, {
+          title: '导出删帖清单', defaultPath,
+          filters: [{ name: 'CSV 表格', extensions: ['csv'] }],
+        }),
+        writeFile: async (filePath, csv) => fs.writeFileSync(filePath, csv, 'utf8'),
       });
-      if (r.canceled || !r.filePath) return { ok: false, reason: '已取消' };
-      fs.writeFileSync(r.filePath, csv, 'utf8');
-      log.info('subs', `导出删帖清单 → ${r.filePath}（${rows.length} 条）`);
-      return { ok: true, path: r.filePath, count: rows.length };
+      if (result.ok) log.info('subs', `导出删帖清单 → ${result.path}（${result.count} 条）`);
+      return result;
     } catch (e) {
       return { ok: false, reason: String(e && e.message || e).slice(0, 120) };
     }

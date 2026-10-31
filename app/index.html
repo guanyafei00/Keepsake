@@ -207,6 +207,7 @@
       <button class="btn-dl" onclick="addSub()">＋ 添加订阅</button>
     </div>
     <div class="hint">每 10 分钟自动增量检查（轻量单次请求，不触发风控）· 添加后会询问是否回溯全部历史 · 新内容自动入队 · <b>UP 主删除源视频不会删除你已下载的文件</b></div>
+    <div id="subsCapacity" class="hint" style="margin-top:-4px">下载目录容量查询中…</div>
     <div class="sec-t">📡 我的订阅 <span class="cnt" id="s-cnt2">0</span> <select id="groupFilter" onchange="renderSubs()" style="margin-left:auto;font:inherit;font-size:12px;background:var(--panel2);color:var(--txt);border:1px solid var(--line);border-radius:var(--r-sm);padding:4px 10px;outline:none"><option value="">全部分组</option></select> <span class="act" style="cursor:pointer;font-size:12px" onclick="exportGone()" title="把判定为源头已删除的内容导出成 CSV 表格">📤 删帖清单</span> <span class="act" style="cursor:pointer;font-size:12px" onclick="checkAllSubs()">⟳ 立即检查</span></div>
     <div id="subList"><div class="empty">还没有订阅——支持 B站UP主/合集 / YouTube频道 / X用户 / RSS·Atom feed / Pixiv / 微博 / Reddit / Instagram / Danbooru 等站点主页</div></div>
     <div class="selbar" id="selBar">
@@ -544,8 +545,8 @@ function translateError(e) {
   const s = String(e || '');
   if (/Keepsake 不会绕过访问限制|已被发布者删除|没有认出这篇文章/.test(s)) return s;   // 文章引擎的错误本就是人话，直通不走通用翻译
   if (/412|-352|请求过于频繁|Precondition/i.test(s)) return 'B 站风控限流中：稍等几分钟会自动重试，或到左下角扫码登录后再试';
-  if (/\b403\b/.test(s)) return '站点拒绝访问：可能需要登录（左下角扫码）或链接已失效';
   if (/\b429\b|Too Many Requests|rate.?limit/i.test(s)) return '请求太快被限流：稍后会自动重试';
+  if (/\b403\b/.test(s)) return '站点拒绝访问：可能需要登录（左下角扫码）或链接已失效';
   if (/timeout|timed out|ETIMEDOUT|ECONNRESET|网络/i.test(s)) return '网络超时：点任务上的 ⟳ 重试一下';
   if (/404|not found|不存在|Unable to download|Unsupported URL/i.test(s)) return '链接失效或暂不支持：确认链接能在这台设备的浏览器里打开';
   if (/private|members-only|付费|登录.*观看/i.test(s)) return '该内容需要登录或会员：左下角扫码登录后再试';
@@ -1271,6 +1272,7 @@ let _goneFilesMap = {};   // subId -> { goneId: [本地文件路径...] }
 let _goneFilesKey = {};   // subId -> 缓存键（gone 清单未变则跳过重扫，防 renderSubs 并发重复走查）
 async function loadSubs() {
   subsItems = await window.keepsake.subsList();
+  await refreshSubsObservability();
   // #70② 分组过滤下拉：同步分组清单
   const sel = $('groupFilter');
   if (sel) {
@@ -1284,6 +1286,37 @@ async function loadSubs() {
   refreshNavCounts();
 }
 // 侧栏角标常驻刷新（用户反馈：订阅/媒体库不点开就永远显示 0）
+function _fmtWhen(ms) {
+  if (!ms) return '无记录';
+  try { return new Date(ms).toLocaleString(); } catch (e) { return '时间不可用'; }
+}
+function _fmtBytes(n) {
+  if (!Number.isFinite(n) || n < 0) return '不可用';
+  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+  let value = n, i = 0;
+  while (value >= 1024 && i < units.length - 1) { value /= 1024; i++; }
+  return `${value.toFixed(i ? 1 : 0)} ${units[i]}`;
+}
+async function refreshSubsObservability() {
+  const capacityEl = $('subsCapacity');
+  try {
+    const [statuses, capacity] = await Promise.all([
+      window.keepsake.subsGetStatus(),
+      window.keepsake.storageGetDownloadCapacity()
+    ]);
+    const byId = new Map((statuses || []).map(s => [s.id, s]));
+    subsItems = subsItems.map(s => ({ ...s, _observability: byId.get(s.id) || null }));
+    if (!capacityEl) return;
+    if (!capacity || !capacity.available) {
+      capacityEl.textContent = `下载目录容量暂不可用 · ${capacity && capacity.unavailableReason ? capacity.unavailableReason : '查询失败'} · 查询时间 ${capacity && capacity.measuredAt ? _fmtWhen(capacity.measuredAt) : '未知'}`;
+    } else {
+      capacityEl.textContent = `全局下载目录：已用 ${_fmtBytes(capacity.usedBytes)} / 共 ${_fmtBytes(capacity.totalBytes)}，剩余 ${_fmtBytes(capacity.freeBytes)} · 查询时间 ${_fmtWhen(capacity.measuredAt)}`;
+      capacityEl.title = capacity.path || '';
+    }
+  } catch (e) {
+    if (capacityEl) capacityEl.textContent = '下载目录容量暂不可用 · ' + String(e.message || e).slice(0, 100);
+  }
+}
 function refreshNavCounts() {
   const s = $('s-cnt'); if (s) s.textContent = subsItems.length;
   const l = $('l-cnt'); if (l && libData) l.textContent = libData.groups.length;
@@ -1350,7 +1383,13 @@ async function renderSubs() {
     const pausedTag = s.userPaused ? '<span class="st flat">⏸ 已暂停</span>'
       : s.paused ? `<span class="st error" title="${esc('连续 3 次检查失败，已自动暂停：' + friendlySubFail(s.lastError) + '｜点 ▶ 恢复后会重试')}">连续失败暂停（悬停看原因）</span>` : '';
     const groupTag = (s.group || '').trim() ? ` <span style="font-size:11px;color:var(--acc2);background:var(--panel2);border-radius:var(--r-xs);padding:1px 6px">${esc(s.group)}</span>` : '';
-    const freqTag = s.intervalMin ? ` · 检查频率 ${s.intervalMin} 分钟` : '';
+    const obs = s._observability || null;
+    const freqTag = ` · 检查频率 ${s.intervalMin || 10} 分钟`;
+    const obsTags = obs ? ` · 最近成功 ${_fmtWhen(obs.lastSuccessAt)} · 最近失败 ${_fmtWhen(obs.lastFailAt)} · 连续失败 ${obs.failStreak} 次` +
+      (obs.userPaused ? ' · 手动暂停' : obs.paused ? ' · 连续失败自动暂停' : '') +
+      (obs.cooldownAvailable
+        ? (obs.cooldownUntil > Date.now() ? ` · 站点冷却至 ${_fmtWhen(obs.cooldownUntil)}（剩 ${heldMin(obs.cooldownUntil - Date.now())} 分钟）` : ' · 站点冷却：未熔断')
+        : ' · 站点级冷却状态不可用') : ' · 调度状态不可用';
     const atTag = s.autoTranscribe ? ' · <span style="color:var(--acc2)">📝 自动转写</span>' : '';
     const lnTag = s.latestN ? ` · 只下最新 ${s.latestN} 条` : '';
     // RSS 诚实边界：只追新，不做删帖检测（feed 翻页会让旧文章消失，误报率高）——卡上常驻交代
@@ -1361,7 +1400,7 @@ async function renderSubs() {
       <div class="t-thumb">📡<span class="eng">${s.kind === 'bilibili' ? 'B站' : s.kind === 'bili-collection' ? '合集' : s.kind === 'x' ? 'X' : s.kind === 'youtube' ? 'YouTube' : s.kind === 'rss' ? 'RSS' : s.kind === 'gdl' ? '图站' : '订阅'}</span></div>
       <div class="t-info">
         <div class="name">${esc(s.name)}</div>
-        <div class="meta">${groupTag}${pausedTag ? pausedTag + ' · ' : ''}${statusHtml} · 已跟踪 ${s.knownCount} 条${s.lastNew ? ` · 上轮新增 ${s.lastNew}` : ''}${rssTag}${s._pendingBackfill ? ' · <span style="color:var(--acc2)">⏳ 排队待回溯</span>' : ''}${s.autoBackfill ? ' · <span style="color:var(--acc2)">⤓ 自动全量下载中</span>' : ''}${s.kw && s.kw.length ? ' · 🏷 ' + esc(s.kw.join('/')) : ''}${freqTag}${atTag}${lnTag}${goneBadge(s)}</div>
+        <div class="meta">${groupTag}${pausedTag ? pausedTag + ' · ' : ''}${statusHtml} · 已跟踪 ${s.knownCount} 条${s.lastNew ? ` · 上轮新增 ${s.lastNew}` : ''}${rssTag}${s._pendingBackfill ? ' · <span style="color:var(--acc2)">⏳ 排队待回溯</span>' : ''}${s.autoBackfill ? ' · <span style="color:var(--acc2)">⤓ 自动全量下载中</span>' : ''}${s.kw && s.kw.length ? ' · 🏷 ' + esc(s.kw.join('/')) : ''}${freqTag}${obsTags}${atTag}${lnTag}${goneBadge(s)}</div>
       </div>
       <div class="x" onclick="openSubLink('${s.id}')" title="打开订阅原链接（浏览器）">🔗</div>
       <div class="x" onclick="checkSub('${s.id}')" title="立即检查">⟳</div>
