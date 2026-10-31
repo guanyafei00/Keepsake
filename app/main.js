@@ -1116,7 +1116,8 @@ app.whenReady().then(() => {
   function killEngineSubprocesses() {
     const cp = require('child_process');
     if (process.platform === 'win32') {
-      cp.spawn('taskkill', ['/F', '/T', '/IM', 'yt-dlp.exe', '/IM', 'gallery-dl.exe', '/IM', 'ffmpeg.exe', '/IM', 'whisper.exe'],
+      // Windows 侧按镜像名匹配：asr.js 实际 spawn 的是 whisper-cli.exe（L152），故同时匹配 whisper.exe（老命名兼容）
+      cp.spawn('taskkill', ['/F', '/T', '/IM', 'yt-dlp.exe', '/IM', 'gallery-dl.exe', '/IM', 'ffmpeg.exe', '/IM', 'whisper.exe', '/IM', 'whisper-cli.exe'],
         { windowsHide: true, stdio: 'ignore' });
     } else {
       cp.spawn('pkill', ['-f', 'yt-dlp|gallery-dl|ffmpeg|whisper'], { stdio: 'ignore' });
