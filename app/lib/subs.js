@@ -174,7 +174,14 @@ function fallbackName(url, kind, handle) {
   return label + ' · ' + String(id).slice(0, 30);
 }
 
-function add(url, name) {
+// 回溯条数上限档位（#42）：0=不限；可选 10/20/50/100
+const MAX_BACKFILL_CHOICES = [0, 10, 20, 50, 100];
+function normMaxBackfill(v) {
+  const n = Math.floor(Number(v) || 0);
+  return MAX_BACKFILL_CHOICES.includes(n) ? n : 0;
+}
+
+function add(url, name, maxBackfill) {
   const c = classify(url.trim());
   if (!c) return { ok: false, reason: '支持 B站UP主/合集、YouTube频道、X用户、Pixiv/微博/Reddit/Instagram/Danbooru 等图站用户页（部分站点需先导入 cookie）' };
   const auto = name ? null : fallbackName(c.url, c.kind, c.handle);   // 用户没起名 → URL 兜底名（_auto 可被真名替换）
@@ -190,6 +197,7 @@ function add(url, name) {
     userPaused: false,     // #70②：用户手动暂停（与连续失败自动暂停 paused 区分）
     autoTranscribe: false, // #70④：新下载自动转写出字幕
     latestN: 0,            // ★★#7：增量检查只入队最新 N 条（0=不限制；追更连载只留最新话的场景）
+    maxBackfill: normMaxBackfill(maxBackfill),   // #42：回溯条数上限（0=不限；从最新往回数，超出部分跳过）
   };
   subs.push(sub);
   save();
@@ -300,7 +308,7 @@ function remove(id) {
 }
 
 // #70② 订阅属性更新（白名单字段，防注入未知键）
-const UPDATABLE = ['name', 'userPaused', 'group', 'intervalMin', 'autoTranscribe', 'latestN'];
+const UPDATABLE = ['name', 'userPaused', 'group', 'intervalMin', 'autoTranscribe', 'latestN', 'maxBackfill'];
 function update(id, patch) {
   const s = get(id);
   if (!s) return { ok: false, reason: '订阅不存在' };
@@ -320,6 +328,9 @@ function update(id, patch) {
     else if (k === 'latestN') {   // ★★#7：0=不限制；1-100 有效，越界归 0（宁可不限制也不静默吞更新）
       const n = Math.floor(Number(patch[k]));
       s[k] = Number.isFinite(n) && n >= 1 && n <= 100 ? n : 0;
+    }
+    else if (k === 'maxBackfill') {   // #42：回溯条数上限（0=不限；档位枚举外归 0）
+      s[k] = normMaxBackfill(patch[k]);
     }
   }
   save();
@@ -687,7 +698,9 @@ async function checkSub(sub, onNew) {
 }
 
 // 回溯下载（用户需求「订阅后立即下载」）：拉全部动态并逐条回调，不管 known——
-// 由调用方按队列已有 URL 查重。youtube 回溯多拉一些（50 条）
+// 由调用方按队列已有 URL 查重。youtube 回溯多拉一些（50 条）。
+// #42：maxBackfill>0 时从最新往回数只取 N 条（复用 latestCut 截取语义；合集是时间正序、
+// 最新在尾，同参数兼容）；X/gdl 型回溯是单个整页任务（gallery-dl 全量拉取），不适用逐条截取
 async function backfill(id, onItem) {
   const sub = get(id);
   if (!sub) throw new Error('订阅不存在');
@@ -702,8 +715,11 @@ async function backfill(id, onItem) {
   else if (sub.kind === 'rss') items = await fetchFeedItems(sub.url);   // feed 本身只保留最新若干条，「全部内容」= feed 现存全部条目（不猜历史归档，诚实边界）
   if (!items) throw new Error('未知订阅类型');
   const media = items.filter(it => it.type !== 'text');
-  for (const it of media) { if (onItem) onItem(sub, it); }
-  return { total: items.length, media: media.length };
+  // #42 回溯上限：从最新往回数 N 条，超出部分跳过（后续追新增量不受该限制影响——
+  // 增量走 checkSub 的 fresh 通道与 known 记录，与本截取无关）
+  const cut = latestCut(media, sub.maxBackfill, sub.kind === 'bili-collection');
+  for (const it of cut.enqueue) { if (onItem) onItem(sub, it); }
+  return { total: items.length, media: cut.enqueue.length, skipped: cut.skipped };
 }
 
 function itemUrl(sub, it) {
@@ -717,4 +733,4 @@ function itemUrl(sub, it) {
   return null;
 }
 
-module.exports = { configure, list, get, add, remove, update, checkSub, itemUrl, backfill, setProxy, setCookieBrowser, setBiliLine, refreshName, onNameChange, save, classify, resetCookieCache, gdlBaseArgs, pixivAuthorized, latestCut, fetchFeed, parseFeed, fetchFeedItems };
+module.exports = { configure, list, get, add, remove, update, checkSub, itemUrl, backfill, setProxy, setCookieBrowser, setBiliLine, refreshName, onNameChange, save, classify, resetCookieCache, gdlBaseArgs, pixivAuthorized, latestCut, normMaxBackfill, MAX_BACKFILL_CHOICES, fetchFeed, parseFeed, fetchFeedItems };

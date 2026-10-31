@@ -206,6 +206,13 @@
     <div class="paste-box">
       <span>📡</span>
       <input id="subUrl" placeholder="粘贴订阅链接：B站UP主 / YouTube频道 / X用户 / RSS·Atom feed（博客更新自动入库）/ Pixiv·微博·Danbooru·Reddit·Instagram 等图站用户页" style="flex:1;border:none;outline:none;font:inherit;font-size:13.5px;background:transparent;color:var(--txt)">
+      <select id="subMaxBackfill" title="回溯条数上限：订阅后首次全量回溯只从最新往回数 N 条，超出部分跳过（后续追新增量不受影响）" style="border:none;outline:none;font:inherit;font-size:12.5px;background:var(--panel2);color:var(--txt);border-radius:var(--r-md);padding:8px 10px">
+        <option value="0">回溯：全部</option>
+        <option value="10">最新 10 条</option>
+        <option value="20">最新 20 条</option>
+        <option value="50">最新 50 条</option>
+        <option value="100">最新 100 条</option>
+      </select>
       <button class="btn-dl" onclick="addSub()">＋ 添加订阅</button>
     </div>
     <div class="hint">每 10 分钟自动增量检查（轻量单次请求，不触发风控）· 添加后会询问是否回溯全部历史 · 新内容自动入队 · <b>UP 主删除源视频不会删除你已下载的文件</b></div>
@@ -297,7 +304,7 @@
           <option value="6">6 个（最激进）</option>
         </select>
       </div>
-      <div class="note" style="margin:6px 0 0">同时回溯的订阅数（新订阅自动全量 / 手动 ⤓ 回溯时生效）；调大可加快大量订阅的清单拉取，但过重可能触发站点风控。</div>
+      <div class="note" style="margin:6px 0 0">同时回溯的订阅数（新订阅自动全量 / 手动 ⤓ 回溯时生效）；调大可加快大量订阅的清单拉取，但过重可能触发站点风控。单个订阅还可在「⚙ 订阅设置」里设<b>回溯条数上限</b>（只从最新往回数 N 条，添加订阅时也可选）。</div>
       <div class="note" style="margin:6px 0 0">B站 视频可手动指定 CDN 线路（部分网络环境下换线路能改善连接质量）；留「自动」即交给引擎默认。</div>
       <div class="note" style="margin:6px 0 0">调小并发立即生效；调大立即补位启动排队任务 · 限速对视频下载（yt-dlp / 直连引擎）生效；图文站（gallery-dl）走请求间隔保护，不限速</div>
     </div>
@@ -359,7 +366,7 @@
       <div class="row" style="margin:12px 0 0">
         <label>剪贴板监听</label>
         <input type="checkbox" id="clipChk" onchange="saveClipboardWatch(this.checked)">
-        <span class="note">复制链接后自动填入任务输入框（只填框，加入队列仍需手动点按钮确认；默认关闭）</span>
+        <span class="note">复制链接后自动填入任务输入框（只填框，加入队列仍需手动点按钮确认；默认开启）</span>
       </div>
       <div class="row" style="margin:12px 0 0">
         <label>Pixiv 授权</label>
@@ -631,6 +638,20 @@ function probeUrls() {
     } catch (e) { if (seq === _probeSeq) strip.style.display = 'none'; }
   }, 600);
 }
+let _confirm = null;   // #41 确认卡片挂起的待添加任务 { url, opts }
+// 直接批量入队（多链接 / 确认后「仍要添加」共用路径；原 addUrls 主体抽离）
+async function _doAddTasks(urls, opts) {
+  const r = await window.keepsake.addTasks(urls, opts);
+  const n = (r && r.added ? r.added.length : 0);
+  const dup = (r && r.duplicates ? r.duplicates.length : 0);
+  const inv = (r && r.invalid ? r.invalid.length : 0);
+  let msg = '已加入队列 ' + n + ' 个任务' + (opts.audio ? '（仅音频）' : '') + (opts.subs ? '（带字幕）' : '') + (opts.trans ? '（自动转写）' : '');
+  if (dup) msg += '；' + dup + ' 个已在队列中，已跳过';
+  if (inv) msg += '；' + inv + ' 个链接无法识别，未加入';
+  toast(msg);
+}
+// ★★#41 粘贴先探测再确认卡片：单条链接点「加入队列」→ 先 identify 探测（25s 超时）拿标题/作者/封面，
+// 弹确认卡片，用户点「开始下载」才真正入队；探测失败给「仍要添加」兜底；多条链接维持直通批量入队
 async function addUrls() {
   if (_adding) return;   // 防连点重复入队（
   const urls = $('urls').value.split('\n').map(s => s.trim()).filter(Boolean);
@@ -639,17 +660,35 @@ async function addUrls() {
   const btn = document.getElementById('btnAdd');
   if (btn) { btn.disabled = true; btn.textContent = '识别中…'; }
   try {
+    if (urls.length > 1) {   // 多条批量：保持原直通入队（确认流只为单条详情服务）
+      $('urls').value = '';
+      $('probeStrip').style.display = 'none';
+      await _doAddTasks(urls, currentOpts());
+      return;
+    }
+    const url = urls[0];
     $('urls').value = '';
     $('probeStrip').style.display = 'none';
-    const opts = currentOpts();
-    const r = await window.keepsake.addTasks(urls, opts);
-    const n = (r && r.added ? r.added.length : 0);
-    const dup = (r && r.duplicates ? r.duplicates.length : 0);
-    const inv = (r && r.invalid ? r.invalid.length : 0);
-    let msg = '已加入队列 ' + n + ' 个任务' + (opts.audio ? '（仅音频）' : '') + (opts.subs ? '（带字幕）' : '') + (opts.trans ? '（自动转写）' : '');
-    if (dup) msg += '；' + dup + ' 个已在队列中，已跳过';
-    if (inv) msg += '；' + inv + ' 个链接无法识别，未加入';
-    toast(msg);
+    let meta;
+    try {
+      meta = await window.keepsake.identify(url, 25000);   // #41 探测超时 25s
+    } catch (e) {
+      meta = { engine: 'yt-dlp', ok: false, reason: String(e && e.message || e) };
+    }
+    if (meta.engine === 'feed') {
+      toast('这是 RSS 订阅源：到「📡 订阅」页粘贴添加，更新即自动下载');
+      return;
+    }
+    const card = await Promise.race([
+      window.keepsake.confirmCard(url, meta),
+      new Promise(res => setTimeout(() => res({ mode: 'fail', reason: '确认卡片组装超时', domain: '' }), 8000)),   // 封面链路最坏 7 跳×5s，这里 8s 兜底保证卡片必弹出
+    ]).catch(() => ({ mode: 'fail', reason: '确认卡片组装失败', domain: '' }));
+    if (card.mode === 'invalid') {
+      toast('无法识别：' + (card.reason || '不支持的链接'));
+      return;
+    }
+    _confirm = { url, opts: currentOpts() };
+    renderConfirmCard(card);
   } catch (err) {
     toast('加入队列失败：' + (err && err.message ? err.message : '未知错误'));
   } finally {
@@ -657,6 +696,49 @@ async function addUrls() {
     if (btn) { btn.disabled = false; btn.textContent = '＋ 加入队列'; }
   }
 }
+// 确认卡片：封面（dataURL）+ 标题 + 作者 + 时长 + 引擎标识 + 域名；fail 态给「仍要添加」兜底
+function renderConfirmCard(card) {
+  const { url } = _confirm || {};
+  const eng = { meta: 'yt-dlp', gdl: 'gallery-dl', direct: 'direct', article: 'article' }[card.mode] || 'yt-dlp';
+  const badge = engIcon(eng) + ' ' + engName(eng);
+  const titleLine = card.mode === 'meta' ? esc(card.title || url)
+    : card.mode === 'gdl' ? '图站链接，将使用 gallery-dl 归档'
+    : card.mode === 'direct' ? '直连链接（抖音 / 小红书 / 快手等，下载时自动嗅探提取）'
+    : card.mode === 'article' ? '文章页面，将存档为可离线阅读的文章'
+    : '探测失败';
+  const metaBits = [];
+  if (card.uploader) metaBits.push('作者：' + esc(card.uploader));
+  if (card.durationText) metaBits.push('时长 ' + card.durationText);
+  if (card.isPlaylist) metaBits.push('合集 · ' + (card.entryCount || '?') + ' 项');
+  if (card.domain) metaBits.push(esc(card.domain));
+  const note = card.mode === 'fail'
+    ? '<div style="font-size:12.5px;color:var(--red);margin-top:10px">⚠ ' + esc(card.reason || '无法解析此链接') + '——可以直接添加，入队后引擎会再次尝试</div>'
+    : (card.mode === 'gdl' ? '<div style="font-size:12px;color:var(--txt2);margin-top:10px">图站归档由 gallery-dl 引擎处理（无 yt-dlp 元数据可探测），已按域名识别</div>' : '');
+  const btns = card.mode === 'fail'
+    ? '<button class="btn-mini" style="color:var(--acc2)" onclick="doConfirmAdd()">⚠ 仍要添加</button>'
+    : '<button class="btn-dl" style="padding:8px 18px" onclick="doConfirmAdd()">⬇ 开始下载</button>';
+  openModal('确认下载', `
+    <div style="display:flex;gap:14px;align-items:flex-start">
+      ${card.cover ? `<img src="${escAttr(card.cover)}" style="width:180px;height:112px;object-fit:cover;border-radius:var(--r-md);background:var(--panel2);flex-shrink:0" onerror="this.style.display='none'">` : ''}
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:700;font-size:14px;word-break:break-all">${titleLine}</div>
+        <div style="font-size:12px;color:var(--txt2);margin-top:6px">${badge}${metaBits.length ? ' · ' + metaBits.join(' · ') : ''}</div>
+        <div style="font-size:11px;color:var(--txt2);word-break:break-all;margin-top:8px">${esc(url || '')}</div>
+      </div>
+    </div>${note}
+    <div style="text-align:right;margin-top:14px;display:flex;gap:8px;justify-content:flex-end">
+      ${btns}
+      <button class="btn-mini" onclick="cancelConfirm()">取消</button>
+    </div>`);
+}
+async function doConfirmAdd() {
+  if (!_confirm) return closeModal();
+  const { url, opts } = _confirm;
+  _confirm = null;
+  try { await _doAddTasks([url], opts); } catch (err) { toast('加入队列失败：' + (err && err.message ? err.message : '未知错误')); }
+  closeModal();
+}
+function cancelConfirm() { _confirm = null; closeModal(); }
 
 const engIcon = e => e === 'yt-dlp' ? '🎥' : e === 'gallery-dl' ? '🖼️' : e === 'direct' ? '⚡' : e === 'article' ? '📄' : e === 'feed' ? '📡' : '❓';
 const engName = e => e === 'yt-dlp' ? '视频' : e === 'gallery-dl' ? '图文' : e === 'direct' ? '直连' : e === 'article' ? '文章' : e === 'feed' ? 'RSS 订阅' : '识别中';
@@ -1449,6 +1531,7 @@ async function renderSubs() {
         : ' · 站点级冷却状态不可用') : ' · 调度状态不可用';
     const atTag = s.autoTranscribe ? ' · <span style="color:var(--acc2)">📝 自动转写</span>' : '';
     const lnTag = s.latestN ? ` · 只下最新 ${s.latestN} 条` : '';
+    const mbTag = s.maxBackfill ? ` · 回溯上限 ${s.maxBackfill} 条` : '';
     // RSS 诚实边界：只追新，不做删帖检测（feed 翻页会让旧文章消失，误报率高）——卡上常驻交代
     const rssTag = s.kind === 'rss' ? ' · <span title="RSS 订阅只自动追新文章；不做删帖检测（feed 翻页会让旧文章消失，误报率高）">📡 只追新</span>' : '';
     htmls.push(`
@@ -1457,7 +1540,7 @@ async function renderSubs() {
       <div class="t-thumb">📡<span class="eng">${s.kind === 'bilibili' ? 'B站' : s.kind === 'bili-collection' ? '合集' : s.kind === 'x' ? 'X' : s.kind === 'youtube' ? 'YouTube' : s.kind === 'rss' ? 'RSS' : s.kind === 'gdl' ? '图站' : '订阅'}</span></div>
       <div class="t-info">
         <div class="name">${esc(s.name)}</div>
-        <div class="meta">${groupTag}${pausedTag ? pausedTag + ' · ' : ''}${statusHtml} · 已跟踪 ${s.knownCount} 条${s.lastNew ? ` · 上轮新增 ${s.lastNew}` : ''}${rssTag}${s._pendingBackfill ? ' · <span style="color:var(--acc2)">⏳ 排队待回溯</span>' : ''}${s.autoBackfill ? ' · <span style="color:var(--acc2)">⤓ 自动全量下载中</span>' : ''}${s.kw && s.kw.length ? ' · 🏷 ' + esc(s.kw.join('/')) : ''}${freqTag}${obsTags}${atTag}${lnTag}${goneBadge(s)}</div>
+        <div class="meta">${groupTag}${pausedTag ? pausedTag + ' · ' : ''}${statusHtml} · 已跟踪 ${s.knownCount} 条${s.lastNew ? ` · 上轮新增 ${s.lastNew}` : ''}${rssTag}${s._pendingBackfill ? ' · <span style="color:var(--acc2)">⏳ 排队待回溯</span>' : ''}${s.autoBackfill ? ' · <span style="color:var(--acc2)">⤓ 自动全量下载中</span>' : ''}${s.kw && s.kw.length ? ' · 🏷 ' + esc(s.kw.join('/')) : ''}${freqTag}${obsTags}${atTag}${lnTag}${mbTag}${goneBadge(s)}</div>
       </div>
       <div class="x" onclick="openSubLink('${s.id}')" title="打开订阅原链接（浏览器）">🔗</div>
       <div class="x" onclick="checkSub('${s.id}')" title="立即检查">⟳</div>
@@ -1562,6 +1645,16 @@ function editSubOpts(id) {
           <option value="10" ${s.latestN === 10 ? 'selected' : ''}>只下最新 10 条</option>
         </select>
       </div>
+      <div>
+        <div style="font-size:12.5px;color:var(--txt2);margin-bottom:5px">回溯条数上限（点 ⤓ 全量回溯时，从最新往回数只取 N 条；后续追新增量不受影响）</div>
+        <select id="soMaxBackfill" style="width:100%;padding:8px 11px;font:inherit;background:var(--panel2);color:var(--txt);border:1px solid var(--line);border-radius:var(--r-md);outline:none">
+          <option value="0" ${!s.maxBackfill ? 'selected' : ''}>不限（回溯全部历史）</option>
+          <option value="10" ${s.maxBackfill === 10 ? 'selected' : ''}>最新 10 条</option>
+          <option value="20" ${s.maxBackfill === 20 ? 'selected' : ''}>最新 20 条</option>
+          <option value="50" ${s.maxBackfill === 50 ? 'selected' : ''}>最新 50 条</option>
+          <option value="100" ${s.maxBackfill === 100 ? 'selected' : ''}>最新 100 条</option>
+        </select>
+      </div>
     </div>
     <div style="text-align:right;margin-top:14px"><button class="btn-mini" style="color:var(--acc2)" onclick="saveSubOpts('${id}')">💾 保存</button></div>`);
 }
@@ -1573,6 +1666,7 @@ async function saveSubOpts(id) {
     group: $('soGroup').value,
     intervalMin: Number($('soInterval').value),
     latestN: Number($('soLatestN').value),
+    maxBackfill: Number($('soMaxBackfill').value),
   });
   if (!r.ok) return toast(r.reason || '保存失败');
   closeModal(); toast(r.renamed ? '已改名：' + r.renamed + ' ✓' : '订阅设置已保存 ✓'); loadSubs();
@@ -1714,7 +1808,7 @@ async function openSubFolder(id) {
 async function addSub() {
   const url = $('subUrl').value.trim();
   if (!url) return toast('先粘贴 UP 主页、频道或 RSS feed 链接');
-  const r = await window.keepsake.subsAdd(url);
+  const r = await window.keepsake.subsAdd(url, null, Number($('subMaxBackfill').value) || 0);
   if (!r.ok) return toast(r.reason);
   $('subUrl').value = '';
   toast(r.sub && r.sub.kind === 'rss' ? '订阅成功，正在拉取 feed 记录已发布文章…' : '订阅成功，正在记录内容清单…');

@@ -29,7 +29,7 @@ if (process.env.KEEPSAKE_CAPTURE) {
 }
 
 const identify = require('./lib/identify');
-const { ClipWatcher } = require('./lib/clipwatch');
+const { ClipWatcher, classifyNotifiable, withinDedupe, DEDUPE_WINDOW_MS } = require('./lib/clipwatch');
 const { DownloadQueue, configure, setBiliLine } = require('./lib/queue');
 const { EmbedBrowserManager } = require('./lib/embed_browser');   // #32 视频号/小红书受控内嵌浏览器
 const strategy = require('./lib/strategy');
@@ -347,19 +347,48 @@ app.whenReady().then(() => {
   subs.setCookieBrowser(settings.get().cookieBrowser);
   setBiliLine(settings.get().biliLine);
   subs.setBiliLine(settings.get().biliLine);
-  // ★★#5 剪贴板监听：复制到链接时自动填入任务输入框。安全边界（机制借鉴 RipMe，clean-room）：
-  // 只读文本 + 只填输入框，绝不自动入队——入队必须用户点「加入队列」确认；开关默认关
+  // ★★#5+#40 剪贴板监听：复制到链接时自动填入任务输入框。安全边界（机制借鉴 RipMe，clean-room）：
+  // 只读文本 + 只填输入框，绝不自动入队——入队必须用户点「加入队列」确认。
+  // #40 升级：① 引擎白名单过滤（direct/yt-dlp/gallery-dl/article 才提示，feed/invalid/unknown 不打扰）；
+  // ② 同一链接 24h 只提示一次（内存 Map 去重 + 超量清理）；③ app 自己写入剪贴板的 URL 不提示；
+  // ④ 活跃门控：仅当窗口获得焦点或最小化/隐藏到托盘时检测（非活跃期只更新基线）；轮询 1s
   let clipWatcher = null;
+  const _clipSeen = new Map();    // url(小写归一) → 最近提示时间（24h 去重窗口；小写归一防同链接大小写变体绕过去重）
+  const _selfCopied = new Set();  // app 自己复制进剪贴板的 URL（小写归一，60s TTL 内不提示，防自我回响）
+  function markSelfCopiedUrl(url) {
+    if (!url) return;
+    const k = String(url).toLowerCase();
+    _selfCopied.add(k);
+    setTimeout(() => _selfCopied.delete(k), 60 * 1000);
+  }
   function applyClipboardWatch(on) {
     if (on && !clipWatcher) {
       clipWatcher = new ClipWatcher(
         () => { try { return clipboard.readText(); } catch (e) { return ''; } },   // 剪贴板被占等异常静默跳过
         url => {
-          log.info('clipboard', '剪贴板检测到链接: ' + url);
-          if (win && !win.isDestroyed()) win.webContents.send('clipboard:url', { url });
+          try {
+            const key = String(url).toLowerCase();
+            if (_selfCopied.has(key)) return;                       // app 自己复制的不提示
+            const now = Date.now();
+            if (withinDedupe(_clipSeen.get(key), now)) return;      // 24h 内提示过的不重复
+            const c = identify.classify(url);
+            if (!classifyNotifiable(c.engine)) return;              // 非内容链接（feed/invalid/unknown）不提示
+            _clipSeen.set(key, now);
+            for (const [k, t] of _clipSeen) {                       // 防无限膨胀：每次插入顺带清窗口外旧记录
+              if (now - t >= DEDUPE_WINDOW_MS) _clipSeen.delete(k);
+            }
+            log.info('clipboard', '剪贴板检测到链接: ' + url + '（engine: ' + c.engine + '）');
+            if (win && !win.isDestroyed()) win.webContents.send('clipboard:url', { url, engine: c.engine });
+          } catch (e) {}
+        },
+        () => {   // 活跃门控：焦点中 或 已最小化/隐藏到托盘（后台静默监听）才检测
+          try {
+            if (!win || win.isDestroyed()) return false;
+            return win.isFocused() || win.isMinimized() || !win.isVisible();
+          } catch (e) { return false; }
         }
       );
-      clipWatcher.start(1500);
+      clipWatcher.start(1000);
     } else if (!on && clipWatcher) { clipWatcher.stop(); clipWatcher = null; }
   }
   applyClipboardWatch(!!settings.get().clipboardWatch);
@@ -948,7 +977,49 @@ app.whenReady().then(() => {
   ipcMain.handle('strategy:version', () => ({ version: _rulesVersion, url: RULES_URL }));
 
   // 识别 / 队列
-  ipcMain.handle('link:identify', async (e, url) => identify.identify(url));
+  // 封面图拉取转 dataURL（#41 确认卡片）：CSP img-src 只许 self/data:，远程图必须在主进程转 base64。
+  // 5s 超时 + 2MB 上限 + 重定向跳数 ≤6（与 subs.js fetchFeed 同守卫），失败抛错由调用方降级为无图卡片——绝不阻塞确认卡片弹出
+  function fetchCoverDataUrl(url, redirects = 0) {
+    return new Promise((resolve, reject) => {
+      if (redirects > 6) return reject(new Error('封面重定向次数过多'));
+      const mod = String(url).startsWith('https') ? require('https') : require('http');
+      const req = mod.get(url, { headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/130.0.0.0 Safari/537.36' } }, res => {
+        if ([301, 302, 303, 307, 308].includes(res.statusCode) && res.headers.location) {
+          res.resume();
+          const next = new URL(url, res.headers.location).href;
+          fetchCoverDataUrl(next, redirects + 1).then(resolve, reject);   // 跟随重定向（CDN 缩略图常 302），跳数受限防循环
+          return;
+        }
+        if (res.statusCode !== 200) { res.resume(); return reject(new Error('HTTP ' + res.statusCode)); }
+        const chunks = [];
+        let size = 0;
+        res.on('data', c => {
+          size += c.length;
+          if (size > 2 * 1024 * 1024) { req.destroy(new Error('封面过大')); return; }
+          chunks.push(c);
+        });
+        res.on('error', reject);
+        res.on('end', () => {
+          const ct = String(res.headers['content-type'] || '').split(';')[0].trim().toLowerCase();
+          if (ct && !/^image\//i.test(ct)) { res.resume(); return reject(new Error('封面响应非图片: ' + ct)); }   // 非 image/* 拒收（HTML 错误页不再伪装成 jpeg）
+          resolve('data:' + (ct || 'image/jpeg') + ';base64,' + Buffer.concat(chunks).toString('base64'));
+        });
+      });
+      req.on('error', reject);
+      req.setTimeout(5000, () => req.destroy(new Error('封面拉取超时')));
+    });
+  }
+  ipcMain.handle('link:identify', async (e, url, timeoutMs) => identify.identify(url, timeoutMs));
+  // #41 确认卡片数据组装 + 封面拉取：identify() 原始结果 → confirmCard() 纯函数 → 封面转 dataURL
+  // （CSP img-src 只许 self/data:，远程封面必须在主进程转 base64，拉取失败降级为无图卡片）
+  ipcMain.handle('link:confirmCard', async (e, { url, meta } = {}) => {
+    const card = identify.confirmCard(String(url || ''), meta || {});
+    if (card.cover && /^https?:\/\//i.test(card.cover)) {
+      try { card.cover = await fetchCoverDataUrl(card.cover); } catch (e2) { card.cover = null; }
+    }
+    return card;
+  });
+  ipcMain.handle('clipboard:markSelf', (e, { url } = {}) => { markSelfCopiedUrl(url); return { ok: true }; });
   ipcMain.handle('queue:add', async (e, { urls, opts }) => {
     const added = [];
     const duplicates = [];
@@ -1415,8 +1486,8 @@ app.whenReady().then(() => {
     shell.openExternal(src.url);
     return { ok: true };
   });
-  ipcMain.handle('subs:add', (e, { url, name }) => {
-    const r = subs.add(url, name);
+  ipcMain.handle('subs:add', (e, { url, name, maxBackfill }) => {
+    const r = subs.add(url, name, maxBackfill);
     // 添加即检查：首检建基线 → 自动全量回溯立刻开跑（不等 10 分钟轮询）
     if (r.ok) checkAllSubs(r.sub.id).catch(() => {});
     return r;

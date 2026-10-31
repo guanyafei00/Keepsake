@@ -8,7 +8,9 @@ contextBridge.exposeInMainWorld('keepsake', {
   strategySnapshot: () => ipcRenderer.invoke('strategy:snapshot'),
   strategyRefresh: () => ipcRenderer.invoke('strategy:refresh'),
   strategyVersion: () => ipcRenderer.invoke('strategy:version'),
-  identify: (url) => ipcRenderer.invoke('link:identify', url),
+  identify: (url, timeoutMs) => ipcRenderer.invoke('link:identify', url, timeoutMs),
+  confirmCard: (url, meta) => ipcRenderer.invoke('link:confirmCard', { url, meta }),   // #41 确认卡片数据组装（主进程纯函数 + 封面转 dataURL）
+  markClipboardSelf: (url) => ipcRenderer.invoke('clipboard:markSelf', { url }),       // app 自己复制进剪贴板的 URL 标记（监听不提示）
   addTasks: (urls, opts) => ipcRenderer.invoke('queue:add', { urls, opts }),
   cancel: (id) => ipcRenderer.invoke('queue:cancel', { id }),
   retry: (id) => ipcRenderer.invoke('queue:retry', { id }),
@@ -19,7 +21,7 @@ contextBridge.exposeInMainWorld('keepsake', {
   subsList: () => ipcRenderer.invoke('subs:list'),
   subsGetStatus: () => ipcRenderer.invoke('subs:getStatus'),
   storageGetDownloadCapacity: () => ipcRenderer.invoke('storage:getDownloadCapacity'),
-  subsAdd: (url, name) => ipcRenderer.invoke('subs:add', { url, name }),
+  subsAdd: (url, name, maxBackfill) => ipcRenderer.invoke('subs:add', { url, name, maxBackfill }),
   subsRemove: (id) => ipcRenderer.invoke('subs:remove', { id }),
   subsCheck: (id) => ipcRenderer.invoke('subs:check', { id }),
   openSubUrl: (id) => ipcRenderer.invoke('subs:openUrl', { id }),
@@ -62,6 +64,7 @@ contextBridge.exposeInMainWorld('keepsake', {
   setAutoStart: (on) => ipcRenderer.invoke('settings:setAutoStart', { on }),
   setNotify: (o) => ipcRenderer.invoke('settings:setNotify', o),
   setClipboardWatch: (on) => ipcRenderer.invoke('settings:setClipboard', { on }),
+  settingsSetClipboardWatch: (on) => ipcRenderer.invoke('settings:setClipboard', { on }),   // 别名：与 settingsSetXxx 命名族一致（index.html 调用名），两写法等价
   onClipboardUrl: (cb) => ipcRenderer.on('clipboard:url', (e, d) => cb(d)),
   onToast: (cb) => ipcRenderer.on('toast:event', (e, d) => cb(d)),
   cookieInfo: () => ipcRenderer.invoke('cookie:info'),

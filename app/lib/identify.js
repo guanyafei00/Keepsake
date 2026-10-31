@@ -98,7 +98,7 @@ function classify(url) {
   return { engine: 'unknown' }; // 交给 yt-dlp 探测（1000+ 站兜底）；纯博客文章页探测失败可手动确认
 }
 
-// yt-dlp 探测：拿到标题/UP主/时长；flat-playlist 秒级识别合集
+// yt-dlp 探测：拿到标题/UP主/时长/封面；flat-playlist 秒级识别合集
 function probe(url, timeoutMs = 30000) {
   return new Promise((resolve) => {
     const cookie = COOKIE_PATH;
@@ -122,6 +122,7 @@ function probe(url, timeoutMs = 30000) {
           title: j.title || null,
           uploader: j.uploader || j.channel || null,
           duration: j.duration || null,
+          thumbnail: j.thumbnail || null,   // #41 确认卡片封面（主进程拉取转 dataURL，遵守 CSP img-src）
           isPlaylist: !!j._type || (j.entries && j.entries.length > 0),
           entryCount: j.entries ? j.entries.length : 1,
           extractor: j.extractor_key || null
@@ -134,7 +135,8 @@ function probe(url, timeoutMs = 30000) {
 }
 
 // 统一入口：识别 + （视频侧）元数据探测
-async function identify(url) {
+// timeoutMs 可透传探测超时（#41 确认流用 25s）；缺省 30s（与队列路径同参数）
+async function identify(url, timeoutMs = 30000) {
   const c = classify(url);
   if (c.engine === 'gallery-dl') return { engine: 'gallery-dl', ok: true, title: null, uploader: null };
   if (c.engine === 'invalid') return c;
@@ -144,8 +146,46 @@ async function identify(url) {
   if (c.engine === 'article') return { engine: 'article', ok: true, title: null, uploader: null };
   // feed 不做 yt-dlp 探测（feed XML 没有视频元数据，探测必失败白等 30 秒）；标题由订阅首检从 feed 里取
   if (c.engine === 'feed') return { engine: 'feed', ok: true, title: null, uploader: null };
-  const p = await probe(url);
+  const p = await probe(url, timeoutMs);
   return p;
 }
 
-module.exports = { identify, classify, probe, setBinDir, setCookiePath, setProxy, isFeedUrl, FEED_PATTERNS };
+// ---- #41 确认卡片数据组装（纯函数，单测覆盖）----
+// 把 identify()/probe() 的原始结果组装成渲染层直接可用的确认卡片数据：
+//   mode: meta（有标题/作者元数据）| gdl（图站走 gallery-dl）| direct（直连引擎）
+//       | article（文章引擎）| fail（探测失败，可「仍要添加」）| invalid | feed
+// cover 字段此处透传原始 URL，由主进程 IPC 层拉取转 dataURL（CSP img-src 只许 self/data:）
+function fmtDuration(sec) {
+  const s = Math.floor(Number(sec) || 0);
+  if (s <= 0) return null;
+  const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), ss = s % 60;
+  return h ? `${h}:${String(m).padStart(2, '0')}:${String(ss).padStart(2, '0')}` : `${m}:${String(ss).padStart(2, '0')}`;
+}
+
+function domainOf(url) {
+  try { return new URL(url).hostname.replace(/^www\./i, ''); } catch (e) { return ''; }
+}
+
+function confirmCard(url, meta = {}) {
+  const domain = domainOf(url);
+  const engine = meta && meta.engine;
+  if (engine === 'invalid') return { mode: 'invalid', reason: (meta && meta.reason) || '不支持的链接', domain };
+  if (engine === 'feed') return { mode: 'feed', domain };
+  if (engine === 'gallery-dl') return { mode: 'gdl', domain };
+  if (engine === 'direct') return { mode: 'direct', domain };
+  if (engine === 'article') return { mode: 'article', domain };
+  if (meta && meta.ok) {
+    return {
+      mode: 'meta', domain,
+      title: String(meta.title || domain || url).slice(0, 120),   // flat playlist 偶发无标题：域名兜底
+      uploader: meta.uploader || null,
+      durationText: fmtDuration(meta.duration),
+      cover: meta.thumbnail || null,
+      isPlaylist: !!meta.isPlaylist,
+      entryCount: meta.entryCount || 1,
+    };
+  }
+  return { mode: 'fail', domain, reason: (meta && meta.reason) || '无法解析此链接' };
+}
+
+module.exports = { identify, classify, probe, confirmCard, setBinDir, setCookiePath, setProxy, isFeedUrl, FEED_PATTERNS };

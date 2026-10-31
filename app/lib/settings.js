@@ -37,8 +37,9 @@ function configure({ file, defaultOutDir }) {
   }
   // 图站（gallery-dl）任务完成后自动把图片目录打包成 CBZ（漫画归档友好；0 依赖，用系统自带 bsdtar）
   if (data.autoCbz === undefined) data.autoCbz = false; else data.autoCbz = !!data.autoCbz;
-  // 剪贴板监听（复制链接自动填入输入框；默认关——后台读剪贴板属于敏感行为，让用户显式打开）
-  if (data.clipboardWatch === undefined) data.clipboardWatch = false; else data.clipboardWatch = !!data.clipboardWatch;
+  // 剪贴板监听（复制链接自动填入输入框；#40 起默认开——主进程已带引擎过滤+24h 去重+焦点门控，
+  // 且只填输入框绝不自动入队，打扰风险已收敛）
+  if (data.clipboardWatch === undefined) data.clipboardWatch = true; else data.clipboardWatch = !!data.clipboardWatch;
 }
 
 function get() { return { ...data }; }
