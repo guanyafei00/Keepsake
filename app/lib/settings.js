@@ -40,6 +40,8 @@ function configure({ file, defaultOutDir }) {
   // 剪贴板监听（复制链接自动填入输入框；#40 起默认开——主进程已带引擎过滤+24h 去重+焦点门控，
   // 且只填输入框绝不自动入队，打扰风险已收敛）
   if (data.clipboardWatch === undefined) data.clipboardWatch = true; else data.clipboardWatch = !!data.clipboardWatch;
+  // 公众号追更总开关（M-A5；默认开——仅控制 weread 相关 IPC 与订阅检查入口，不影响其他订阅）
+  if (data.wereadEnabled === undefined) data.wereadEnabled = true; else data.wereadEnabled = !!data.wereadEnabled;
 }
 
 function get() { return { ...data }; }
@@ -59,6 +61,7 @@ function set(patch) {
   }
   if (p.autoCbz !== undefined) p.autoCbz = !!p.autoCbz;
   if (p.clipboardWatch !== undefined) p.clipboardWatch = !!p.clipboardWatch;
+  if (p.wereadEnabled !== undefined) p.wereadEnabled = !!p.wereadEnabled;
   Object.assign(data, p);
   try { atomicWrite(FILE, JSON.stringify(data, null, 2)); } catch (e) { console.warn('[settings] save fail:', e.message); }
   return get();

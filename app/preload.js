@@ -102,6 +102,13 @@ contextBridge.exposeInMainWorld('keepsake', {
   clearXhsSession: () => ipcRenderer.invoke('xhs:clearSession'),
   clearNativeSession: (site) => ipcRenderer.invoke('nativeSession:clear', { site }),  // 统一会话清理入口
   addDirect: (payload) => ipcRenderer.invoke('queue:addDirect', { payload }),         // 归档载荷免嗅探直落入队
+  // ===== M-A5 公众号追更 =====
+  wereadLogin: () => ipcRenderer.invoke('weread:login'),               // 打开扫码登录窗口（阻塞至成功/关闭/超时）
+  wereadState: () => ipcRenderer.invoke('weread:state'),               // 登录状态探针（loggedIn/nickname/expired/lastRenewalAt）
+  wereadLogout: () => ipcRenderer.invoke('weread:logout'),             // 清除会话（分区 storage + state 文件）
+  wereadSearch: (keyword) => ipcRenderer.invoke('weread:search', { keyword }),   // 搜索公众号候选 [{mpId,title}]
+  wereadAdd: (p) => ipcRenderer.invoke('weread:add', p || {}),         // 添加公众号订阅（{mpId,url,name} 二选一路径）
+  wereadClearExpired: () => ipcRenderer.invoke('weread:clearExpired'), // 手动确认已重新登录：清失效标记并立即补检
   onChannelsEvent: (cb) => ipcRenderer.on('channels:event', (e, d) => cb(d)),
   onXhsEvent: (cb) => ipcRenderer.on('xhs:event', (e, d) => cb(d)),
   onLibraryRefresh: (cb) => ipcRenderer.on('library:changed', () => cb()),

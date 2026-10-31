@@ -38,6 +38,7 @@ const { exportGone } = require('./lib/csv');
 const autoupdate = require('./lib/autoupdate');
 const store = require('./lib/store');
 const subs = require('./lib/subs');
+const weread = require('./lib/weread');   // M-A5 公众号追更（微信读书接口路线，内部封装不对外宣传）
 const { browserState, cookieBrowserWarning } = require('./lib/browsercookies');   // 浏览器登录态预警（Windows 文件锁根因见该文件头注释）
 const library = require('./lib/library');
 const login = require('./lib/login');
@@ -347,6 +348,8 @@ app.whenReady().then(() => {
   subs.setCookieBrowser(settings.get().cookieBrowser);
   setBiliLine(settings.get().biliLine);
   subs.setBiliLine(settings.get().biliLine);
+  weread.configure({ userData });   // M-A5：weread-state.json（昵称/续期时间/失效标记）落在 userData
+  subs.setWereadFetcher(weread.fetchForSub);   // 注入式依赖：subs 不硬依赖 weread（保持离线可测）
   // ★★#5+#40 剪贴板监听：复制到链接时自动填入任务输入框。安全边界（机制借鉴 RipMe，clean-room）：
   // 只读文本 + 只填输入框，绝不自动入队——入队必须用户点「加入队列」确认。
   // #40 升级：① 引擎白名单过滤（direct/yt-dlp/gallery-dl/article 才提示，feed/invalid/unknown 不打扰）；
@@ -1348,6 +1351,8 @@ app.whenReady().then(() => {
   // #24 删帖检测通知去重：记录各订阅已通知过的 gone id，避免已删除项每轮检查都重复弹通知
   const _goneNotified = new Map();   // subId -> Set<goneId>
   const _goneEverNotified = new Map();   // subId -> Set<goneId>；避免 gone 清空后旧条目再次出现时重复通知
+  // M-A5 公众号登录失效提示去重：同批次多公众号订阅失效只弹一次托盘，重新登录成功后复位
+  let _wereadExpiredToasted = false;
   function checkAllSubs(onlyId = null) {
     const run = _subChain.then(() => doCheckAllSubs(onlyId));
     _subChain = run.then(() => {}, () => []);
@@ -1385,6 +1390,26 @@ app.whenReady().then(() => {
             Date.now() - (real.lastCheck || 0) < real.intervalMin * 60 * 1000) {
           results.push({ id: sub.id, name: sub.name, ok: false, reason: '间隔未到（订阅 ⚙ 可调频率）' });   // 跳过留痕，UI 不再静默
           continue;
+        }
+        // M-A5 公众号追更预检：weread 会话未登录/已过期 → 短路跳过，不计 failStreak。
+        // 失效是会话问题而非站点故障：计入 failStreak 只会连坐 3 轮后自动暂停，
+        // 用户重新扫码后还得再多点一次 ▶，不如不记（真正网络故障仍走下方 catch 常规路径）
+        if (real.kind === 'weread') {
+          // m3：功能总开关关闭 → 静默跳过（不弹托盘不误报登录失效），存量订阅等重新开启后自然恢复
+          if (settings.get().wereadEnabled === false) {
+            results.push({ id: sub.id, name: sub.name, ok: false, reason: '公众号追更功能已关闭（设置页可开启）' });
+            continue;
+          }
+          let wst = null;
+          try { wst = await weread.wereadState(); } catch (e2) { wst = { loggedIn: false, expired: false }; }
+          if (!wst.loggedIn || wst.expired) {
+            if (!_wereadExpiredToasted) {
+              notifyTray('公众号追更 · 需要重新登录', sub.name + ' 的检查已跳过，请到订阅页重新扫码登录');
+              _wereadExpiredToasted = true;
+            }
+            results.push({ id: sub.id, name: sub.name, ok: false, reason: wst.expired ? '登录已过期，请重新扫码' : '未登录，请先扫码登录' });
+            continue;
+          }
         }
         try {
           // 占位名/URL 兜底名（订阅 N、Instagram · nasa）先补救：入队标题才有真名，不再出现「订阅 3」这种标记（bilibili 也在 refreshName 覆盖范围内）
@@ -1447,6 +1472,16 @@ app.whenReady().then(() => {
             }
           }
         } catch (e) {
+          // M-A5：公众号登录会话在检查中途失效（fetchForSub 抛 e.wereadExpired）——
+          // 与上方预检同语义：不计 failStreak、不自动暂停，等重新扫码后自然恢复
+          if (e && e.wereadExpired) {
+            if (!_wereadExpiredToasted) {
+              notifyTray('公众号追更 · 登录已过期', sub.name + ' 请到订阅页重新扫码登录');
+              _wereadExpiredToasted = true;
+            }
+            results.push({ id: sub.id, name: sub.name, ok: false, reason: '登录已过期，请重新扫码' });
+            continue;
+          }
           real.failStreak = (real.failStreak || 0) + 1;
           // 失败态显式化：lastCheck 保持旧值不动，另记 lastFailAt/lastError——
           // 旧行为失败时UI永远显示「尚未检查」，用户根本不知道该站点是缺 cookie 还是网络断了
@@ -1594,6 +1629,71 @@ app.whenReady().then(() => {
     r.paused = false; r.failStreak = 0; r.userPaused = false;
     subs.save();
     if (win && !win.isDestroyed()) win.webContents.send('subs:changed', subs.list());
+    return { ok: true };
+  });
+  // ===== M-A5 公众号追更（weread:*）：受总开关 settings.wereadEnabled 守卫 =====
+  // 对外措辞只说「公众号追更」，不点名内部路线（只做不说红线）
+  function _wereadGate() {
+    return settings.get().wereadEnabled === false
+      ? { ok: false, reason: '公众号追更功能已关闭（设置页可开启）' } : null;
+  }
+  ipcMain.handle('weread:login', async () => {
+    const g = _wereadGate(); if (g) return g;
+    const r = await weread.openLoginWindow();
+    if (r.ok) {
+      _wereadExpiredToasted = false;   // 重新登录成功：失效托盘提示去重复位
+      weread.clearExpired();           // 双保险：清除失效标记（openLoginWindow 内已复位）
+      checkAllSubs().catch(() => {});  // 登录成功立即跑一轮：失效中的公众号订阅当场恢复检查
+    }
+    return r;
+  });
+  ipcMain.handle('weread:state', async () => {
+    const g = _wereadGate(); if (g) return { ...g, loggedIn: false, expired: false };
+    return weread.wereadState();
+  });
+  ipcMain.handle('weread:logout', async () => {
+    const g = _wereadGate(); if (g) return g;
+    return weread.logout();
+  });
+  ipcMain.handle('weread:search', async (e, { keyword }) => {
+    const g = _wereadGate(); if (g) return { ...g, candidates: [] };
+    return weread.mpSearch(String(keyword || ''));
+  });
+  // 添加公众号订阅：搜索候选路径（带 mpId）或贴文章链接路径（extractBiz → 抓昵称 → mpSearch 定位 mpId）
+  ipcMain.handle('weread:add', async (e, { mpId, url, name }) => {
+    const g = _wereadGate(); if (g) return g;
+    try {
+      let theMpId = String(mpId || '').trim();
+      let biz = null;
+      let displayName = String(name || '').trim();
+      if (!theMpId && url) {
+        biz = weread.extractBiz(url);
+        if (!biz) return { ok: false, reason: '这不是公众号文章链接（缺 __biz 参数）' };
+        displayName = displayName || (await weread.fetchArticleNickname(url)) || '';
+        if (!displayName) return { ok: false, reason: '无法从链接识别公众号昵称，请改用搜索添加' };
+        const sr = await weread.mpSearch(displayName);
+        if (!sr.ok || !sr.candidates || !sr.candidates.length) {
+          return { ok: false, reason: '搜索不到该公众号（' + displayName + '），请在下方手动搜索确认' };
+        }
+        theMpId = sr.candidates[0].mpId;   // 首个候选即最相近结果
+      }
+      if (!theMpId) return { ok: false, reason: '缺少公众号标识（请搜索选择或贴文章链接）' };
+      // 关注动作容忍失败：公众号可能已在书架（重复关注报错不算添加失败），拉不到列表时首检会显式报错
+      await weread.mpSubscribe(theMpId);
+      const r = subs.addWeread({ mpId: theMpId, biz, url: url || null, name: displayName });
+      if (!r.ok) return r;
+      if (win && !win.isDestroyed()) win.webContents.send('subs:changed', subs.list());
+      checkAllSubs(r.sub.id).catch(() => {});   // 添加即首检：立即建立已知文章基线
+      return { ok: true, sub: r.sub };
+    } catch (e2) {
+      return { ok: false, reason: String(e2.message || e2).slice(0, 120) };
+    }
+  });
+  // 用户手动确认已重新登录（UI 提示条上的按钮）：清失效标记并立即补一轮检查（m2：补齐 wereadEnabled 守卫，与其余 5 个 weread IPC 一致）
+  ipcMain.handle('weread:clearExpired', () => {
+    const g = _wereadGate(); if (g) return g;
+    weread.clearExpired();
+    checkAllSubs().catch(() => {});
     return { ok: true };
   });
   // 回溯下载（手动 ⤓ 与「新订阅自动全量」共用）：拉订阅源全部媒体逐条入队（队列内已有同 URL 的自动跳过）

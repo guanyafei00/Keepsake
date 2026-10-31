@@ -165,10 +165,11 @@ class EmbedBrowserManager {
       if (this._pollTimer[siteKey]) { clearInterval(this._pollTimer[siteKey]); this._pollTimer[siteKey] = null; }
       try { ses.webRequest.onBeforeRequest(null); } catch (e) {}   // 注销拦截监听，防后台网络监听泄漏
     });
-    // 导航限制：受控窗口只许访问本站域名（官方页外链跳第三方一律拦下，收住暴露面）
+    // 导航限制：受控窗口只许访问本站域名（官方页外链跳第三方一律拦下，收住暴露面）。
+    // 尾锚 $|[/?#]：无锚时 weixin.qq.com.evil.com 这类同前缀伪造域也能通过，等于没有域名锁
     const hostRe = siteKey === 'channels'
-      ? /^https:\/\/([a-z0-9-]+\.)*(weixin|qq)\.com/i
-      : /^https:\/\/([a-z0-9-]+\.)*(xiaohongshu|xhslink|xhscdn)\.com/i;
+      ? /^https:\/\/([a-z0-9-]+\.)*(weixin|qq)\.com($|[/?#])/i
+      : /^https:\/\/([a-z0-9-]+\.)*(xiaohongshu|xhslink|xhscdn)\.com($|[/?#])/i;
     win.webContents.on('will-navigate', (e, url) => { if (!hostRe.test(url)) e.preventDefault(); });
     // window.open / _blank 目标页不走 will-navigate，必须显式 deny 防绕过域名白名单开新窗
     win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));

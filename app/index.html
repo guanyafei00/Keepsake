@@ -217,6 +217,15 @@
     </div>
     <div class="hint">每 10 分钟自动增量检查（轻量单次请求，不触发风控）· 添加后会询问是否回溯全部历史 · 新内容自动入队 · <b>UP 主删除源视频不会删除你已下载的文件</b></div>
     <div id="subsCapacity" class="hint" style="margin-top:-4px">下载目录容量查询中…</div>
+    <!-- M-A5 公众号追更（独立区块，与 RSS 订阅互不混淆；频率下限 ≥30 分钟）-->
+    <div class="sec-t" style="margin-top:18px">📖 公众号追更 <span class="cnt" id="wr-cnt">0</span> <span class="act" style="cursor:pointer;font-size:12px;margin-left:auto" id="wrLoginBtn" onclick="wereadLoginFlow()">🔑 扫码登录</span> <span class="act" style="cursor:pointer;font-size:12px;display:none" id="wrLogoutBtn" onclick="wereadLogoutFlow()">退出登录</span></div>
+    <div id="wrStateCard" class="hint" style="margin:0 2px 8px">公众号追更状态查询中…</div>
+    <div class="paste-box" style="margin:0 2px 10px">
+      <span>📖</span>
+      <input id="wrKw" placeholder="搜索公众号昵称，或粘贴公众号文章链接（更新自动归档追更）" style="flex:1;border:none;outline:none;font:inherit;font-size:13.5px;background:transparent;color:var(--txt)">
+      <button class="btn-dl" onclick="wereadAddFlow()">＋ 添加追更</button>
+    </div>
+    <div id="wrCandidates" class="hint" style="display:none;margin:-4px 2px 8px"></div>
     <div class="sec-t">📡 我的订阅 <span class="cnt" id="s-cnt2">0</span> <select id="groupFilter" onchange="renderSubs()" style="margin-left:auto;font:inherit;font-size:12px;background:var(--panel2);color:var(--txt);border:1px solid var(--line);border-radius:var(--r-sm);padding:4px 10px;outline:none"><option value="">全部分组</option></select> <span class="act" style="cursor:pointer;font-size:12px" onclick="exportGone()" title="把判定为源头已删除的内容导出成 CSV 表格">📤 删帖清单</span> <span class="act" style="cursor:pointer;font-size:12px" onclick="checkAllSubs()">⟳ 立即检查</span></div>
     <div id="subList"><div class="empty">还没有订阅——支持 B站UP主/合集 / YouTube频道 / X用户 / RSS·Atom feed / Pixiv / 微博 / Reddit / Instagram / Danbooru 等站点主页</div></div>
     <div class="selbar" id="selBar">
@@ -1042,7 +1051,7 @@ async function retryTask(id) { await window.keepsake.retry(id); }
 function switchPage(p) {
   document.querySelectorAll('.nav').forEach(n => n.classList.toggle('on', n.dataset.page === p));
   document.querySelectorAll('.page').forEach(n => n.classList.toggle('on', n.id === 'page-' + p));
-  if (p === 'rss') loadSubs();
+  if (p === 'rss') { loadSubs(); loadWereadState(); }
   updateSelBar();
   // 每次进媒体库都强制重扫磁盘：文件夹里手动删/加了文件也要如实反映（本地扫描快，分片异步不卡 UI）
   if (p === 'lib') { libDirty = false; loadLibrary(true); }
@@ -1523,7 +1532,8 @@ async function renderSubs() {
       : s.paused ? `<span class="st error" title="${esc('连续 3 次检查失败，已自动暂停：' + friendlySubFail(s.lastError) + '｜点 ▶ 恢复后会重试')}">连续失败暂停（悬停看原因）</span>` : '';
     const groupTag = (s.group || '').trim() ? ` <span style="font-size:11px;color:var(--acc2);background:var(--panel2);border-radius:var(--r-xs);padding:1px 6px">${esc(s.group)}</span>` : '';
     const obs = s._observability || null;
-    const freqTag = ` · 检查频率 ${s.intervalMin || 10} 分钟`;
+    // M-A5 公众号追更：频率档固定 ≥30 分钟（读书接口频率红线，subs.update 白名单收紧到 [30,60]）
+    const freqTag = s.kind === 'weread' ? ' · 检查频率 ≥30 分钟' : ` · 检查频率 ${s.intervalMin || 10} 分钟`;
     const obsTags = obs ? ` · 最近成功 ${_fmtWhen(obs.lastSuccessAt)} · 最近失败 ${_fmtWhen(obs.lastFailAt)} · 连续失败 ${obs.failStreak} 次` +
       (obs.userPaused ? ' · 手动暂停' : obs.paused ? ' · 连续失败自动暂停' : '') +
       (obs.cooldownAvailable
@@ -1534,13 +1544,15 @@ async function renderSubs() {
     const mbTag = s.maxBackfill ? ` · 回溯上限 ${s.maxBackfill} 条` : '';
     // RSS 诚实边界：只追新，不做删帖检测（feed 翻页会让旧文章消失，误报率高）——卡上常驻交代
     const rssTag = s.kind === 'rss' ? ' · <span title="RSS 订阅只自动追新文章；不做删帖检测（feed 翻页会让旧文章消失，误报率高）">📡 只追新</span>' : '';
+    // M-A5 公众号追更徽标：独立于 RSS 语义（新增文章自动归档为本地文章存档）
+    const wrTag = s.kind === 'weread' ? ' · <span title="公众号文章追更：新文章自动归档为本地文章存档，可在媒体库阅读">📖 公众号</span>' : '';
     htmls.push(`
     <div class="task"${paused ? ' style="opacity:.62"' : ''}>
       <div class="pickbox${_subSel.has(s.id) ? ' on' : ''}" onclick="subPick(event,'${s.id}')" title="选中（Ctrl 切换 / Shift 范围选）">${_subSel.has(s.id) ? '✔' : ''}</div>
-      <div class="t-thumb">📡<span class="eng">${s.kind === 'bilibili' ? 'B站' : s.kind === 'bili-collection' ? '合集' : s.kind === 'x' ? 'X' : s.kind === 'youtube' ? 'YouTube' : s.kind === 'rss' ? 'RSS' : s.kind === 'gdl' ? '图站' : '订阅'}</span></div>
+      <div class="t-thumb">📡<span class="eng">${s.kind === 'bilibili' ? 'B站' : s.kind === 'bili-collection' ? '合集' : s.kind === 'x' ? 'X' : s.kind === 'youtube' ? 'YouTube' : s.kind === 'rss' ? 'RSS' : s.kind === 'weread' ? '公众号' : s.kind === 'gdl' ? '图站' : '订阅'}</span></div>
       <div class="t-info">
         <div class="name">${esc(s.name)}</div>
-        <div class="meta">${groupTag}${pausedTag ? pausedTag + ' · ' : ''}${statusHtml} · 已跟踪 ${s.knownCount} 条${s.lastNew ? ` · 上轮新增 ${s.lastNew}` : ''}${rssTag}${s._pendingBackfill ? ' · <span style="color:var(--acc2)">⏳ 排队待回溯</span>' : ''}${s.autoBackfill ? ' · <span style="color:var(--acc2)">⤓ 自动全量下载中</span>' : ''}${s.kw && s.kw.length ? ' · 🏷 ' + esc(s.kw.join('/')) : ''}${freqTag}${obsTags}${atTag}${lnTag}${mbTag}${goneBadge(s)}</div>
+        <div class="meta">${groupTag}${pausedTag ? pausedTag + ' · ' : ''}${statusHtml} · 已跟踪 ${s.knownCount} 条${s.lastNew ? ` · 上轮新增 ${s.lastNew}` : ''}${rssTag}${wrTag}${s._pendingBackfill ? ' · <span style="color:var(--acc2)">⏳ 排队待回溯</span>' : ''}${s.autoBackfill ? ' · <span style="color:var(--acc2)">⤓ 自动全量下载中</span>' : ''}${s.kw && s.kw.length ? ' · 🏷 ' + esc(s.kw.join('/')) : ''}${freqTag}${obsTags}${atTag}${lnTag}${mbTag}${goneBadge(s)}</div>
       </div>
       <div class="x" onclick="openSubLink('${s.id}')" title="打开订阅原链接（浏览器）">🔗</div>
       <div class="x" onclick="checkSub('${s.id}')" title="立即检查">⟳</div>
@@ -1554,6 +1566,7 @@ async function renderSubs() {
     </div>`);
   }
   el.innerHTML = htmls.length ? htmls.join('') : (subsItems.length ? `<div class="empty">该分组下暂无订阅</div>` : `<div class="empty">还没有订阅——支持 B站UP主/合集 / YouTube频道 / X用户 / Pixiv / 微博 / Reddit / Instagram / Danbooru 等站点主页</div>`);
+  const wrCnt = $('wr-cnt'); if (wrCnt) wrCnt.textContent = subsItems.filter(s => s.kind === 'weread').length;   // M-A5 公众号追更计数同步
   updateSelBar();
 }
 
@@ -1627,12 +1640,14 @@ function editSubOpts(id) {
         <input id="soGroup" value="${escAttr(s.group || '')}" placeholder="如：追更 / 学习 / 保存" style="width:100%;box-sizing:border-box;padding:8px 11px;border:1px solid var(--line);border-radius:var(--r-md);font:inherit;background:var(--panel2);color:var(--txt)">
       </div>
       <div>
-        <div style="font-size:12.5px;color:var(--txt2);margin-bottom:5px">检查频率（间隔越长越省请求，防风控更稳）</div>
+        <div style="font-size:12.5px;color:var(--txt2);margin-bottom:5px">${s.kind === 'weread' ? '检查频率（公众号追更下限 30 分钟，间隔越长越稳）' : '检查频率（间隔越长越省请求，防风控更稳）'}</div>
         <select id="soInterval" style="width:100%;padding:8px 11px;font:inherit;background:var(--panel2);color:var(--txt);border:1px solid var(--line);border-radius:var(--r-md);outline:none">
-          <option value="0" ${!s.intervalMin ? 'selected' : ''}>跟随全局（10 分钟）</option>
+          ${s.kind === 'weread'
+            ? '<option value="30" ' + (s.intervalMin === 30 ? 'selected' : '') + '>每 30 分钟</option><option value="60" ' + (s.intervalMin === 60 ? 'selected' : '') + '>每 60 分钟</option>'
+            : `<option value="0" ${!s.intervalMin ? 'selected' : ''}>跟随全局（10 分钟）</option>
           <option value="10" ${s.intervalMin === 10 ? 'selected' : ''}>每 10 分钟</option>
           <option value="30" ${s.intervalMin === 30 ? 'selected' : ''}>每 30 分钟</option>
-          <option value="60" ${s.intervalMin === 60 ? 'selected' : ''}>每 60 分钟</option>
+          <option value="60" ${s.intervalMin === 60 ? 'selected' : ''}>每 60 分钟</option>`}
         </select>
       </div>
       <div>
@@ -1824,6 +1839,76 @@ async function addSub() {
   } else {
     toast('之后 TA 有更新会自动下载；存量想下时点订阅卡片的 ⤓ 按钮');
   }
+}
+// ===== M-A5 公众号追更（独立区块；与 RSS 订阅共用 renderSubs 卡片，徽标/频率档区分）=====
+// 登录状态卡刷新：进订阅页 / 登录登出后调用
+async function loadWereadState() {
+  const card = $('wrStateCard'); if (!card) return;
+  try {
+    const st = await window.keepsake.wereadState();
+    const loginBtn = $('wrLoginBtn'), outBtn = $('wrLogoutBtn');
+    if (st.loggedIn && !st.expired) {
+      card.innerHTML = '当前状态：<b style="color:var(--green)">已登录</b>' + (st.nickname ? '（' + esc(st.nickname) + '）' : '') + ' · 公众号新文章每 ≥30 分钟自动检查并归档';
+      if (loginBtn) loginBtn.style.display = 'none';
+      if (outBtn) outBtn.style.display = '';
+    } else {
+      card.innerHTML = st.expired
+        ? '当前状态：<b style="color:var(--red)">登录已过期</b> · 公众号订阅检查已暂停（其他订阅不受影响）。<span class="act" style="cursor:pointer;text-decoration:underline" onclick="wereadLoginFlow()">重新扫码登录</span> 或 <span class="act" style="cursor:pointer;text-decoration:underline" onclick="wereadClearExpiredFlow()">我已重新登录，重试检查</span>'
+        : '当前状态：<b style="color:#c88a00">未登录</b> · 先扫码登录才能追更公众号（不影响其他订阅）。';
+      if (loginBtn) { loginBtn.style.display = ''; loginBtn.textContent = st.expired ? '🔑 重新扫码登录' : '🔑 扫码登录'; }
+      if (outBtn) outBtn.style.display = 'none';
+    }
+  } catch (e) {
+    card.textContent = '公众号追更状态查询失败：' + String(e.message || e).slice(0, 60);
+  }
+  const cnt = $('wr-cnt'); if (cnt) cnt.textContent = subsItems.filter(s => s.kind === 'weread').length;
+}
+// 扫码登录：阻塞至成功/窗口关闭/5 分钟超时；成功后刷新状态卡并触发一轮补检（主进程侧）
+async function wereadLoginFlow() {
+  toast('正在打开扫码窗口…（完成扫码后自动关闭）');
+  let r;
+  try { r = await window.keepsake.wereadLogin(); } catch (e) { toast('登录失败：' + String(e.message || e).slice(0, 60)); return; }
+  if (r && r.ok) { toast('公众号追更登录成功 ✓'); loadWereadState(); }
+  else if (r && /已打开/.test(r.reason || '')) { toast('登录窗口已在前面，完成扫码即可'); }
+  else { toast('登录未完成：' + (r && r.reason || '窗口已关闭')); loadWereadState(); }
+}
+async function wereadLogoutFlow() {
+  if (!confirm('退出公众号追更登录？\n已添加的公众号订阅会保留，但检查会暂停，重新登录后自动恢复。')) return;
+  await window.keepsake.wereadLogout();
+  toast('已退出登录');
+  loadWereadState();
+}
+// 用户在失效提示条点「重试检查」：主进程清失效标记并立即补一轮
+async function wereadClearExpiredFlow() {
+  await window.keepsake.wereadClearExpired();
+  toast('已重试检查');
+  loadSubs(); loadWereadState();
+}
+// 添加追更：文章链接（含 __biz）走直加路径；其他输入当昵称搜索，候选点击添加
+async function wereadAddFlow() {
+  const v = $('wrKw').value.trim();
+  if (!v) return toast('先输入公众号昵称或文章链接');
+  if (/mp\.weixin\.qq\.com/i.test(v)) {
+    toast('正在识别公众号…');
+    const r = await window.keepsake.wereadAdd({ url: v });
+    if (r && r.ok) { $('wrKw').value = ''; toast('已添加追更：' + ((r.sub && r.sub.name) || '公众号') + ' ✓ 首次检查中…'); loadSubs(); }
+    else toast('添加失败：' + ((r && r.reason) || '未知原因'));
+  } else {
+    toast('搜索公众号中…');
+    const box = $('wrCandidates');
+    box.style.display = 'block'; box.textContent = '搜索中…';
+    let r;
+    try { r = await window.keepsake.wereadSearch(v); } catch (e) { box.textContent = '搜索失败：' + String(e.message || e).slice(0, 60); return; }
+    if (!r.ok) { box.textContent = '搜索失败：' + (r.reason || '未知原因'); return; }
+    if (!r.candidates || !r.candidates.length) { box.textContent = '没有找到匹配的公众号，换个昵称关键词试试'; return; }
+    box.innerHTML = '找到 ' + r.candidates.length + ' 个候选，点击添加：' +
+      r.candidates.map(c => `<span class="act" style="cursor:pointer;margin-left:8px;color:var(--acc2)" onclick="wereadPickCandidate('${escAttr(String(c.mpId))}','${escAttr(String(c.title || c.mpId))}')">＋ ${esc(String(c.title || c.mpId))}</span>`).join('');
+  }
+}
+async function wereadPickCandidate(mpId, title) {
+  const r = await window.keepsake.wereadAdd({ mpId, name: title });
+  if (r && r.ok) { $('wrCandidates').style.display = 'none'; $('wrKw').value = ''; toast('已添加追更：' + title + ' ✓ 首次检查中…'); loadSubs(); }
+  else toast('添加失败：' + ((r && r.reason) || '未知原因'));
 }
 async function removeSub(id) { await window.keepsake.subsRemove(id); loadSubs(); }
 async function resumeSub(id) { await window.keepsake.subsResume(id); toast('已恢复检查'); loadSubs(); }

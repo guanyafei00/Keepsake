@@ -26,6 +26,11 @@ let COOKIE_BROWSER = ''; // 浏览器登录态来源（''=用 cookies.txt；chro
 let BILI_LINE = ''; // B站 CDN/线路手动选线（''=自动；baidu/tencent/aliyun/wscloud/huawei=国内 CDN 线路枚举，经 --extractor-args "bilibili:cdn=<值>" 透传，主程序经 setBiliLine 热更）
 let subs = [];
 
+// M-A5 公众号追更：weread 抓取器由 main.js 注入（subs.js 不硬依赖 electron 侧 weread 模块，
+// 保持离线可测；签名 fetcher(sub, pages) → Promise<items[{id,type:'feed',text,url}]>）
+let _wereadFetch = null;
+function setWereadFetcher(fn) { _wereadFetch = typeof fn === 'function' ? fn : null; }
+
 function configure({ binDir, cookiePath, file }) {
   BIN = binDir; COOKIE = cookiePath; FILE = file;
   subs = readJson(FILE, [], Array.isArray);
@@ -181,6 +186,27 @@ function normMaxBackfill(v) {
   return MAX_BACKFILL_CHOICES.includes(n) ? n : 0;
 }
 
+// M-A5 公众号专用入口（只经 weread:add IPC 创建，classify 不自动识别——防与 RSS/单篇语义混淆）。
+// intervalMin 强制 30 起步（设计 §4.1）；不维护 gone/lastSeen（同 RSS：列表只保留最近窗口）
+function addWeread({ mpId, biz, url, name } = {}) {
+  if (!mpId) return { ok: false, reason: '缺少公众号 mpId' };
+  if (subs.some(s => s.kind === 'weread' && s.mpId === String(mpId))) return { ok: false, reason: '该公众号已在订阅中' };
+  const sub = {
+    id: 's' + Date.now().toString(36), kind: 'weread',
+    mpId: String(mpId), biz: biz || null, url: url || null,
+    name: String(name || '').trim().slice(0, 40) || ('公众号 ' + (subs.length + 1)),
+    _auto: false,
+    lastCheck: 0, lastNew: 0, known: [], checked: 0,
+    autoBackfill: false, group: '',
+    intervalMin: 30,       // 强制下限 30 分钟（读书接口频率红线，设计 §6.1）
+    userPaused: false, autoTranscribe: false,
+    latestN: 0, maxBackfill: 0,
+  };
+  subs.push(sub);
+  save();
+  return { ok: true, sub: { ...sub, known: undefined } };
+}
+
 function add(url, name, maxBackfill) {
   const c = classify(url.trim());
   if (!c) return { ok: false, reason: '支持 B站UP主/合集、YouTube频道、X用户、Pixiv/微博/Reddit/Instagram/Danbooru 等图站用户页（部分站点需先导入 cookie）' };
@@ -324,7 +350,14 @@ function update(id, patch) {
       if (!n) return { ok: false, reason: '订阅名称不能为空' };
       if (n !== s.name) { s.name = n; s._auto = false; renamed = n; }   // 用户起名后自动认领永不再覆盖
     }
-    else if (k === 'intervalMin') s[k] = [0, 10, 30, 60].includes(Number(patch[k])) ? Number(patch[k]) : 0;
+    else if (k === 'intervalMin') {
+      if (s.kind === 'weread') {
+        // M-A5：weread 频率白名单收紧为 {30,60}，10 分钟档拒绝（读书接口频率红线）
+        s[k] = [30, 60].includes(Number(patch[k])) ? Number(patch[k]) : s[k];
+      } else {
+        s[k] = [0, 10, 30, 60].includes(Number(patch[k])) ? Number(patch[k]) : 0;
+      }
+    }
     else if (k === 'latestN') {   // ★★#7：0=不限制；1-100 有效，越界归 0（宁可不限制也不静默吞更新）
       const n = Math.floor(Number(patch[k]));
       s[k] = Number.isFinite(n) && n >= 1 && n <= 100 ? n : 0;
@@ -598,6 +631,11 @@ async function checkSub(sub, onNew) {
   else if (sub.kind === 'youtube') items = await fetchViaYtDlp(sub.url);
   // RSS/Atom：HTTP 直拉 XML（公开内容，不需要浏览器窗口/cookie），解析后与 known 比对增量
   else if (sub.kind === 'rss') items = await fetchFeedItems(sub.url);
+  // M-A5 公众号：读书接口拉最近文章列表（60s 节流闸内串行；失效拋 e.wereadExpired 由 main 短路不计 failStreak）
+  else if (sub.kind === 'weread') {
+    if (!_wereadFetch) throw new Error('微信读书模块未就绪');
+    items = await _wereadFetch(sub, 1);   // 增量检查只看首页窗口（~20 条）
+  }
   // 合集订阅：flat-playlist 全量秒回（实测 119 项几秒），必须拉全量——合集按时间正序追加，
   // 只看前 N 条永远看不到新集（新内容在尾部）；known 集合本身有去重，全量不炸
   else if (sub.kind === 'bili-collection') items = await fetchViaYtDlp(sub.url, 0);
@@ -623,8 +661,8 @@ async function checkSub(sub, onNew) {
   const nowMs = Date.now();
   const gone = [];
   let candidates;
-  if (sub.kind === 'rss') {
-    // RSS 不做源头删除感知（一期明确只追新）：feed 通常只保留最新 N 条，旧文滑出列表 =
+  if (sub.kind === 'rss' || sub.kind === 'weread') {
+    // RSS/weread 不做源头删除感知（一期明确只追新）：feed/公众号列表通常只保留最近 N 条，旧文滑出列表 =
     // 正常翻页而非删帖，照搬现有 gone 判定误报率极高；卡上常驻「只追新」文案向用户交代边界
     candidates = [];
   } else if (sub.kind === 'bili-collection') {
@@ -661,7 +699,7 @@ async function checkSub(sub, onNew) {
   // 合集按时间正序追加，新内容在尾部 → 取尾部 100，否则合集变长会误报「源头删帖」；
   // RSS 无 gone 判定，不维护 lastSeen（省内存，也避免误用）
   const seenIds = items.map(it => it.id);
-  if (sub.kind !== 'rss') sub.lastSeen = (sub.kind === 'bili-collection' ? seenIds.slice(-100) : seenIds.slice(0, 100));
+  if (sub.kind !== 'rss' && sub.kind !== 'weread') sub.lastSeen = (sub.kind === 'bili-collection' ? seenIds.slice(-100) : seenIds.slice(0, 100));
 
   // 基线判定：首次 或 known 为空（此前全失败空转的订阅，第一次真正拉到清单时也要做基线防轰炸）
   if (sub.checked === 0 || !(sub.known || []).length) {
@@ -713,6 +751,11 @@ async function backfill(id, onItem) {
   else if (sub.kind === 'youtube') items = await fetchViaYtDlp(sub.url, 0);
   else if (sub.kind === 'gdl') items = await fetchViaGdl(sub.url, 200);   // gallery-dl 型回溯：最近 200 项清单
   else if (sub.kind === 'rss') items = await fetchFeedItems(sub.url);   // feed 本身只保留最新若干条，「全部内容」= feed 现存全部条目（不猜历史归档，诚实边界）
+  else if (sub.kind === 'weread') {
+    // 公众号回溯：限 5 页（~100 条窗口，设计 §3.1）——60s 节流闸下约 5 分钟完成，手动触发可接受
+    if (!_wereadFetch) throw new Error('微信读书模块未就绪');
+    items = await _wereadFetch(sub, 5);
+  }
   if (!items) throw new Error('未知订阅类型');
   const media = items.filter(it => it.type !== 'text');
   // #42 回溯上限：从最新往回数 N 条，超出部分跳过（后续追新增量不受该限制影响——
@@ -723,6 +766,7 @@ async function backfill(id, onItem) {
 }
 
 function itemUrl(sub, it) {
+  if (sub.kind === 'weread') return it.url || null;   // 公众号条目自带 mp.weixin 链接（走 article 引擎）
   if (sub.kind === 'bilibili') return it.type === 'video'
     ? `https://www.bilibili.com/video/${it.id}`
     : `https://www.bilibili.com/opus/${it.id}`;
@@ -733,4 +777,4 @@ function itemUrl(sub, it) {
   return null;
 }
 
-module.exports = { configure, list, get, add, remove, update, checkSub, itemUrl, backfill, setProxy, setCookieBrowser, setBiliLine, refreshName, onNameChange, save, classify, resetCookieCache, gdlBaseArgs, pixivAuthorized, latestCut, normMaxBackfill, MAX_BACKFILL_CHOICES, fetchFeed, parseFeed, fetchFeedItems };
+module.exports = { configure, list, get, add, addWeread, remove, update, checkSub, itemUrl, backfill, setProxy, setCookieBrowser, setBiliLine, setWereadFetcher, refreshName, onNameChange, save, classify, resetCookieCache, gdlBaseArgs, pixivAuthorized, latestCut, normMaxBackfill, MAX_BACKFILL_CHOICES, fetchFeed, parseFeed, fetchFeedItems };
