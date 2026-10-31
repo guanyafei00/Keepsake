@@ -165,6 +165,7 @@ class DownloadQueue {
       _range: meta._range || null,
       _subs: !!meta._subs, _audio: !!meta._audio, _transcribe: !!meta._transcribe,
       _subId: meta._subId || null,   // 订阅来源任务：改名后标题同步用
+      _directPayload: meta._directPayload || null,   // #32 受控浏览器/一键归档预填充载荷（免嗅探直落；快照/落盘时剔除）
     };
     // 入队即检查熔断：该站冷却中直接挂起
     if (strategy.isBreakered(item.url)) {
@@ -275,8 +276,10 @@ class DownloadQueue {
   snapshot() {
     return this.order.map(id => {
       // 保留 _range（先前被剥离导致范围任务崩溃恢复后全量重下）；_files 巨大且只供 onDone 钩子用，不入快照；
-      // _runSeq 是 run 序号（内部幂等标记），不得泄漏给渲染层
-      const { _child, _wasActive, _files, _diskTimer, _diskHeld, _runSeq, _articleCtl, ...rest } = this.items.get(id);
+      // _runSeq 是 run 序号（内部幂等标记），_directPayload 是内嵌归档载荷（含媒体直链/UA，不外泄渲染层）；
+      // _directReq 是下载中挂着的 http.ClientRequest（含 TLSSocket 循环引用）：不剔除会导致
+      // JSON.stringify 抛 circular structure（store 落盘全断）+ IPC 结构化克隆失败（UI 停更）——均不得泄漏
+      const { _child, _wasActive, _files, _diskTimer, _diskHeld, _runSeq, _articleCtl, _directPayload, _directReq, ...rest } = this.items.get(id);
       if (rest.status === 'held') rest.heldRemainMs = strategy.breakerRemainMs(rest.url);
       return rest;
     });
@@ -490,7 +493,8 @@ class DownloadQueue {
   // 显式 --format zip）整目录打包成 <目录名>.cbz 与目录平级。0 依赖、失败静默（不影响下载结果）
   async _maybeCbz(it) {
     try {
-      if (it.engine !== 'gallery-dl' || !Array.isArray(it._files) || !it._files.length) return;
+      // #32：direct 引擎的小红书图组任务也会产出图片目录，与 gallery-dl 同样联动 CBZ 打包
+      if (!['gallery-dl', 'direct'].includes(it.engine) || !Array.isArray(it._files) || !it._files.length) return;
       const counts = new Map();   // dir -> 图片数
       for (const f of it._files) {
         if (!CBZ_IMG_RE.test(f)) continue;
@@ -576,10 +580,10 @@ class DownloadQueue {
   }
 
   // 直连引擎：directprobe 隐藏窗口现取 CDN 直链（带签名/时效，每次运行必须现取）→ Node 流式下载。
-  // 无子进程：看门狗/磁盘巡检用 destroy 请求代替 killTree；取消走 cancel 里的 _directReq 分支
+  // 无子进程：看门狗/磁盘巡检用 destroy 请求代替 killTree；取消走 cancel 里的 _directReq 分支。
+  // #32 免嗅探直落：任务带 _directPayload（受控浏览器/一键归档截获的带签名直链）时跳过探测，
+  // 耗时从 20-30 秒降为 0 秒；支持视频单文件与图文多图两种落盘形态
   runDirect(it, done, seq) {
-    const http = require('http');
-    const https = require('https');
     const electron = require('electron');
     const dp = require('./directprobe');
     it._lastOutput = Date.now();
@@ -609,75 +613,152 @@ class DownloadQueue {
       done(strategy.isBreakered(it.url) ? 'held' : 'error', { error: String(msg).slice(0, 300), level: st.level });
     };
 
+    // 免嗅探直落：载荷里已有截获直链/图组，直接进入下载（载荷时效签名是现取的，绝不复用旧值）
+    const p = it._directPayload;
+    if (p && (p.directUrl || (Array.isArray(p.directUrls) && p.directUrls.length))) {
+      const r = {
+        ok: true,
+        site: p.site || dp.siteOf(it.url),
+        kind: p.kind === 'images' ? 'images' : 'video',
+        url: p.directUrl || (Array.isArray(p.directUrls) ? p.directUrls[0] : null),
+        urls: Array.isArray(p.directUrls) ? p.directUrls : null,
+        title: p.title || it.title || null,
+        uploader: p.uploader || null,
+        vid: p.vid || null,
+        headers: p.headers || {},
+      };
+      return this._runDirectDownload(it, done, seq, r, dp, fail, clearDiskTimer);
+    }
+
     dp.probe(it.url, { electron }).then(r => {
       if (seq !== it._runSeq) return;   // 旧 run 的探测晚到，丢弃
-      if (r.error) return fail(r.error);
-      if (/\.m3u8/i.test(r.url)) return fail('仅探测到分段流(m3u8)，暂不支持自动下载：请在页面内直接观看或稍后重试');
-      const site = /douyin\.com/i.test(it.url) ? 'douyin'
-        : /kuaishou\.com|chenzhongtech/i.test(it.url) ? 'kuaishou' : 'other';
-      // 视频 id：URL 里能抓就抓（媒体库溯源用），抓不到用任务 id 兑底
-      const vm = it.url.match(/\/video\/(\d+)/) || it.url.match(/short-video\/([\w-]+)/);
-      const vid = vm ? vm[1] : it.id;
-      const dir = path.join(OUTDIR, site);
-      fs.mkdirSync(dir, { recursive: true });
-      const fp = path.join(dir, dp.sanitizeName(r.title) + ' [' + vid + '].mp4');
-      it.title = r.title || it.title;   // 探测拿到真实标题后回填任务卡
-
-      // 下载请求：跟随重定向（CDN 直链常 302），移动 UA + 页面 Referer 与探测窗口对齐
-      const UA = 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1';
-      const doReq = (u, redirects) => {
-        if (redirects > 5) return fail('CDN 重定向次数过多');
-        const mod = u.startsWith('https') ? https : http;
-        const req = mod.get(u, {
-          headers: { 'User-Agent': UA, 'Referer': it.url },
-        }, res => {
-          if (seq !== it._runSeq) { res.resume(); return; }
-          if ([301, 302, 303, 307, 308].includes(res.statusCode) && res.headers.location) {
-            res.resume();
-            return doReq(new URL(u, res.headers.location).href, redirects + 1);
-          }
-          if (res.statusCode !== 200) { res.resume(); return fail('CDN 返回 HTTP ' + res.statusCode + '（直链可能已过期，重试会现取新链）'); }
-          const total = parseInt(res.headers['content-length'] || '0', 10) || 0;
-          let got = 0;
-          const out = fs.createWriteStream(fp);
-          out.on('error', e => { req.destroy(); fail('写入文件失败: ' + e.message); });
-          res.on('data', c => {
-            if (seq !== it._runSeq) { req.destroy(); return; }
-            got += c.length;
-            it._lastOutput = Date.now();   // 看门狗：收到数据 = 活着
-            if (total) it.progress = Math.min(99, Math.floor(got / total * 100));
-            // 下载限速：每秒配额用完后暂停数据流，1 秒后恢复（1s 粒度对限速足够，不追求平滑）
-            if (RATE_LIMIT > 0) {
-              it._rateBytes = (it._rateBytes || 0) + c.length;
-              if (it._rateBytes >= RATE_LIMIT && !it._ratePaused) {
-                it._ratePaused = true;
-                res.pause();
-                setTimeout(() => {
-                  it._rateBytes = 0; it._ratePaused = false;
-                  if (seq === it._runSeq && it.status === 'downloading') { try { res.resume(); } catch (e) {} }
-                }, 1000);
-              }
-            }
-            this.pushThrottled();
-          });
-          res.on('error', e => fail('网络中断: ' + e.message));
-          res.pipe(out);
-          out.on('finish', () => {
-            if (seq !== it._runSeq) return;
-            clearDiskTimer();
-            it._directReq = null;
-            if (!it._wasActive || it.status === 'canceled') return;
-            if (!it._files.includes(fp)) it._files.push(fp);
-            strategy.reportSuccess(it.url);
-            done('done', { progress: 100, filePath: fp, fileCount: 1 });
-          });
-        });
-        req.on('error', e => fail('网络请求失败: ' + e.message));
-        req.setTimeout(20000, () => { req.destroy(new Error('CDN 连接超时')); });
-        it._directReq = req;
-      };
-      doReq(r.url, 0);
+      if (!r || r.ok === false || r.error) return fail((r && r.error) || '探测失败');
+      if (r.kind === 'video' && r.url && /\.m3u8/i.test(r.url)) return fail('仅探测到分段流(m3u8)，暂不支持自动下载：请在页面内直接观看或稍后重试');
+      this._runDirectDownload(it, done, seq, r, dp, fail, clearDiskTimer);
     }).catch(e => fail(e && e.message || e));
+  }
+
+  // 直连下载公共段：站点归名 / vid / 目录拼装，按 kind 分流到单文件流式或图组批量下载
+  _runDirectDownload(it, done, seq, r, dp, fail, clearDiskTimer) {
+    const site = r.site || dp.siteOf(it.url) || 'other';
+    // 内容 id：URL 里能抓就抓（媒体库溯源用），抓不到用任务 id 兜底
+    const vid = r.vid || dp.vidOf(it.url) || it.id;
+    const title = r.title || vid;
+    it.title = title;                       // 探测/载荷拿到真实标题后回填任务卡
+    if (r.uploader) it.uploader = r.uploader;
+    if (site) it._site = site;              // 站点名（任务卡平台徽标展示用，随快照外发）
+    const dest = dp.directOutPath({ outDir: OUTDIR, site, uploader: r.uploader, title, vid, kind: r.kind });
+    // 请求头：默认与探测窗口同环境（CDN 防盗链对齐），载荷/探测结果显式带的 headers 优先
+    const headers = Object.assign({
+      'User-Agent': dp.UA_MOBILE,
+      'Referer': site === 'xiaohongshu' ? 'https://www.xiaohongshu.com/'
+        : site === 'weixin_channels' ? 'https://channels.weixin.qq.com/'
+        : it.url,
+    }, r.headers || {});
+
+    if (r.kind === 'images' && Array.isArray(r.urls) && r.urls.length) {
+      return this._downloadDirectImages(r.urls, dest, headers, it, done, seq, fail, clearDiskTimer);
+    }
+    if (!r.url) return fail('未取得媒体直链（载荷为空或探测未截获到流）');
+    this._downloadDirectStream(r.url, dest, headers, it, seq, {
+      onOk: () => {
+        clearDiskTimer();
+        it._directReq = null;
+        if (!it._wasActive || it.status === 'canceled' || seq !== it._runSeq) return;
+        if (!it._files.includes(dest)) it._files.push(dest);
+        strategy.reportSuccess(it.url);
+        done('done', { progress: 100, filePath: dest, fileCount: 1 });
+      },
+      onErr: (msg) => fail(msg),
+    });
+  }
+
+  // 单文件流式下载：跟随重定向（CDN 直链常 302）、进度回填、限速节流、看门狗喂活。
+  // cbs.onOk/onErr 由调用方决定成败语义（视频=整体成败；图组=单张成败只计进度）。
+  // onOk/onErr 均为一次性守卫：res 与 req 的 error 可能双触发（连接中断时双方都报错），
+  // 不守卫会导致图组路径 next(i+1) 双跑（同一 fp 双写流有损坏风险）与 badN 虚计
+  _downloadDirectStream(url, destPath, headers, it, seq, cbs) {
+    const http = require('http');
+    const https = require('https');
+    let settled = false;   // 本条流的成败单次触发守卫
+    const okOnce = () => { if (settled) return; settled = true; cbs.onOk(); };
+    const errOnce = (msg) => { if (settled) return; settled = true; cbs.onErr(msg); };
+    const doReq = (u, redirects) => {
+      if (redirects > 5) return errOnce('CDN 重定向次数过多');
+      const mod = u.startsWith('https') ? https : http;
+      const req = mod.get(u, { headers }, res => {
+        if (seq !== it._runSeq) { res.resume(); return; }
+        if ([301, 302, 303, 307, 308].includes(res.statusCode) && res.headers.location) {
+          res.resume();
+          return doReq(new URL(u, res.headers.location).href, redirects + 1);
+        }
+        if (res.statusCode !== 200) { res.resume(); return errOnce('CDN 返回 HTTP ' + res.statusCode + '（直链可能已过期，重试会现取新链）'); }
+        const total = parseInt(res.headers['content-length'] || '0', 10) || 0;
+        let got = 0;
+        const out = fs.createWriteStream(destPath);
+        out.on('error', e => { req.destroy(); errOnce('写入文件失败: ' + e.message); });
+        res.on('data', c => {
+          if (seq !== it._runSeq) { req.destroy(); return; }
+          got += c.length;
+          it._lastOutput = Date.now();   // 看门狗：收到数据 = 活着
+          if (total) it.progress = Math.min(99, Math.floor(got / total * 100));
+          // 下载限速：每秒配额用完后暂停数据流，1 秒后恢复（1s 粒度对限速足够，不追求平滑）
+          if (RATE_LIMIT > 0) {
+            it._rateBytes = (it._rateBytes || 0) + c.length;
+            if (it._rateBytes >= RATE_LIMIT && !it._ratePaused) {
+              it._ratePaused = true;
+              res.pause();
+              setTimeout(() => {
+                it._rateBytes = 0; it._ratePaused = false;
+                if (seq === it._runSeq && it.status === 'downloading') { try { res.resume(); } catch (e) {} }
+              }, 1000);
+            }
+          }
+          this.pushThrottled();
+        });
+        res.on('error', e => errOnce('网络中断: ' + e.message));
+        res.pipe(out);
+        out.on('finish', () => { if (seq === it._runSeq) okOnce(); });
+      });
+      req.on('error', e => errOnce('网络请求失败: ' + e.message));
+      req.setTimeout(20000, () => { req.destroy(new Error('CDN 连接超时')); });
+      it._directReq = req;
+    };
+    doReq(url, 0);
+  }
+
+  // 图文图组串行下载：逐张写入 {destDir}/{01}.jpg…，全失败才算任务失败；
+  // 部分成功即可入档（fileCount 如实记录）。完成由 AUTO_CBZ 联动 _maybeCbz 打包漫画册
+  _downloadDirectImages(urls, destDir, headers, it, done, seq, fail, clearDiskTimer) {
+    try { fs.mkdirSync(destDir, { recursive: true }); } catch (e) { return fail('创建图组目录失败: ' + e.message); }
+    const total = urls.length;
+    let okN = 0, badN = 0;
+    const next = (i) => {
+      if (seq !== it._runSeq || it.status === 'canceled') return;
+      if (i >= total) {
+        clearDiskTimer();
+        it._directReq = null;
+        if (!okN) return fail('全部图片下载失败（' + badN + '/' + total + '，防盗链或直链过期——重试会重新提取）');
+        if (!it._files.includes(destDir)) it._files.push(destDir);
+        strategy.reportSuccess(it.url);
+        done('done', { progress: 100, filePath: destDir, fileCount: okN });
+        return;
+      }
+      const u = urls[i];
+      const ext = (String(u).match(/\.(jpe?g|png|webp|gif|bmp|avif)(\?|$)/i) || [])[1] || 'jpg';
+      const fp = path.join(destDir, String(i + 1).padStart(2, '0') + '.' + ext.toLowerCase());
+      this._downloadDirectStream(u, fp, headers, it, seq, {
+        onOk: () => {
+          if (!it._files.includes(fp)) it._files.push(fp);
+          okN++; it.fileCount = okN;
+          it.progress = Math.min(99, Math.floor(okN / total * 100));
+          this.pushThrottled();
+          next(i + 1);
+        },
+        onErr: () => { badN++; next(i + 1); },   // 单张失败不致命，继续下一张
+      });
+    };
+    next(0);
   }
 
   // 文章引擎：lib/article.js 流水线进程内执行（隐藏窗口抓网页文章 → 4 件套归档）。

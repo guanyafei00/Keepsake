@@ -90,6 +90,17 @@ contextBridge.exposeInMainWorld('keepsake', {
   openLogin: () => ipcRenderer.invoke('login:open'),
   loginState: () => ipcRenderer.invoke('login:state'),
   logout: () => ipcRenderer.invoke('login:logout'),
+  // ===== #32 本土平台受控浏览器（视频号 / 小红书）=====
+  openChannels: () => ipcRenderer.invoke('channels:open'),            // 打开视频号持久化受控窗口
+  channelsState: () => ipcRenderer.invoke('channels:state'),
+  clearChannelsSession: () => ipcRenderer.invoke('channels:clearSession'),
+  openXhs: (url) => ipcRenderer.invoke('xhs:open', { url }),          // 打开小红书持久化受控窗口（可带初始页面）
+  xhsState: () => ipcRenderer.invoke('xhs:state'),
+  clearXhsSession: () => ipcRenderer.invoke('xhs:clearSession'),
+  clearNativeSession: (site) => ipcRenderer.invoke('nativeSession:clear', { site }),  // 统一会话清理入口
+  addDirect: (payload) => ipcRenderer.invoke('queue:addDirect', { payload }),         // 归档载荷免嗅探直落入队
+  onChannelsEvent: (cb) => ipcRenderer.on('channels:event', (e, d) => cb(d)),
+  onXhsEvent: (cb) => ipcRenderer.on('xhs:event', (e, d) => cb(d)),
   onLibraryRefresh: (cb) => ipcRenderer.on('library:changed', () => cb()),
   onQueue: (cb) => ipcRenderer.on('queue:snapshot', (e, snap) => cb(snap)),
   onSubs: (cb) => ipcRenderer.on('subs:changed', (e, subs) => cb(subs)),

@@ -25,11 +25,16 @@ const GALLERY_PATTERNS = [
 ];
 
 // 直连探测站：yt-dlp 已无法解析（抖音 a_bogus JSVMP 签名 / 快手 GraphQL+cookie），
-// 走隐藏窗口让页面自己过反爬，webRequest 截获 CDN 直链（directprobe.js）
+// 走隐藏窗口让页面自己过反爬，webRequest 截获 CDN 直链（directprobe.js）。
+// 小红书（#32）：笔记页（explore / discovery/item）与分享短链（xhslink.com）交由 direct 引擎
+// 的隐藏窗口读取 __INITIAL_STATE__ 提取无水印图组/MP4；主站其他页面（用户主页等）不放行，
+// 避免误把整站当单篇内容探测
 const DIRECT_PATTERNS = [
   /(?:^|\.)douyin\.com\//i,          // 抖音网页/分享页（含 v.douyin.com 短链）
   /(?:^|\.)kuaishou\.com\//i,        // 快手
   /chenzhongtech\.com/i,             // 快手老域名
+  /(?:^|\.)xiaohongshu\.com\/(?:explore|discovery\/item)\//i,   // 小红书笔记页（图文/视频笔记）
+  /(?:^|\.|\/\/)xhslink\.com\//i,    // 小红书分享短链（裸域 xhslink.com/...，协议后无子域需容许 // 前缀）
 ];
 
 const VIDEO_HINTS = [
@@ -79,9 +84,11 @@ function classify(url) {
   // 必须在 space.bilibili.com 通用规则之前：gallery-dl 不认合集页，会整单失败
   if (/space\.bilibili\.com\/\d+\/lists\/\d+/i.test(u) ||
       /space\.bilibili\.com\/\d+\/channel\/(?:collectiondetail|seriesdetail)\?/i.test(u)) return { engine: 'yt-dlp' };
-  // 微信视频号：无任何开放提取器（需微信客户端私有协议），诚实拒绝并给替代路径
+  // 微信视频号：无任何开放提取器（需微信客户端私有协议），粘贴链接诚实拒绝并引导到受控浏览器：
+  // 主窗口点【📹 视频号】打开 persist:channels 持久会话窗口，官方页面正常浏览，
+  // 播放后点窗口内【📥 归档】即可截获媒体流入队（embed_browser.js）
   if (/channels\.weixin\.qq\.com/i.test(u))
-    return { engine: 'invalid', reason: '微信视频号暂不支持：需微信客户端私有协议，建议在手机端保存视频后手动放入下载目录' };
+    return { engine: 'invalid', reason: '微信视频号请在界面中点击【视频号】通过受控浏览器浏览并一键归档' };
   if (DIRECT_PATTERNS.some(re => re.test(u))) return { engine: 'direct' };
   if (GALLERY_PATTERNS.some(re => re.test(u))) return { engine: 'gallery-dl' };
   if (VIDEO_HINTS.some(re => re.test(u))) return { engine: 'yt-dlp' };

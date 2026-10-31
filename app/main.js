@@ -31,6 +31,7 @@ if (process.env.KEEPSAKE_CAPTURE) {
 const identify = require('./lib/identify');
 const { ClipWatcher } = require('./lib/clipwatch');
 const { DownloadQueue, configure, setBiliLine } = require('./lib/queue');
+const { EmbedBrowserManager } = require('./lib/embed_browser');   // #32 视频号/小红书受控内嵌浏览器
 const strategy = require('./lib/strategy');
 const observability = require('./lib/observability');
 const { exportGone } = require('./lib/csv');
@@ -101,6 +102,7 @@ function binDir() {
 
 let win = null;
 let queue = null;
+let embed = null;   // #32 受控内嵌浏览器管理器（whenReady 里创建，before-quit 关窗）
 let tray = null;
 let quitting = false;   // 托盘模式：关窗≠退出，仅托盘菜单「退出」置位
 let minimizeNotices = 0;   // 关窗到托盘的提示只弹前 2 次
@@ -545,6 +547,21 @@ app.whenReady().then(() => {
   // toast 提醒用户先退出浏览器或换 cookies.txt，别等下载失败/静默游客态才发
   queue.onWarn = msg => toastMsg(msg);
 
+  // #32 受控内嵌浏览器：归档载荷免嗅探直落入队（跳过 20-30s 探针）；窗口事件转 toast
+  embed = new EmbedBrowserManager();
+  embed.configure({
+    onPayload: p => {
+      const url = p.directUrl || (Array.isArray(p.directUrls) && p.directUrls[0]) || '';
+      if (!url) return;
+      queue.add(url, { engine: 'direct', title: p.title || url, uploader: p.uploader || null, _directPayload: p });
+    },
+    onEvent: ev => {
+      if (!ev || !ev.msg) return;
+      toastMsg(ev.msg);
+      if (win && !win.isDestroyed()) win.webContents.send((ev.siteKey === 'xhs' ? 'xhs:event' : 'channels:event'), ev);
+    },
+  });
+
   // ★★#4 崩溃恢复（机制借鉴 Parabolic RecoverableDownload，clean-room）：tasks.json 每次 push 都
   // 落盘（1s 防抖），崩溃/强关时「downloading」状态原样留在盘上——与正常退出（before-quit 先 cancel
   // 再 flush，盘上全是终态）天然区分。这里把中断任务自动重排回队 + 提示用户
@@ -960,6 +977,29 @@ app.whenReady().then(() => {
   ipcMain.handle('queue:remove', (e, { id }) => queue.remove(id));
   ipcMain.handle('queue:clearFinished', () => queue.clearFinished());
   ipcMain.handle('queue:snapshot', () => queue.snapshot());
+
+  // ===== #32 本土平台受控浏览器（视频号 / 小红书）=====
+  ipcMain.handle('channels:open', () => embed.open('channels'));
+  ipcMain.handle('channels:state', () => embed.state('channels'));
+  ipcMain.handle('channels:clearSession', () => embed.clearSession('channels').then(ok => ({ ok })));
+  ipcMain.handle('xhs:open', (e, { url } = {}) => embed.open('xhs', url));
+  ipcMain.handle('xhs:state', () => embed.state('xhs'));
+  ipcMain.handle('xhs:clearSession', () => embed.clearSession('xhs').then(ok => ({ ok })));
+  // 统一会话清理入口：{ site: 'channels' | 'xhs' }
+  ipcMain.handle('nativeSession:clear', (e, { site } = {}) => {
+    const key = site === 'xhs' ? 'xhs' : site === 'channels' ? 'channels' : null;
+    if (!key) return Promise.resolve({ ok: false, reason: '未知会话: ' + site });
+    return embed.clearSession(key).then(ok => ({ ok, reason: ok ? null : '清理失败（会话可能被占用）' }));
+  });
+  // 受控窗口浮条一键归档：载荷直接入队（跳过二次嗅探）
+  ipcMain.handle('queue:addDirect', (e, { payload } = {}) => {
+    const p = payload || {};
+    const url = p.directUrl || (Array.isArray(p.directUrls) && p.directUrls[0]) || '';
+    if (!url) return { ok: false, reason: 'payload 缺少媒体直链' };
+    const item = queue.add(url, { engine: 'direct', title: p.title || url, uploader: p.uploader || null, _directPayload: p });
+    return { ok: !!item, id: item && item.id };
+  });
+
   ipcMain.handle('app:outDir', () => settings.get().outDir);
 
   // ===== 设置 =====
@@ -1970,6 +2010,7 @@ app.on('before-quit', () => {
   try {
     if (queue) queue.killRunning();
   } catch (e) {}
+  try { if (embed) embed.closeAll(); } catch (e) {}   // #32 退出前关受控窗口与轮询（persist 会话保留在磁盘）
   try { killEngineSubprocesses(); } catch (e) {}   // 双保险：清掉残留的引擎子进程树
   try { store.flushNow(); } catch (e) {}   // 防抖中的任务状态强制落盘
 });

@@ -166,6 +166,8 @@
   <div class="nav" data-page="rss" onclick="switchPage('rss')">📡 订阅 <span class="cnt" id="s-cnt">0</span></div>
   <div class="nav" data-page="lib" onclick="switchPage('lib')">📚 媒体库 <span class="cnt" id="l-cnt">0</span></div>
   <div class="nav" data-page="strategy" onclick="switchPage('strategy')">🛡 风控策略</div>
+  <div class="nav" onclick="openChannelsWin()" title="打开微信视频号受控浏览器：官方页面正常登录浏览，播放后点窗口内【📥 归档】一键保存">📹 视频号</div>
+  <div class="nav" onclick="openXhsWin()" title="打开小红书受控浏览器：浏览笔记页后点窗口内【📥 归档】一键保存图文/视频">📕 小红书</div>
   <div class="nav" data-page="settings" onclick="switchPage('settings')">⚙ 设置</div>
   <div class="side-foot">
     <div id="loginBadge" class="act" onclick="openLogin()">🔑 登录 B 站</div>
@@ -298,6 +300,26 @@
       <div class="note" style="margin:6px 0 0">同时回溯的订阅数（新订阅自动全量 / 手动 ⤓ 回溯时生效）；调大可加快大量订阅的清单拉取，但过重可能触发站点风控。</div>
       <div class="note" style="margin:6px 0 0">B站 视频可手动指定 CDN 线路（部分网络环境下换线路能改善连接质量）；留「自动」即交给引擎默认。</div>
       <div class="note" style="margin:6px 0 0">调小并发立即生效；调大立即补位启动排队任务 · 限速对视频下载（yt-dlp / 直连引擎）生效；图文站（gallery-dl）走请求间隔保护，不限速</div>
+    </div>
+
+    <div class="card">
+      <h3>🌏 本土平台受控浏览 <span class="rec">视频号 · 小红书</span></h3>
+      <div class="desc">在本地受控浏览器窗口里正常浏览官方页面（登录态仅存本机，长期免重登）。刷到想保存的内容后，点窗口左下角的 <b>📥 归档当前内容</b> 按钮即可加入下载队列——视频号需先播放，小红书图文/视频笔记均可。任务会按「站点 / 作者」归档到下载目录。</div>
+      <div class="row">
+        <label>受控浏览器</label>
+        <div style="flex:1;display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn-mini" onclick="openChannelsWin()">📹 打开视频号</button>
+          <button class="btn-mini" onclick="openXhsWin()">📕 打开小红书</button>
+        </div>
+      </div>
+      <div class="row" style="margin-bottom:0">
+        <label>登录会话</label>
+        <div style="flex:1;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+          <button class="btn-mini" onclick="clearNativeSession('channels')">清理视频号会话</button>
+          <button class="btn-mini" onclick="clearNativeSession('xhs')">清理小红书会话</button>
+          <span class="note">换号/登出时使用；清理后需重新登录</span>
+        </div>
+      </div>
     </div>
 
     <div class="card">
@@ -638,6 +660,15 @@ async function addUrls() {
 
 const engIcon = e => e === 'yt-dlp' ? '🎥' : e === 'gallery-dl' ? '🖼️' : e === 'direct' ? '⚡' : e === 'article' ? '📄' : e === 'feed' ? '📡' : '❓';
 const engName = e => e === 'yt-dlp' ? '视频' : e === 'gallery-dl' ? '图文' : e === 'direct' ? '直连' : e === 'article' ? '文章' : e === 'feed' ? 'RSS 订阅' : '识别中';
+// #32 本土平台徽标：从任务链接/落盘路径推断所属站点（卡片 meta 行展示）
+const siteBadgeOf = t => {
+  const u = String(t.url || ''); const p = String(t.filePath || '');
+  if (/douyin\.com|iesdouyin/i.test(u) || /[\\/]douyin[\\/]/i.test(p)) return '抖音';
+  if (/xiaohongshu\.com|xhslink\.com/i.test(u) || /[\\/]xiaohongshu[\\/]/i.test(p)) return '小红书';
+  if (/channels\.weixin\.qq\.com/i.test(u) || /[\\/]weixin_channels[\\/]/i.test(p)) return '视频号';
+  if (/kuaishou\.com|chenzhongtech/i.test(u) || /[\\/]kuaishou[\\/]/i.test(p)) return '快手';
+  return '';
+};
 const stName = { queued:'排队中', downloading:'下载中', held:'风控冷却', done:'完成', error:'失败', canceled:'已取消' };
 const heldMin = ms => Math.max(1, Math.ceil(ms/60000));
 
@@ -678,12 +709,13 @@ function render() {
     const openPath = t.filePath || t._destPath;   // gallery-dl 首批落盘文件 / yt-dlp Destination 行——下载途中就能打开所在位置
     if (openPath) _filePathMap.set(t.id, openPath);
     const heldNote = t.status === 'held' ? `<span style="color:var(--yellow)">⛔ 站点风控冷却，约 ${heldMin(t.heldRemainMs||0)} 分钟后自动重试</span>` : '';
+    const badge = siteBadgeOf(t);
     return `
     <div class="task">
       <div class="t-thumb">${engIcon(t.engine)}<span class="eng">${engName(t.engine)}</span></div>
       <div class="t-info">
         <div class="name">${esc(prettyTitle(t))}</div>
-        <div class="meta"><span>${stName[t.status]} ${t.progress ? '· ' + t.progress.toFixed(0) + '%' : ''}</span>${t.fileCount ? `<span>已收 ${t.fileCount} 个文件</span>` : ''}${t._audio ? '<span>🎧 音频</span>' : ''}${t._subs ? '<span>⬇ 字幕</span>' : ''}${t._transcribe ? `<span>📝 ${asrStatus(t) || '待转写'}</span>` : ''}${heldNote}</div>
+        <div class="meta">${badge ? `<span class="st flat">${badge}</span>` : ''}<span>${stName[t.status]} ${t.progress ? '· ' + t.progress.toFixed(0) + '%' : ''}</span>${t.fileCount ? `<span>已收 ${t.fileCount} 个文件</span>` : ''}${t._audio ? '<span>🎧 音频</span>' : ''}${t._subs ? '<span>⬇ 字幕</span>' : ''}${t._transcribe ? `<span>📝 ${asrStatus(t) || '待转写'}</span>` : ''}${heldNote}</div>
         <div class="bar"><i style="width:${t.status==='held'||t.status==='queued'?2:t.progress}%"></i></div>
         ${t._transcribe && asrStates[t.filePath] ? (asrStates[t.filePath].state === 'running' && asrStates[t.filePath].pct != null ? `<div class="bar"><i style="width:${asrStates[t.filePath].pct}%"></i></div>` : (asrStates[t.filePath].state === 'preparing' ? `<div class="bar indet"><i></i></div>` : '')) : ''}
       </div>
@@ -696,12 +728,13 @@ function render() {
     if (openPath) _filePathMap.set(t.id, openPath);   // 路径经 map 查表，不走 onclick 内联（反斜杠转义地狱）
     const cbzPath = t.cbz || '';
     if (cbzPath) _filePathMap.set(t.id + '|cbz', cbzPath);
+    const badge = siteBadgeOf(t);
     return `
     <div class="task">
       <div class="t-thumb">${engIcon(t.engine)}<span class="eng">${engName(t.engine)}</span></div>
       <div class="t-info">
         <div class="name">${esc(prettyTitle(t))}</div>
-        <div class="meta" title="${t.error ? esc(t.error) : ''}">${t.error ? esc(translateError(t.error)) : (t.filePath ? esc(t.filePath) : '')}</div>
+        <div class="meta" title="${t.error ? esc(t.error) : ''}">${badge ? `<span class="st flat">${badge}</span>` : ''}${t.error ? esc(translateError(t.error)) : (t.filePath ? esc(t.filePath) : '')}</div>
       </div>
       ${cbzPath ? `<div class="x" onclick="openFileFolderById('${t.id}|cbz')" title="打开漫画册所在文件夹">📦</div>` : ''}
       ${openPath ? `<div class="x" onclick="openFileFolderById('${t.id}')" title="打开文件位置">📂</div>` : ''}
@@ -786,6 +819,30 @@ async function clearFinishedTasks() {
 }
 
 function esc(s) { return String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+
+// ===== #32 本土平台受控浏览器入口 =====
+async function openChannelsWin() {
+  try {
+    const r = await window.keepsake.openChannels();
+    if (r && r.ok) toast(r.reused ? '视频号受控浏览器已唤起（登录态已保留）' : '视频号受控浏览器已打开：首次使用请在窗口里扫码登录，播放后点【📥 归档】');
+    else toast((r && r.reason) || '打开失败');
+  } catch (e) { toast('打开失败：' + (e && e.message || '未知错误')); }
+}
+async function openXhsWin() {
+  try {
+    const r = await window.keepsake.openXhs();
+    if (r && r.ok) toast(r.reused ? '小红书受控浏览器已唤起（登录态已保留）' : '小红书受控浏览器已打开：打开笔记页后点【📥 归档】即可保存');
+    else toast((r && r.reason) || '打开失败');
+  } catch (e) { toast('打开失败：' + (e && e.message || '未知错误')); }
+}
+async function clearNativeSession(site) {
+  const name = site === 'xhs' ? '小红书' : '视频号';
+  if (!confirm('清理 ' + name + ' 受控浏览器的登录会话？清理后需要重新登录。')) return;
+  try {
+    const r = await window.keepsake.clearNativeSession(site);
+    toast(r && r.ok ? name + ' 登录会话已清理' : (r && r.reason) || '清理失败');
+  } catch (e) { toast('清理失败：' + (e && e.message || '未知错误')); }
+}
 
 // ===== 转写状态 =====
 const asrStates = {};
