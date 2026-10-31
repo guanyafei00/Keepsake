@@ -35,6 +35,7 @@ contextBridge.exposeInMainWorld('keepsake', {
   settingsImport: () => ipcRenderer.invoke('settings:import'),
   settingsSetMinFree: (mb) => ipcRenderer.invoke('settings:setMinFree', { mb }),
   settingsSetQueue: (max, rate) => ipcRenderer.invoke('settings:setQueue', { max, rate }),
+  settingsSetBackfillParallel: (n) => ipcRenderer.invoke('settings:setBackfillParallel', { n }),
   libTrash: (filePath) => ipcRenderer.invoke('lib:trash', { filePath }),
   libraryScan: () => ipcRenderer.invoke('library:scan'),
   articleOpen: (filePath) => ipcRenderer.invoke('article:open', { filePath }),     // 文章引擎：浏览器打开本地存档
@@ -71,6 +72,7 @@ contextBridge.exposeInMainWorld('keepsake', {
   asrModels: () => ipcRenderer.invoke('asr:models'),
   asrSetMirror: (id) => ipcRenderer.invoke('asr:setMirror', { id }),
   asrDownload: (id) => ipcRenderer.invoke('asr:download', { id }),
+  asrCancelDownload: (id) => ipcRenderer.invoke('asr:cancelDownload', { id }),
   asrSetModel: (id) => ipcRenderer.invoke('asr:setModel', { id }),
   asrDeleteModel: (id) => ipcRenderer.invoke('asr:deleteModel', { id }),
   asrTranscribe: (filePath) => ipcRenderer.invoke('asr:transcribe', { filePath }),

@@ -283,6 +283,18 @@
           <option value="huawei">华为云</option>
         </select>
       </div>
+      <div class="row" style="margin:12px 0 0">
+        <label>回溯并发数</label>
+        <select id="backfillParallelSel" onchange="saveBackfillParallel()" style="max-width:220px;padding:8px 11px;border:1px solid var(--line);border-radius:var(--r-md);font:inherit;background:var(--panel2);color:var(--txt)">
+          <option value="1">1 个</option>
+          <option value="2">2 个</option>
+          <option value="3">3 个（默认）</option>
+          <option value="4">4 个</option>
+          <option value="5">5 个</option>
+          <option value="6">6 个（最激进）</option>
+        </select>
+      </div>
+      <div class="note" style="margin:6px 0 0">同时回溯的订阅数（新订阅自动全量 / 手动 ⤓ 回溯时生效）；调大可加快大量订阅的清单拉取，但过重可能触发站点风控。</div>
       <div class="note" style="margin:6px 0 0">B站 视频可手动指定 CDN 线路（部分网络环境下换线路能改善连接质量）；留「自动」即交给引擎默认。</div>
       <div class="note" style="margin:6px 0 0">调小并发立即生效；调大立即补位启动排队任务 · 限速对视频下载（yt-dlp / 直连引擎）生效；图文站（gallery-dl）走请求间隔保护，不限速</div>
     </div>
@@ -829,7 +841,7 @@ async function loadAsr() {
       ${isActive ? '<span class="dl-state ok">使用中</span>'
         : m.downloaded ? `<button type="button" class="btn-mini" style="color:var(--acc2)" onclick="setActiveModel('${m.id}')">设为默认</button>
         <button type="button" class="btn-mini" style="color:var(--danger,#e5484d)" onclick="delModel('${m.id}','${esc(m.label).replace(/'/g, '&#39;')}')" title="删除模型文件，释放磁盘空间">🗑 删除</button>`
-        : prog ? '' : `<button type="button" class="btn-mini" style="color:var(--acc2)" onclick="dlModel('${m.id}')">⬇ 下载</button>`}
+        : prog ? `<button type="button" class="btn-mini" style="color:var(--danger,#e5484d)" onclick="cancelDlModel('${m.id}')">✕ 取消</button>` : `<button type="button" class="btn-mini" style="color:var(--acc2)" onclick="dlModel('${m.id}')">⬇ 下载</button>`}
     </div>`;
   }).join('');
 }
@@ -854,7 +866,14 @@ async function dlModel(id) {
     window._asrProg[id] = 100;
     toast('模型下载完成 ✓');
     loadAsr();
-  } catch (e) { toast('下载失败：' + e.message); loadAsr(); }
+  } catch (e) { if (e.message !== '已取消') toast('下载失败：' + e.message); loadAsr(); }
+}
+async function cancelDlModel(id) {
+  const r = await window.keepsake.asrCancelDownload(id);
+  if (!r.ok) return;   // 未在下载中（已完成 / 未开始 / 已取消）→ 无需处理
+  if (window._asrProg) delete window._asrProg[id];
+  toast('已取消模型下载');
+  loadAsr();
 }
 window.keepsake.onAsrDownloadProgress(d => {
   window._asrProg = window._asrProg || {};
@@ -905,6 +924,7 @@ async function loadSettings() {
   $('rateLimitInput').value = s.rateLimitMB || 0;
   $('cookieBrowserSel').value = s.cookieBrowser || '';
   $('biliLineSel').value = s.biliLine || '';
+  $('backfillParallelSel').value = String(Math.min(6, Math.max(1, s.backfillParallel || 3)));
   $('autoCbzChk').checked = !!s.autoCbz;
   $('clipChk').checked = !!s.clipboardWatch;
   loadAiConfig();
@@ -922,6 +942,12 @@ async function saveQueue() {
   const r = await window.keepsake.settingsSetQueue(Number($('maxConcurrentSel').value) || 2, Number($('rateLimitInput').value) || 0);
   if (!r.ok) return toast('保存失败');
   toast(`已保存：同时 ${r.maxConcurrent} 个任务${r.rateLimitMB ? ' · 限速 ' + r.rateLimitMB + ' MB/s' : ' · 不限速'} ✓`);
+}
+// #30 回溯并发数（设置页可调，持久化；范围 1-6）
+async function saveBackfillParallel() {
+  const r = await window.keepsake.settingsSetBackfillParallel(Number($('backfillParallelSel').value) || 3);
+  if (!r.ok) return toast('保存失败');
+  toast(`已保存：回溯并发 ${r.backfillParallel} 个 ✓`);
 }
 // 删帖清单导出（CSV，Excel 可直接打开）
 async function exportGone() {

@@ -130,6 +130,16 @@ function createTray() {
   }
 }
 
+// #24 轻量托盘通知（不打断式）：仅当窗口隐藏/最小化（后台运行）时弹系统通知；前台时静默（UI 已实时展示），避免重复打扰
+function notifyTray(title, body) {
+  if (!win || win.isDestroyed()) return;
+  if (win.isVisible() && !win.isMinimized()) return;   // 前台使用中：UI 已展示，不重复弹
+  if (!Notification.isSupported()) return;
+  const n = new Notification({ title, body, silent: false });
+  n.on('click', () => { if (win && !win.isDestroyed()) { win.show(); win.focus(); } });
+  n.show();
+}
+
 function createWindow() {
   const capture = !!process.env.KEEPSAKE_CAPTURE;
   win = new BrowserWindow({
@@ -361,6 +371,7 @@ app.whenReady().then(() => {
   // 转写串行队列：同一时间只跑一个 whisper，避免 CPU 打爆
   let asrChain = Promise.resolve();
   const _asrDownloading = new Set();
+  const _asrCanceling = new Set();   // cancelDownload 关闭旧 stream / 清理 .part 时禁止同 id 重新启动下载
   function enqueueTranscribe(mediaPath, source) {
     asrChain = asrChain.then(() => asr.transcribe(mediaPath, {
       onProgress: pct => { if (win && !win.isDestroyed()) win.webContents.send('asr:progress', { filePath: mediaPath, pct, source }); },
@@ -783,6 +794,14 @@ app.whenReady().then(() => {
     configure({ maxConcurrent: maxN, rateLimitMB: rateN });
     try { queue.tick(); } catch (er) {}   // 调大并发立即补位启动排队任务（调小由 tick 自然收敛）
     return { ok: true, maxConcurrent: maxN, rateLimitMB: rateN };
+  });
+  // 回溯并发数设置（#30：设置页可调，持久化；范围 1-6，默认 3；回溯时实时读取 settings，无需模块级热更新）
+  ipcMain.handle('settings:setBackfillParallel', (e, { n }) => {
+    const parsed = Number(n);
+    const nN = Math.min(6, Math.max(1, Number.isFinite(parsed) ? Math.floor(parsed) : 3));
+    settings.set({ backfillParallel: nN });
+    try { drainBackfills(); } catch (er) {}   // 调大后立刻补位，无需等待其他回溯结束或下载队列变化
+    return { ok: true, backfillParallel: nN };
   });
   // #70① 数据安全包：导出（用户选路径存 JSON）/ 导入（选文件 → 设置覆盖合并 + 订阅按 URL 合并）
   ipcMain.handle('settings:export', async () => {
@@ -1213,6 +1232,9 @@ app.whenReady().then(() => {
   // 串行化队列——定时轮/手动检查/添加订阅触发的首检全部排队执行，不再互相吞掉。
   // 原实现用 _checkingSubs 布尔互斥，冲突时静默 return []：订阅添加触发的首检被吞，基线建立延迟到下个 10 分钟轮
   let _subChain = Promise.resolve([]);
+  // #24 删帖检测通知去重：记录各订阅已通知过的 gone id，避免已删除项每轮检查都重复弹通知
+  const _goneNotified = new Map();   // subId -> Set<goneId>
+  const _goneEverNotified = new Map();   // subId -> Set<goneId>；避免 gone 清空后旧条目再次出现时重复通知
   function checkAllSubs(onlyId = null) {
     const run = _subChain.then(() => doCheckAllSubs(onlyId));
     _subChain = run.then(() => {}, () => []);
@@ -1298,6 +1320,19 @@ app.whenReady().then(() => {
           }
           results.push({ id: sub.id, name: sub.name, ...r });
           log.info('subs', `检查 ${sub.name}: fresh=${r.fresh} gone=${r.gone} total=${r.total}`);
+          // #24 删帖检测命中：与已通知集合比对，仅对「新增」命中弹通知（gone 里的旧条目每轮仍在，不重复骚扰）
+          {
+            const prev = _goneNotified.get(sub.id) || new Set();
+            const cur = new Set(real.gone || []);
+            const ever = _goneEverNotified.get(sub.id) || new Set();
+            const newly = [...cur].filter(id => !prev.has(id) && !ever.has(id));
+            _goneNotified.set(sub.id, cur);   // 每轮替换快照（含清空），让新命中的 id 下一轮可被发现
+            if (newly.length) {
+              for (const id of newly) ever.add(id);
+              _goneEverNotified.set(sub.id, ever);
+              notifyTray('删帖检测命中 · ' + sub.name, `发现 ${newly.length} 条内容已被作者删除（源站已不可见），你的本地存档不受影响，可在订阅卡片查看 / 导出删帖清单。`);
+            }
+          }
         } catch (e) {
           real.failStreak = (real.failStreak || 0) + 1;
           // 失败态显式化：lastCheck 保持旧值不动，另记 lastFailAt/lastError——
@@ -1306,6 +1341,8 @@ app.whenReady().then(() => {
           real.lastError = String(e.message).slice(0, 120);
           if (real.failStreak >= 3) { real.paused = true; subs.save(); }   // 连续 3 轮失败暂停，防风控硬撞（状态落盘）
           log.warn('subs', `检查失败 ${sub.name}: ${real.lastError}`);
+          // #24 轻量托盘通知：首次失败即提示（连续失败不再重复骚扰），让用户知道某订阅为什么没更新
+          if (real.failStreak === 1) notifyTray('订阅检查失败 · ' + sub.name, real.lastError);
           results.push({ id: sub.id, name: sub.name, ok: false, reason: real.lastError });
         }
       }
@@ -1461,7 +1498,8 @@ app.whenReady().then(() => {
   // 下载并发/风控由队列自己管，没道理串行。改为并发 3 个回溯（bilibili 全量翻页 3 路并行是
   // 探测风控与等待时长的平衡点），其余进 FIFO 排队，有回溯结束即补位。
   const _pendingBackfills = [];   // sub id FIFO（去重）
-  const MAX_BACKFILL_PARALLEL = 3;
+  // 回溯并发数（设置页可调，持久化到 settings；默认 3、范围 1-6）
+  const MAX_BACKFILL_PARALLEL = () => { const v = settings.get().backfillParallel; return Number.isInteger(v) && v >= 1 && v <= 6 ? v : 3; };
   let _runningBackfills = 0;
   async function _runBackfillNow(real) {
     if ((real.name || '').startsWith('订阅 ') || real._auto) { try { await subs.refreshName(real.id); } catch (e) {} }   // 回溯标题也别带「订阅 N」占位名/URL 兜底名
@@ -1494,7 +1532,7 @@ app.whenReady().then(() => {
     return { ok: true, added, skipped, total: r.total, media: r.media };
   }
   async function drainBackfills() {
-    while (_pendingBackfills.length && _runningBackfills < MAX_BACKFILL_PARALLEL) {
+    while (_pendingBackfills.length && _runningBackfills < MAX_BACKFILL_PARALLEL()) {
       const id = _pendingBackfills.shift();
       const real = subs.get(id);
       if (!real) continue;
@@ -1503,14 +1541,14 @@ app.whenReady().then(() => {
       if (real.userPaused || real.paused) continue;   // 排队期间被暂停：丢弃，不再回溯
       _runningBackfills++;
       (async () => {
-        try { toastMsg('开始回溯：' + real.name + '（并发 ' + _runningBackfills + '/' + MAX_BACKFILL_PARALLEL + '）'); await _runBackfillNow(real); }
+        try { toastMsg('开始回溯：' + real.name + '（并发 ' + _runningBackfills + '/' + MAX_BACKFILL_PARALLEL() + '）'); await _runBackfillNow(real); }
         catch (e) { toastMsg('回溯失败：' + real.name + ' — ' + String(e.message || e).slice(0, 80)); }
         finally { _runningBackfills--; drainBackfills(); }   // 腾出位子给排队的回溯
       })();
     }
   }
   async function runBackfill(real) {
-    if (_runningBackfills < MAX_BACKFILL_PARALLEL) {
+    if (_runningBackfills < MAX_BACKFILL_PARALLEL()) {
       // 有空位即刻开跑（不再等下载队列全空——回溯只是拉清单入队，下载限速由队列管）
       _runningBackfills++;
       try { return await _runBackfillNow(real); }
@@ -1573,11 +1611,22 @@ app.whenReady().then(() => {
   ipcMain.handle('asr:deleteModel', (e, { id }) => asr.deleteModel(id));
   ipcMain.handle('asr:download', (e, { id }) => {
     // 防双击并发下载（同一模型同时只允许一个下载任务
-    if (_asrDownloading.has(id)) return { ok: false, reason: '该模型正在下载中' };
+    if (_asrDownloading.has(id) || _asrCanceling.has(id)) return { ok: false, reason: '该模型正在下载或取消中' };
     _asrDownloading.add(id);
     return asr.downloadModel(id, pct => {
       if (win && !win.isDestroyed()) win.webContents.send('asr:downloadProgress', { id, pct });
     }).finally(() => _asrDownloading.delete(id));
+  });
+  ipcMain.handle('asr:cancelDownload', async (e, { id }) => {
+    if (_asrCanceling.has(id)) return { ok: false };
+    _asrCanceling.add(id);   // 必须先锁住同 id；downloadModel 的 Promise rejection 会先触发 finally 删除 downloading
+    try {
+      const ok = await asr.cancelDownload(id);
+      _asrDownloading.delete(id);
+      return { ok };
+    } finally {
+      _asrCanceling.delete(id);   // 文件流已 close 且 .part 已清理后，才允许重新下载
+    }
   });
   ipcMain.handle('asr:transcribe', (e, { filePath }) => {
     const resolved = insideOutDir(filePath);   // 只许转写下载目录内的媒体（防任意文件读取/CPU 滥用）

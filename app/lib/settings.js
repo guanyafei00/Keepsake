@@ -29,6 +29,12 @@ function configure({ file, defaultOutDir }) {
   // 注：当前 yt-dlp(2026.08.19) 的 bilibili 提取器未注册 cdn extractor-arg，该值经 --extractor-args "bilibili:cdn=<值>"
   // 透传为前向兼容钩子；待上游/分支支持后无需改码即可生效（详见 #15 说明）
   if (!['', 'baidu', 'tencent', 'aliyun', 'wscloud', 'huawei'].includes(data.biliLine)) data.biliLine = '';
+  // 回溯并发数（同时回溯的订阅数 1-6；旧版本无此键 → 默认 3，与历史行为一致）
+  if (data.backfillParallel === undefined) data.backfillParallel = 3;
+  else {
+    const n = Number(data.backfillParallel);
+    data.backfillParallel = Math.min(6, Math.max(1, Number.isFinite(n) ? Math.floor(n) : 3));
+  }
   // 图站（gallery-dl）任务完成后自动把图片目录打包成 CBZ（漫画归档友好；0 依赖，用系统自带 bsdtar）
   if (data.autoCbz === undefined) data.autoCbz = false; else data.autoCbz = !!data.autoCbz;
   // 剪贴板监听（复制链接自动填入输入框；默认关——后台读剪贴板属于敏感行为，让用户显式打开）
@@ -46,6 +52,10 @@ function set(patch) {
   // 浏览器来源/CBZ 开关归一化（与 configure 同规则，双保险）
   if (p.cookieBrowser !== undefined && !['', 'chrome', 'edge', 'firefox', 'brave'].includes(p.cookieBrowser)) p.cookieBrowser = '';
   if (p.biliLine !== undefined && !['', 'baidu', 'tencent', 'aliyun', 'wscloud', 'huawei'].includes(p.biliLine)) p.biliLine = '';
+  if (p.backfillParallel !== undefined) {
+    const n = Number(p.backfillParallel);
+    p.backfillParallel = Math.min(6, Math.max(1, Number.isFinite(n) ? Math.floor(n) : 3));
+  }
   if (p.autoCbz !== undefined) p.autoCbz = !!p.autoCbz;
   if (p.clipboardWatch !== undefined) p.clipboardWatch = !!p.clipboardWatch;
   Object.assign(data, p);

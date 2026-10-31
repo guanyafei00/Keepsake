@@ -14,6 +14,7 @@ let BIN = null;          // bin 目录（含 whisper-cli.exe + ffmpeg.exe）
 let MODELS_DIR = null;
 let PERSIST = null;      // 持久化回调（settings.set），存 active 模型
 let activeModelId = null;
+const activeDownloads = {};   // id -> { tmp, req, out, reject }：活跃中的模型下载（#21 取消用）
 
 function configure({ binDir, modelsDir, onPersist }) {
   BIN = binDir; MODELS_DIR = modelsDir; PERSIST = onPersist || null;
@@ -89,7 +90,7 @@ function deleteModel(id) {
   }
 }
 
-// 下载模型（content-length + chunk 计数报进度，onProgress(0-100)）
+// 下载模型（content-length + chunk 计数报进度，onProgress(0-100)）；支持中途取消（#21，见 cancelDownload）
 function downloadModel(id, onProgress) {
   return new Promise((resolve, reject) => {
     const m = MODELS.find(x => x.id === id);
@@ -98,19 +99,29 @@ function downloadModel(id, onProgress) {
     fs.mkdirSync(MODELS_DIR, { recursive: true });
     const dlUrl = MIRRORS.find(x => x.id === mirror).base + m.file;
     const tmp = modelPath(id) + '.part';
+    // 取消支持（#21）：登记活跃下载，cancelDownload 据此中止网络请求并清理 .part 残件
+    const rec = { tmp, req: null, out: null, reject: null };
+    activeDownloads[id] = rec;
+    let settled = false;   // 双重保障：取消 / 网络错误 / 超时 任一先触发后，后续重复回调不再重复结算
+    const finish = fn => { if (settled) return; settled = true; delete activeDownloads[id]; fn(); };
+    rec.reject = e => finish(() => reject(e));
+    const resolve2 = v => finish(() => resolve(v));
     const go = (u, redirectLeft) => {
       const req = https.get(u, res => {
-        res.on('error', reject);   // 网络半途断开不再变未捕获异常
+        if (settled) { res.resume(); return; }   // 取消与 response 到达竞态：取消后不再创建写出流/跟随重定向
+        rec.req = req;
+        res.on('error', e => rec.reject(e));   // 网络半途断开不再变未捕获异常
         if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location && redirectLeft > 0) {
           res.resume();
           return go(urlMod.resolve(u, res.headers.location), redirectLeft - 1);   // 相对重定向也兜住
         }
-        if (res.statusCode !== 200) { res.resume(); return reject(new Error('下载失败 HTTP ' + res.statusCode)); }
+        if (res.statusCode !== 200) { res.resume(); return rec.reject(new Error('下载失败 HTTP ' + res.statusCode)); }
         const total = parseInt(res.headers['content-length'] || '0', 10);
         const out = fs.createWriteStream(tmp);
-        let got = 0, last = -1, settled = false;
-        const done = fn => { if (!settled) { settled = true; fn(); } };
+        rec.out = out;
+        let got = 0, last = -1;
         res.on('data', c => {
+          if (settled) return;   // cancelDownload 已结算时忽略缓冲区里迟到的数据/进度
           got += c.length;
           if (total && onProgress) {
             const pct = Math.floor(got / total * 100);
@@ -118,25 +129,47 @@ function downloadModel(id, onProgress) {
           }
         }).pipe(out);
         out.on('finish', () => {
+          if (settled) return;   // 取消后即使 finish 已排队，也不能 rename 半成品
           out.close(() => {
+            if (settled) return;
             try {
               // 完整性校验：远端声明了大小但本地明显不足 → 删残件报错（避免「报错后再点却提示完成」的假成功）
               if (total && got < total * 0.98) {
                 try { fs.unlinkSync(tmp); } catch (e) {}
-                return done(() => reject(new Error(`下载不完整（${Math.round(got / 1048576)}MB / ${Math.round(total / 1048576)}MB），请重试或切换下载源`)));
+                return rec.reject(new Error(`下载不完整（${Math.round(got / 1048576)}MB / ${Math.round(total / 1048576)}MB），请重试或切换下载源`));
               }
               fs.renameSync(tmp, modelPath(id));
-              done(() => resolve(modelPath(id)));
-            } catch (e) { done(() => reject(e)); }
+              resolve2(modelPath(id));
+            } catch (e) { rec.reject(e); }
           });
         });
-        out.on('error', e => done(() => reject(e)));
+        out.on('error', e => rec.reject(e));
       });
-      req.on('error', e => reject(e));
+      rec.req = req;
+      req.on('error', e => rec.reject(e));
       req.setTimeout(60 * 1000, () => req.destroy(new Error('下载超时（网络不稳，可稍后重试或切换下载源）')));
     };
     go(dlUrl, 5);
   });
+}
+
+// #21：取消模型下载——中止网络请求、关闭写出流、删除已下部分的 .part 残件（不留半截损坏文件）
+async function cancelDownload(id) {
+  const rec = activeDownloads[id];
+  if (!rec) return false;   // 未在下载中（已完成 / 未开始 / 已取消）
+  rec.reject(new Error('已取消'));   // 先以「已取消」结算：settled 守卫确保随后 req/out 的销毁错误事件被吞掉
+  try { if (rec.req) rec.req.destroy(); } catch (e) {}   // 断开当前网络请求
+  // Windows 不允许删除仍打开的文件；等写出流关闭后再清 .part，防止取消失败留半截文件
+  if (rec.out && !rec.out.closed) {
+    try {
+      const closed = new Promise(resolve => rec.out.once('close', resolve));
+      rec.out.destroy();   // 停止写出（避免半截数据继续落盘）
+      await closed;
+    } catch (e) {}
+  }
+  try { if (rec.tmp && fs.existsSync(rec.tmp)) fs.unlinkSync(rec.tmp); } catch (e) {}
+  delete activeDownloads[id];
+  return true;
 }
 
 // 转写：媒体文件 → 16k wav → whisper-cli → 同目录 SRT + TXT
@@ -201,4 +234,4 @@ function transcribe(mediaPath, opts = {}) {
   });
 }
 
-module.exports = { configure, MODELS, MIRRORS, setMirror, listModels, downloadModel, transcribe, anyModel, downloaded, getActive, setActive, restoreActive, deleteModel };
+module.exports = { configure, MODELS, MIRRORS, setMirror, listModels, downloadModel, cancelDownload, transcribe, anyModel, downloaded, getActive, setActive, restoreActive, deleteModel };
