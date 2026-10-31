@@ -47,4 +47,45 @@ async function run(taskId, text) {
   return out;
 }
 
-module.exports = { configure, ready, run, TASKS };
+// 拉取模型列表：GET {base}/models（OpenAI 兼容格式），失败再试 {base}/v1/models
+// 解析 OpenAI 格式 { data:[{id:'gpt-4o'}, ...] } → 返回 id 字符串数组（Ollama/LM Studio 的 {name} 也兼容）
+// 空数组表示接口正常但无模型（调用方据此回退手动输入）；任何异常抛带人话的 Error
+async function fetchModels(baseUrl, apiKey) {
+  if (!baseUrl) throw new Error('拉取失败：未填写接口地址（aiUrl）');
+  const base = String(baseUrl).trim().replace(/\/+$/, '');
+  const candidates = [base + '/models', base + '/v1/models'];
+  let lastErr = null;
+  for (let i = 0; i < candidates.length; i++) {
+    const url = candidates[i];
+    try {
+      const res = await fetch(url, {
+        method: 'GET',
+        headers: { Authorization: 'Bearer ' + (apiKey || '') },
+      });
+      if (!res.ok) {
+        lastErr = new Error('拉取失败：接口返回 HTTP ' + res.status + '（' + url + '）');
+        continue;   // 非 200 试下一个候选
+      }
+      const j = await res.json().catch(() => null);
+      const data = j && Array.isArray(j.data) ? j.data : null;
+      if (!data) {
+        // 200 但结构不是 OpenAI 的 { data:[...] } —— 试下一个候选；都失败则报人话错误
+        lastErr = new Error('拉取失败：该地址未返回模型列表（' + url + ' 可能不是 OpenAI 兼容的 /models 接口）');
+        continue;
+      }
+      const ids = [];
+      for (const m of data) {
+        if (m && typeof m.id === 'string' && m.id) ids.push(m.id);
+        else if (m && typeof m.name === 'string' && m.name) ids.push(m.name);
+      }
+      return ids;   // 可能为空数组 —— 调用方据此回退手动输入
+    } catch (e) {
+      if (e && typeof e.message === 'string' && e.message.indexOf('拉取失败') === 0) throw e;  // 已封装的人话错误直接上抛
+      lastErr = new Error('拉取失败：请求 ' + url + ' 出错（' + (e ? e.message : '未知') + '）');
+      continue;
+    }
+  }
+  throw lastErr || new Error('拉取失败：未知错误');
+}
+
+module.exports = { configure, ready, run, TASKS, fetchModels };

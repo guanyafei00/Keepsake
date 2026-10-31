@@ -154,6 +154,7 @@ function transcribe(mediaPath, opts = {}) {
 
     fs.mkdirSync(MODELS_DIR, { recursive: true });
     // 1) ffmpeg 提 16kHz 单声道 wav（whisper 要求）。加超时——挂死的 ffmpeg 不再永久卡住转写队列
+    if (opts.onPhase) { try { opts.onPhase('ffmpeg'); } catch (e) {} }   // 抽取阶段：无百分比，UI 显示「准备中…」
     const ff = spawn(ffmpeg, ['-y', '-i', mediaPath, '-ar', '16000', '-ac', '1', '-c:a', 'pcm_s16le', wav], { windowsHide: true });
     let ffErr = '';
     const ffTimer = setTimeout(() => { try { ff.kill('SIGKILL'); } catch (e) {} }, 10 * 60 * 1000);   // 10 分钟足够提完几个小时的音轨
@@ -168,6 +169,7 @@ function transcribe(mediaPath, opts = {}) {
       // 2) whisper-cli 转写（-pp 进度；-osrt -otxt 双输出到媒体同目录）
       const args = ['-m', mp, '-f', wav, '-l', opts.language || 'auto', '-pp', '-osrt', '-otxt', '-of', base];
       if (opts.language && opts.language !== 'auto') args.push('--prompt', '以下是普通话的句子。');   // 中文提示提升断句
+      if (opts.onPhase) { try { opts.onPhase('whisper'); } catch (e) {} }   // whisper 阶段：开始有百分比进度
       const child = spawn(cli, args, { windowsHide: true });
       let out = '', err = '', lastPct = 0;
       // 转写总超时 30 分钟——超长文件/CPU 过载导致的挂死不再永久占住串行队列

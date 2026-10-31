@@ -79,6 +79,10 @@
   .t-info .meta { font-size:11.5px; color:var(--txt2); margin-top:4px; display:flex; gap:10px; flex-wrap:wrap; }
   .bar { height:5px; border-radius:var(--r-xs); background:var(--panel2); margin-top:9px; overflow:hidden; }
   .bar i { display:block; height:100%; background:linear-gradient(90deg,var(--acc-bright),var(--acc-soft)); border-radius:var(--r-xs); transition:width .3s; }
+  /* 转写 ffmpeg 抽取阶段（无百分比）：不确定态进度条——一段 40% 宽的光带来回滑动 */
+  .bar.indet { position:relative; }
+  .bar.indet i { width:40% !important; position:absolute; left:0; transition:none; animation: barindet 1.1s infinite ease-in-out; }
+  @keyframes barindet { 0% { left:-40%; } 100% { left:100%; } }
   .st { font-size:11px; font-weight:700; padding:4px 11px; border-radius:var(--r-md); white-space:nowrap; }
   .st.queued { background:var(--panel2); color:var(--txt2); }
   .st.downloading { background:var(--accbg); color:var(--acc2); }
@@ -405,11 +409,21 @@
       <div class="row">
         <label>API Key</label>
         <input id="aiKey" type="password" placeholder="sk-..." style="flex:1">
-        <input id="aiModel" type="text" placeholder="模型名，如 deepseek-chat" style="flex:1">
+      </div>
+      <div class="row" style="align-items:flex-start">
+        <label>模型名</label>
+        <div style="flex:1;display:flex;flex-direction:column;gap:8px">
+          <select id="aiModelSel" style="width:100%;display:none"></select>
+          <div style="display:flex;gap:8px">
+            <input id="aiModel" type="text" placeholder="模型名，如 deepseek-chat" style="flex:1">
+            <button class="btn-mini" type="button" onclick="fetchAiModels()">🔄 拉取模型</button>
+          </div>
+          <div class="note" id="aiModelHint" style="margin:0">填好接口地址 + API Key 后点「🔄 拉取模型」自动获取；拉取失败可手动填写。</div>
+        </div>
       </div>
       <div class="row" style="margin-bottom:0">
         <label></label>
-        <button class="btn-mini" onclick="saveAiConfig()">💾 保存</button>
+        <button class="btn-mini" type="button" onclick="saveAiConfig()">💾 保存</button>
         <span id="aiCfgState" style="font-size:12px;color:var(--txt2)"></span>
       </div>
     </div>
@@ -658,6 +672,7 @@ function render() {
         <div class="name">${esc(prettyTitle(t))}</div>
         <div class="meta"><span>${stName[t.status]} ${t.progress ? '· ' + t.progress.toFixed(0) + '%' : ''}</span>${t.fileCount ? `<span>已收 ${t.fileCount} 个文件</span>` : ''}${t._audio ? '<span>🎧 音频</span>' : ''}${t._subs ? '<span>⬇ 字幕</span>' : ''}${t._transcribe ? `<span>📝 ${asrStatus(t) || '待转写'}</span>` : ''}${heldNote}</div>
         <div class="bar"><i style="width:${t.status==='held'||t.status==='queued'?2:t.progress}%"></i></div>
+        ${t._transcribe && asrStates[t.filePath] ? (asrStates[t.filePath].state === 'running' && asrStates[t.filePath].pct != null ? `<div class="bar"><i style="width:${asrStates[t.filePath].pct}%"></i></div>` : (asrStates[t.filePath].state === 'preparing' ? `<div class="bar indet"><i></i></div>` : '')) : ''}
       </div>
       ${openPath ? `<div class="x" onclick="openFileFolderById('${t.id}')" title="打开文件位置">📂</div>` : ''}
       <div class="x" onclick="cancel('${t.id}')" title="取消">✕</div>
@@ -761,17 +776,28 @@ function esc(s) { return String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','
 
 // ===== 转写状态 =====
 const asrStates = {};
+window._asrTransProg = window._asrTransProg || {};   // 按 filePath 索引的转写百分比（渲染进度条用）
 function asrStatus(t) {
   const s = asrStates[t.filePath];
   if (!s) return '';
-  if (s.state === 'running') return '转写中 ' + s.pct + '%';
+  if (s.state === 'preparing') return '准备中…';   // ffmpeg 抽取阶段（无百分比）
+  if (s.state === 'running') return '转写中 ' + (s.pct != null ? s.pct + '%' : '…');
   if (s.state === 'done') return '转写完成';
   if (s.state === 'error') return '转写失败';
   return '';
 }
 window.keepsake.onAsrProgress(d => {
   asrStates[d.filePath] = { state: 'running', pct: d.pct };
+  window._asrTransProg[d.filePath] = d.pct;
   if (document.getElementById('page-lib').classList.contains('on')) loadLibrary(true);
+  if (document.getElementById('page-tasks').classList.contains('on')) render();   // 任务队列卡里的转写进度
+});
+window.keepsake.onAsrPhase(d => {
+  asrStates[d.filePath] = asrStates[d.filePath] || {};
+  asrStates[d.filePath].state = (d.phase === 'whisper') ? 'running' : 'preparing';   // ffmpeg='preparing'（不确定态）；whisper='running'（有百分比）
+  if (d.phase === 'ffmpeg') { asrStates[d.filePath].pct = null; delete window._asrTransProg[d.filePath]; }
+  if (document.getElementById('page-lib').classList.contains('on')) loadLibrary(true);
+  if (document.getElementById('page-tasks').classList.contains('on')) render();
 });
 window.keepsake.onAsrDone(d => {
   asrStates[d.filePath] = { state: 'done' };
@@ -1487,6 +1513,10 @@ async function loadAiConfig() {
   try {
     const c = await window.keepsake.aiGetConfig();
     $('aiUrl').value = c.url || ''; $('aiKey').value = c.key || ''; $('aiModel').value = c.model || '';
+    // 复位「下拉 / 手动输入」切换态：默认隐藏下拉、显示手动输入，按已存模型回填
+    $('aiModelSel').style.display = 'none';
+    $('aiModel').style.display = 'block';
+    $('aiModelHint').textContent = '填好接口地址 + API Key 后点「🔄 拉取模型」自动获取；拉取失败可手动填写。';
     $('aiCfgState').textContent = c.ready ? '✓ 已就绪' : '未配置';
   } catch (e) {}
 }
@@ -1494,6 +1524,44 @@ async function saveAiConfig() {
   const r = await window.keepsake.aiSaveConfig({ url: $('aiUrl').value, key: $('aiKey').value, model: $('aiModel').value });
   $('aiCfgState').textContent = r.ready ? '✓ 已就绪' : '未配置完整';
   toast(r.ready ? 'AI 配置已保存 ✓' : '已保存（信息不完整，暂不可用）');
+}
+// 「🔄 拉取模型」：从 OpenAI 兼容端点的 /models 拉取模型列表填充下拉框；失败/空则回退手动输入
+async function fetchAiModels() {
+  const url = $('aiUrl').value.trim();
+  const key = $('aiKey').value.trim();
+  if (!url || !key) { alert('请先填写接口地址和 API Key'); return; }
+  // 先把 aiUrl/aiKey 落盘，确保主进程 settings 最新（ai:fetchModels 只读 settings）
+  await saveAiConfig();
+  $('aiCfgState').textContent = '🔄 拉取模型中…';
+  try {
+    const ids = await window.keepsake.aiFetchModels();
+    if (Array.isArray(ids) && ids.length) {
+      const cur = $('aiModel').value.trim();
+      const sel = $('aiModelSel');
+      sel.innerHTML = ids.map(id => `<option value="${escAttr(id)}">${esc(id)}</option>`).join('');
+      sel.onchange = () => { $('aiModel').value = sel.value; };   // 选下拉即同步到 input（save 读 input）
+      sel.style.display = 'block';
+      $('aiModel').style.display = 'none';
+      if (cur && ids.indexOf(cur) >= 0) sel.value = cur;
+      else { sel.value = ids[0]; $('aiModel').value = ids[0]; }   // 默认选中第一项
+      $('aiModelHint').textContent = `已拉取 ${ids.length} 个模型，可在下拉中选择。`;
+      $('aiCfgState').textContent = '✓ 已拉取模型';
+    } else {
+      // 接口正常但无模型（空数组）：回退手动输入
+      $('aiModelSel').style.display = 'none';
+      $('aiModel').style.display = 'block';
+      $('aiModelHint').textContent = '该接口未返回模型列表，已切换为手动填写。';
+      $('aiCfgState').textContent = '未拉到模型';
+      alert('该接口未返回模型列表，已切换为手动输入。');
+    }
+  } catch (e) {
+    // 拉取失败：回退手动输入
+    $('aiModelSel').style.display = 'none';
+    $('aiModel').style.display = 'block';
+    $('aiModelHint').textContent = '拉取失败，已切换为手动填写。';
+    $('aiCfgState').textContent = '拉取失败';
+    alert('拉取失败：' + (e && e.message ? e.message : String(e)));
+  }
 }
 let _aiBusy = false;
 function aiPanel(p) {
@@ -1663,7 +1731,8 @@ function renderLibrary() {
         <div class="t-thumb" style="width:36px;height:28px;font-size:14px">${kindIcon(f.kind)}</div>
         <div class="t-info">
           <div class="name" title="${esc(f.path)}">${esc(f.name)}</div>
-          <div class="meta">${f.kind === 'article' ? '文章存档 · ' + f.sizeText + ' · ' : f.sizeText + ' · '}${timeAgo(f.mtime)}${articleBadge(f)}${_txtHits[f.path] ? ' · 📄 <span title="' + escAttr(_txtHits[f.path].snippet || '') + '" style="color:var(--acc2)">文稿匹配</span>' : ''}${asrStates[f.path] ? ' · 📝 ' + (asrStates[f.path].state === 'running' ? '转写中 ' + asrStates[f.path].pct + '%' : asrStates[f.path].state === 'done' ? '已转写' : '转写失败') : ''}${jobStatus(f)}${srcBadge(f)}</div>
+          <div class="meta">${f.kind === 'article' ? '文章存档 · ' + f.sizeText + ' · ' : f.sizeText + ' · '}${timeAgo(f.mtime)}${articleBadge(f)}${_txtHits[f.path] ? ' · 📄 <span title="' + escAttr(_txtHits[f.path].snippet || '') + '" style="color:var(--acc2)">文稿匹配</span>' : ''}${asrStates[f.path] ? ' · 📝 ' + (asrStates[f.path].state === 'preparing' ? '准备中…' : asrStates[f.path].state === 'running' ? '转写中 ' + (asrStates[f.path].pct != null ? asrStates[f.path].pct + '%' : '…') : asrStates[f.path].state === 'done' ? '已转写' : '转写失败') : ''}${jobStatus(f)}${srcBadge(f)}</div>
+          ${asrStates[f.path] && asrStates[f.path].state === 'running' && asrStates[f.path].pct != null ? `<div class="bar"><i style="width:${asrStates[f.path].pct}%"></i></div>` : (asrStates[f.path] && asrStates[f.path].state === 'preparing' ? `<div class="bar indet"><i></i></div>` : '')}
         </div>
         ${f.kind === 'article' ? `<div class="x" onclick="event.stopPropagation();openArticle('${escAttr(f.path)}')" title="阅读（浏览器打开本地存档，离线可看）">📖</div><div class="x" onclick="event.stopPropagation();recheckArticle('${escAttr(f.path)}')" title="重新检查原文：是否被删除或编辑">⟳</div>` : ''}
         ${/\.(mp4|mkv|webm|mov|avi|flv|m4a|mp3|wav)$/i.test(f.name) ? `<div class="x" onclick="event.stopPropagation();transcribeFile('${escAttr(f.path)}')" title="本地转写出 SRT 字幕">📝</div><div class="x" onclick="event.stopPropagation();translateFile('${escAttr(f.path)}')" title="生成中英双语字幕（无字幕会先自动转写；需在设置页配置 AI）">🌐</div><div class="x" onclick="event.stopPropagation();burnFile('${escAttr(f.path)}')" title="把字幕硬烧进视频（生成新视频文件）">🎬</div><div class="x" onclick="event.stopPropagation();aiPanel('${escAttr(f.path)}')" title="AI 文稿助理（摘要/翻译）">✨</div>` : ''}

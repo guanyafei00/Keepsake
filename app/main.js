@@ -363,7 +363,8 @@ app.whenReady().then(() => {
   const _asrDownloading = new Set();
   function enqueueTranscribe(mediaPath, source) {
     asrChain = asrChain.then(() => asr.transcribe(mediaPath, {
-      onProgress: pct => { if (win && !win.isDestroyed()) win.webContents.send('asr:progress', { filePath: mediaPath, pct, source }); }
+      onProgress: pct => { if (win && !win.isDestroyed()) win.webContents.send('asr:progress', { filePath: mediaPath, pct, source }); },
+      onPhase: phase => { if (win && !win.isDestroyed()) win.webContents.send('asr:phase', { filePath: mediaPath, phase, source }); }
     })).then(r => {
       if (win && !win.isDestroyed()) win.webContents.send('asr:done', { filePath: mediaPath, ...r });
       if (win && !win.isDestroyed()) win.webContents.send('library:changed');
@@ -1157,6 +1158,11 @@ app.whenReady().then(() => {
     const c = settings.get();
     ai.configure({ url: c.aiUrl, key: c.aiKey, model: c.aiModel });
     return { ok: true, ready: ai.ready() };
+  });
+  // 拉取模型列表：只读 settings 的 aiUrl/aiKey，避免依赖 CFG 是否最新（ai.js 的 fetchModels 自行处理 GET + 解析 + 兜底）
+  ipcMain.handle('ai:fetchModels', () => {
+    const s = settings.get();
+    return ai.fetchModels(s.aiUrl, s.aiKey);
   });
   // 对已转写的媒体文件跑 AI：读同名 .txt（或 .srt），结果存同名 .ai.md
   // 补 insideOutDir 校验（同文件其他文件操作都有，唯独这里漏了 → 越界读写）
