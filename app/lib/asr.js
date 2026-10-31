@@ -204,7 +204,7 @@ function transcribe(mediaPath, opts = {}) {
       if (opts.language && opts.language !== 'auto') args.push('--prompt', '以下是普通话的句子。');   // 中文提示提升断句
       if (opts.onPhase) { try { opts.onPhase('whisper'); } catch (e) {} }   // whisper 阶段：开始有百分比进度
       const child = spawn(cli, args, { windowsHide: true });
-      let out = '', err = '', lastPct = 0;
+      let out = '', err = '', stdoutProgressBuffer = '', stderrProgressBuffer = '', lastPct = 0;
       // 转写总超时 30 分钟——超长文件/CPU 过载导致的挂死不再永久占住串行队列
       const wTimer = setTimeout(() => {
         try { child.kill('SIGKILL'); } catch (e) {}
@@ -212,12 +212,27 @@ function transcribe(mediaPath, opts = {}) {
         reject(new Error('转写超时（30 分钟未完成，文件过长或 CPU 过载）'));
       }, 30 * 60 * 1000);
       const onProg = pct => { if (pct > lastPct && opts.onProgress) { lastPct = pct; opts.onProgress(pct); } };
+      const readProgress = (chunk, stream) => {
+        let buffer = stream === 'stderr' ? stderrProgressBuffer : stdoutProgressBuffer;
+        buffer += chunk.toString();
+        const matches = buffer.match(/progress\s*=\s*(\d+)%/gi);
+        if (matches) {
+          matches.forEach(match => {
+            const pct = match.match(/(\d+)%/);
+            if (pct) onProg(parseInt(pct[1], 10));
+          });
+        }
+        // Keep enough trailing text to complete a progress marker split across this stream's chunks.
+        buffer = buffer.slice(-128);
+        if (stream === 'stderr') stderrProgressBuffer = buffer;
+        else stdoutProgressBuffer = buffer;
+      };
       child.stdout.on('data', d => {
         out += d;
-        const m = out.match(/progress\s*=\s*(\d+)%/g);
-        if (m) { const last = m[m.length - 1].match(/(\d+)%/); if (last) onProg(parseInt(last[1], 10)); }
+        readProgress(d, 'stdout');
       });
-      child.stderr.on('data', d => err += d);
+      // whisper.cpp -pp writes carriage-return progress updates to stderr on bundled builds.
+      child.stderr.on('data', d => { err += d; readProgress(d, 'stderr'); });
       child.on('error', () => { clearTimeout(wTimer); try { fs.unlinkSync(wav); } catch (e) {} reject(new Error('whisper-cli 启动失败')); });
       child.on('close', wcode => {
         clearTimeout(wTimer);
