@@ -17,6 +17,8 @@ contextBridge.exposeInMainWorld('keepsake', {
   removeTask: (id) => ipcRenderer.invoke('queue:remove', { id }),
   clearFinished: () => ipcRenderer.invoke('queue:clearFinished'),
   snapshot: () => ipcRenderer.invoke('queue:snapshot'),
+  resumeInterrupted: () => ipcRenderer.invoke('queue:resumeInterrupted'),     // #39 一键恢复中断任务
+  dismissInterrupted: () => ipcRenderer.invoke('queue:dismissInterrupted'),   // #39 忽略中断提示（清除标记）
   outDir: () => ipcRenderer.invoke('app:outDir'),
   subsList: () => ipcRenderer.invoke('subs:list'),
   subsGetStatus: () => ipcRenderer.invoke('subs:getStatus'),
@@ -42,6 +44,7 @@ contextBridge.exposeInMainWorld('keepsake', {
   settingsSetBackfillParallel: (n) => ipcRenderer.invoke('settings:setBackfillParallel', { n }),
   libTrash: (filePath) => ipcRenderer.invoke('lib:trash', { filePath }),
   libraryScan: () => ipcRenderer.invoke('library:scan'),
+  libraryMakeCbz: (p) => ipcRenderer.invoke('library:makeCbz', { p }),   // #37 媒体库一键成册（散图目录 → .cbz 漫画册）
   articleOpen: (filePath) => ipcRenderer.invoke('article:open', { filePath }),     // 文章引擎：浏览器打开本地存档
   articleRecheck: (filePath) => ipcRenderer.invoke('article:recheck', { filePath }), // 文章引擎：重新检查原文（删帖/编辑检测）
   openFolder: (p) => ipcRenderer.invoke('app:openFolder', p),
@@ -112,6 +115,7 @@ contextBridge.exposeInMainWorld('keepsake', {
   onChannelsEvent: (cb) => ipcRenderer.on('channels:event', (e, d) => cb(d)),
   onXhsEvent: (cb) => ipcRenderer.on('xhs:event', (e, d) => cb(d)),
   onLibraryRefresh: (cb) => ipcRenderer.on('library:changed', () => cb()),
+  onInterrupted: (cb) => ipcRenderer.on('queue:interrupted', (e, d) => cb(d)),   // #39 异常退出中断提示
   onQueue: (cb) => ipcRenderer.on('queue:snapshot', (e, snap) => cb(snap)),
   onSubs: (cb) => ipcRenderer.on('subs:changed', (e, subs) => cb(subs)),
   onEngineProgress: (cb) => ipcRenderer.on('engine:progress', (e, d) => cb(d))

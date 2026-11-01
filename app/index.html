@@ -87,6 +87,7 @@
   .st.queued { background:var(--panel2); color:var(--txt2); }
   .st.downloading { background:var(--accbg); color:var(--acc2); }
   .st.held { background:var(--yellowbg); color:var(--yellow); }
+  .st.interrupted { background:var(--yellowbg); color:var(--yellow); }
   .st.done { background:var(--greenbg); color:var(--green); }
   .st.error, .st.canceled { background:var(--redbg); color:var(--red-strong); }
   .st.flat { background:var(--panel2); color:var(--txt2); }
@@ -508,6 +509,12 @@
   </div>
 </main>
 
+<div id="interruptBanner" style="display:none;position:fixed;top:0;left:0;right:0;z-index:150;gap:14px;align-items:center;justify-content:center;background:var(--yellowbg);color:var(--yellow);font-size:12.5px;font-weight:600;padding:8px 16px;box-shadow:var(--shadow)">
+  <span id="interruptMsg">上次未正常退出，有任务未完成</span>
+  <span class="sb-btn" onclick="resumeInterrupted()" title="把中断任务重新入队（引擎幂等跳过已下载文件，不重复下载）">↻ 一键恢复</span>
+  <span class="sb-btn" onclick="dismissInterrupted()" title="不再提示；任务归入「已取消」，之后仍可点 ⟳ 恢复">忽略</span>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <div id="modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:99;align-items:center;justify-content:center" onclick="if(event.target===this)closeModal()">
@@ -760,13 +767,13 @@ const siteBadgeOf = t => {
   if (/kuaishou\.com|chenzhongtech/i.test(u) || /[\\/]kuaishou[\\/]/i.test(p)) return '快手';
   return '';
 };
-const stName = { queued:'排队中', downloading:'下载中', held:'风控冷却', done:'完成', error:'失败', canceled:'已取消' };
+const stName = { queued:'排队中', downloading:'下载中', held:'风控冷却', done:'完成', error:'失败', canceled:'已取消', interrupted:'已中断' };   // #39 interrupted：异常退出未完成的任务
 const heldMin = ms => Math.max(1, Math.ceil(ms/60000));
 
 function render() {
   const active = items.filter(i => ['queued','downloading','held'].includes(i.status));
   const done = items.filter(i => ['done'].includes(i.status));
-  const failed = items.filter(i => ['error','canceled'].includes(i.status));
+  const failed = items.filter(i => ['error','canceled','interrupted'].includes(i.status));   // #39 interrupted 归入失败组（doneCard 的 ⟳ 可恢复）
   $('q-cnt').textContent = active.length;
   $('q-cnt2').textContent = active.length;
   $('d-cnt').textContent = done.length;
@@ -840,7 +847,7 @@ function render() {
     const dl = ts.filter(t => t.status === 'downloading').length;
     const qd = ts.filter(t => t.status === 'queued' || t.status === 'held').length;
     const ok = ts.filter(t => t.status === 'done').length;
-    const bad = ts.filter(t => ['error','canceled'].includes(t.status)).length;
+    const bad = ts.filter(t => ['error','canceled','interrupted'].includes(t.status)).length;
     const stat = kind === 'active'
       ? `${dl ? `下载中 ${dl} · ` : ''}${qd ? `排队 ${qd}` : ''}`.replace(/ · $/, '')
       : `${ok ? `完成 ${ok}` : ''}${ok && bad ? ' · ' : ''}${bad ? `失败 ${bad}` : ''}`.replace(/ · $/, '');
@@ -2037,6 +2044,7 @@ function renderLibrary() {
         </div>
         ${f.kind === 'article' ? `<div class="x" onclick="event.stopPropagation();openArticle('${escAttr(f.path)}')" title="阅读（浏览器打开本地存档，离线可看）">📖</div><div class="x" onclick="event.stopPropagation();recheckArticle('${escAttr(f.path)}')" title="重新检查原文：是否被删除或编辑">⟳</div>` : ''}
         ${/\.(mp4|mkv|webm|mov|avi|flv|m4a|mp3|wav)$/i.test(f.name) ? `<div class="x" onclick="event.stopPropagation();transcribeFile('${escAttr(f.path)}')" title="本地转写出 SRT 字幕">📝</div><div class="x" onclick="event.stopPropagation();translateFile('${escAttr(f.path)}')" title="生成中英双语字幕（无字幕会先自动转写；需在设置页配置 AI）">🌐</div><div class="x" onclick="event.stopPropagation();burnFile('${escAttr(f.path)}')" title="把字幕硬烧进视频（生成新视频文件）">🎬</div><div class="x" onclick="event.stopPropagation();aiPanel('${escAttr(f.path)}')" title="AI 文稿助理（摘要/翻译）">✨</div>` : ''}
+        ${f.kind === 'image' ? `<div class="x" onclick="event.stopPropagation();makeCbz('${escAttr(f.path)}')" title="把该图片所在目录的散图打包成 .cbz 漫画册（含 ComicInfo 元数据）">📖</div>` : ''}
         <div class="x" onclick="event.stopPropagation();openLibSource('${escAttr(f.path)}')" title="打开来源链接（浏览器）">🔗</div>
         <div class="x" onclick="openPath('${escAttr(f.path)}')" title="打开所在文件夹">📁</div>
         <div class="x" onclick="event.stopPropagation();trashFile('${escAttr(f.path)}')" title="删除（移入回收站，可恢复）" style="color:var(--red)">🗑</div>
@@ -2070,6 +2078,14 @@ function transcribeGroup(key) {
   const paths = g.files.filter(f => /\.(mp4|mkv|webm|mov|avi|flv|m4a|mp3|wav)$/i.test(f.name)).map(f => f.path);
   if (!paths.length) return toast('该组没有可转写的音视频');
   window.keepsake.asrBatch(paths);
+}
+
+// #37 媒体库一键成册：把图片所在目录的散图打包成 .cbz 漫画册（成功 toast 显示册子路径）
+async function makeCbz(p) {
+  toast('正在打包漫画册…');
+  const r = await window.keepsake.libraryMakeCbz(p);
+  if (r && r.ok) toast((r.skipped ? '漫画册已存在：' : '📦 已打包漫画册：') + r.cbz);
+  else toast('成册失败：' + ((r && r.reason) || '未知错误'));
 }
 
 // #70④ 组级 AI 摘要：组内文稿交给 AI 做结构化总结，结果存组目录 AI摘要-日期.md
@@ -2259,8 +2275,29 @@ async function logoutBili() {
 }
 refreshLoginBadge();
 
-window.keepsake.onQueue(snap => { items = snap; render(); });
-window.keepsake.snapshot().then(s => { items = s; render(); });
+window.keepsake.onQueue(snap => { items = snap; render(); refreshInterruptBanner(); });
+
+// ===== #39 异常退出恢复横幅 =====
+// 快照里存在 interrupted 任务即显示（渲染层重载也能恢复显示，不依赖启动时的一次性事件；
+// 主进程启动时的 queue:interrupted 事件只作为 toast 快路径，状态权威在快照里）
+function refreshInterruptBanner() {
+  const n = items.filter(t => t.status === 'interrupted').length;
+  const el = $('interruptBanner');
+  if (!el) return;
+  el.style.display = n ? 'flex' : 'none';
+  if (n) $('interruptMsg').textContent = '⚠ 上次未正常退出，有 ' + n + ' 个任务未完成';
+}
+function resumeInterrupted() {
+  window.keepsake.resumeInterrupted().then(r => {
+    if (r && r.ok) toast(r.resumed ? '已恢复 ' + r.resumed + ' 个中断任务（已下载的文件会自动跳过）' : '没有可恢复的中断任务');
+  });
+}
+async function dismissInterrupted() {
+  const r = await window.keepsake.dismissInterrupted();
+  if (r && r.ok) toast('已忽略中断任务——之后可在「已完成 / 失败」列表点 ⟳ 恢复');
+}
+window.keepsake.onInterrupted(d => { if (d && d.count) toast('上次未正常退出，有 ' + d.count + ' 个任务未完成——点顶部横幅恢复'); });
+window.keepsake.snapshot().then(s => { items = s; render(); refreshInterruptBanner(); });
 // 侧栏角标首刷（用户反馈：不点开订阅/媒体库就看不到现有数量）
 // 订阅数立即取（读 json 秒回）；媒体库后台静默全扫一次（大目录不卡界面，扫完角标自然更新）
 window.keepsake.subsList().then(list => { subsItems = list || []; refreshNavCounts(); }).catch(() => {});

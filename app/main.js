@@ -54,6 +54,7 @@ const source = require('./lib/source');
 const srtLib = require('./lib/srt');
 const backup = require('./lib/backup');
 const textindex = require('./lib/textindex');
+const cbzLib = require('./lib/cbz');   // #37 CBZ 漫画册打包（媒体库一键成册 library:makeCbz 用）
 const articleLib = require('./lib/article');   // 文章引擎（M-A2/A3）：公众号/知乎/B站专栏等网页文章归档 + 删帖复查
 const { atomicWrite } = require('./lib/jsonfile');   // 迁移包导出防半截文件
 
@@ -103,6 +104,7 @@ function binDir() {
 
 let win = null;
 let queue = null;
+let booted = false;   // #39：whenReady 初始化完成后置 true——before-quit 只在真实运行过的实例写干净退出标记（重复启动实例拿不到锁提前退出，booted=false 不写，防误报异常退出）
 let embed = null;   // #32 受控内嵌浏览器管理器（whenReady 里创建，before-quit 关窗）
 let tray = null;
 let quitting = false;   // 托盘模式：关窗≠退出，仅托盘菜单「退出」置位
@@ -596,9 +598,29 @@ app.whenReady().then(() => {
 
   // ★★#4 崩溃恢复（机制借鉴 Parabolic RecoverableDownload，clean-room）：tasks.json 每次 push 都
   // 落盘（1s 防抖），崩溃/强关时「downloading」状态原样留在盘上——与正常退出（before-quit 先 cancel
-  // 再 flush，盘上全是终态）天然区分。这里把中断任务自动重排回队 + 提示用户
+  // 再 flush，盘上全是终态）天然区分。这里把中断任务自动重排回队 + 提示用户。
+  // #39 异常退出检测：before-quit 会写 userData/cleanExit.flag；启动时标记缺失 = 上次异常退出。
+  // 异常退出且存在未达终态任务 → 标 interrupted 交顶部横幅（一键恢复/忽略），不自动续跑；
+  // 标记存在（正常退出）→ 消费标记后走原有自动续跑。首次启动（无历史）/ 全终态不提示；
+  // 重复启动实例拿不到锁即退出（booted=false 不写标记），不会把常驻实例刚写的标记误判成异常。
+  const cleanExitFlag = path.join(userData, 'cleanExit.flag');
+  const flagExists = fs.existsSync(cleanExitFlag);
+  if (flagExists) { try { fs.unlinkSync(cleanExitFlag); } catch (e) {} }   // 消费标记：本次退出会重新写
+  const persistedTasks = store.load();
+  const recovery = store.startupRecovery({ cleanExitFlagExists: flagExists, tasks: persistedTasks });
   let restoredN = 0;
-  for (const raw of store.load()) {
+  let interruptedN = 0;
+  for (const raw of persistedTasks) {
+    if (recovery.abnormalExit && recovery.interrupted.includes(raw)) {
+      // 异常退出且未达终态：标 interrupted（快照剔除 _directPayload 等运行时字段的行为不受影响）
+      raw.status = 'interrupted';
+      raw.error = '上次异常退出导致中断——点 ⟳ 恢复下载（已下载的文件引擎会自动跳过）';
+      raw.progress = 0;
+      queue.items.set(raw.id, raw);
+      queue.order.push(raw.id);
+      interruptedN++;
+      continue;
+    }
     if (raw.status === 'downloading') { raw.status = 'queued'; raw.error = '应用退出中断，已自动重排'; raw.progress = 0; restoredN++; }
     if (raw.status === 'held') raw.status = 'queued';
     if (raw.status === 'queued') {
@@ -616,6 +638,12 @@ app.whenReady().then(() => {
     toastMsg(msg);
     log.info('queue', msg);
   }
+  if (interruptedN) {
+    const msg = '上次未正常退出，有 ' + interruptedN + ' 个任务未完成（已标 interrupted，等用户一键恢复或忽略）';
+    log.info('queue', msg);
+    if (win && !win.isDestroyed()) win.webContents.send('queue:interrupted', { count: interruptedN });
+  }
+  booted = true;   // #39：初始化完成，此后正常退出才写干净标记
 
   // 订阅改名 → 队列历史任务标题同步（老任务入队时还带着「订阅 N」占位名，改名后追平）
   subs.onNameChange((id, name) => {
@@ -1052,6 +1080,26 @@ app.whenReady().then(() => {
   ipcMain.handle('queue:clearFinished', () => queue.clearFinished());
   ipcMain.handle('queue:snapshot', () => queue.snapshot());
 
+  // ===== #39 中断任务恢复（异常退出后顶部横幅的两个按钮走这里）=====
+  // 一键恢复：interrupted → queued（复用 retry 机制重置进度；引擎幂等跳过已存在文件，不重复下载）
+  ipcMain.handle('queue:resumeInterrupted', () => {
+    let n = 0;
+    for (const it of [...queue.items.values()]) {
+      if (it.status === 'interrupted' && queue.retry(it.id)) n++;
+    }
+    if (n) log.info('queue', '一键恢复 ' + n + ' 个中断任务');
+    return { ok: true, resumed: n };
+  });
+  // 忽略：清除 interrupted 标记（状态归档为 canceled，不再弹横幅；磁盘文件不动，随时可 ⟳ 恢复）
+  ipcMain.handle('queue:dismissInterrupted', () => {
+    let n = 0;
+    for (const it of queue.items.values()) {
+      if (it.status === 'interrupted') { it.status = 'canceled'; it.error = '上次异常退出中断，已忽略——点 ⟳ 可恢复'; n++; }
+    }
+    if (n) { log.info('queue', '忽略 ' + n + ' 个中断任务'); queue.push(); }
+    return { ok: true, dismissed: n };
+  });
+
   // ===== #32 本土平台受控浏览器（视频号 / 小红书）=====
   ipcMain.handle('channels:open', () => embed.open('channels'));
   ipcMain.handle('channels:state', () => embed.state('channels'));
@@ -1247,6 +1295,35 @@ app.whenReady().then(() => {
     }
     return null;
   }
+  // ===== #37 媒体库一键成册：散图目录 → 平级 <目录名>.cbz（与任务自动联动共用 lib/cbz 打包核心）=====
+  // 必须走 insideAllowedDir 校验：只允许操作下载目录（及引擎/模型目录）内的路径，防任意路径注入
+  ipcMain.handle('library:makeCbz', async (e, { p } = {}) => {
+    try {
+      const resolved = insideAllowedDir(p);
+      if (!resolved) return { ok: false, reason: '只允许对下载目录内的路径成册' };
+      let st = null;
+      try { st = fs.statSync(resolved); } catch (err) { return { ok: false, reason: '路径不存在' }; }
+      const dir = st.isDirectory() ? resolved : path.dirname(resolved);   // 传文件卡路径时取所在目录
+      const imgN = cbzLib.countImagesInDir(dir);
+      if (imgN < cbzLib.CBZ_MIN_IMAGES) return { ok: false, reason: `该目录图片不足 ${cbzLib.CBZ_MIN_IMAGES} 张（当前 ${imgN}），未成册` };
+      // 元数据：标题=目录名；Series/Writer 取路径里的 UP 主段（{站点}/{UP主}/…）；来源 URL 取来源索引
+      const relSegs = path.relative(path.resolve(settings.get().outDir), dir).split(path.sep).filter(Boolean);
+      const uploader = relSegs.length >= 2 ? relSegs[1] : null;
+      const src = source.get(resolved) || source.get(dir) || null;
+      const r = await cbzLib.makeCbzFromDir(dir, {
+        title: path.basename(dir),
+        series: uploader || path.basename(dir),
+        writer: uploader,
+        web: src ? src.url : null,
+        date: Date.now(),
+      });
+      if (!r.ok) { log.warn('cbz', '手动成册失败: ' + (r.reason || '?')); return { ok: false, reason: r.reason || '打包失败' }; }
+      log.info('cbz', '手动成册: ' + r.cbz + (r.skipped ? '（已存在，幂等返回）' : ''));
+      if (win && !win.isDestroyed()) win.webContents.send('library:changed');
+      return { ok: true, cbz: r.cbz, skipped: !!r.skipped };
+    } catch (err) { return { ok: false, reason: String(err.message || err).slice(0, 200) }; }
+  });
+
   // 退出双保险（#19）：清掉可能残留的引擎子进程（队列 killRunning 之外再兜底一层，防退出后进程树孤儿）
   function killEngineSubprocesses() {
     const cp = require('child_process');
@@ -2175,6 +2252,9 @@ app.on('window-all-closed', () => {
 
 app.on('before-quit', () => {
   quitting = true;
+  // #39 干净退出标记：正常退出先写 userData/cleanExit.flag——启动时标记缺失即判上次异常退出。
+  // 仅真实运行过的实例写（booted=false 的重复启动实例不写，防把常驻实例误报成异常退出）
+  try { if (booted) fs.writeFileSync(path.join(app.getPath('userData'), 'cleanExit.flag'), String(Date.now())); } catch (e) {}
   // 未完成任务续跑（用户反馈）：退出不再取消任务——
   // downloading 杀子进程防孤儿后标 queued，queued/held 原样落盘；下次启动 restore 自动续跑。
   // （旧行为 before-quit 全取消，重启后队列是空的，与「自启动后继续未完成项目」矛盾）

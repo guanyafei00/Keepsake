@@ -21,9 +21,8 @@ let GDL_CFG = null;   // gallery-dl 配置：stdout/stderr 强制 UTF-8（韩/�
 let PIXIV_CFG = null;   // gdl-pixiv.json：Pixiv OAuth refresh-token 配置（授权后存在，spawn 时才查 → 即时生效）
 let COOKIE_BROWSER = '';   // 浏览器登录态来源（''=用 cookies.txt 文件；chrome/edge/firefox/brave=引擎 --cookies-from-browser 直读）
 let BILI_LINE = '';   // B站 CDN/线路手动选线（''=自动；baidu/tencent/aliyun/wscloud/huawei=国内 CDN 线路枚举，经 --extractor-args "bilibili:cdn=<值>" 透传）
-let AUTO_CBZ = false;   // gallery-dl 任务完成后自动把图片目录打包 CBZ
-const CBZ_MIN_IMAGES = 3;   // 目录内图片少于该数不打包（避免把单图/缩略图目录也卷进去）
-const CBZ_IMG_RE = /\.(jpe?g|png|webp|gif|bmp|avif)$/i;
+let AUTO_CBZ = false;   // gallery-dl/direct 图组任务完成后自动把图片目录打包 CBZ（#37）
+const cbz = require('./cbz');   // #37 CBZ 打包核心：目录选取/阈值/ComicInfo/bsdtar 全在 lib/cbz.js（与媒体库手动成册共用）
 function configure({ binDir, cookiePath, outDir, proxy, minFreeMB, enginesDir, watchdogTotalMin, watchdogStallMin, maxConcurrent, rateLimitMB }) {
   if (binDir) BIN = binDir;
   if (cookiePath) COOKIE = cookiePath;
@@ -226,11 +225,12 @@ class DownloadQueue {
     this.push();
   }
 
-  // 重试：error/held/canceled/done → queued（重置进度统计，防跨次累加虚高）
+  // 重试：error/held/canceled/done/interrupted → queued（重置进度统计，防跨次累加虚高）
   // done 也允许重试——doneCard 本来就渲染了 ⟳ 按钮，点了却无响应；gallery-dl 重跑会自动跳过已有文件
+  // interrupted（#39 异常退出中断）同 error 语义：一键恢复/手动 ⟳ 都走这里
   retry(id) {
     const it = this.items.get(id);
-    if (!it || !['error', 'held', 'canceled', 'done'].includes(it.status)) return false;
+    if (!it || !['error', 'held', 'canceled', 'done', 'interrupted'].includes(it.status)) return false;
     it.status = strategy.isBreakered(it.url) ? 'held' : 'queued';
     it.error = null;
     it.progress = 0;
@@ -489,39 +489,27 @@ class DownloadQueue {
     });
   }
 
-  // 图站任务产物 → CBZ：取本次产出文件里「图片最多的目录」，用系统自带 bsdtar（Windows 10+ 内置，
-  // 显式 --format zip）整目录打包成 <目录名>.cbz 与目录平级。0 依赖、失败静默（不影响下载结果）
+  // 图站任务产物 → CBZ（#37）：打包核心已抽到 lib/cbz.js（任务联动与媒体库手动成册共用）。
+  // 这里只保留任务侧职责：从本次产出文件里选「图片最多的目录」（阈值判定在 cbz.pickImageDir），
+  // 带上任务元数据打包成平级 <目录名>.cbz（内含 ComicInfo.xml）。0 依赖、失败静默（不影响下载结果）
   async _maybeCbz(it) {
     try {
       // #32：direct 引擎的小红书图组任务也会产出图片目录，与 gallery-dl 同样联动 CBZ 打包
-      if (!['gallery-dl', 'direct'].includes(it.engine) || !Array.isArray(it._files) || !it._files.length) return;
-      const counts = new Map();   // dir -> 图片数
-      for (const f of it._files) {
-        if (!CBZ_IMG_RE.test(f)) continue;
-        const d = path.dirname(f);
-        counts.set(d, (counts.get(d) || 0) + 1);
-      }
-      let best = null, bestN = 0;
-      for (const [d, n] of counts) if (n > bestN) { best = d; bestN = n; }
-      if (!best || bestN < CBZ_MIN_IMAGES) return;
-      const base = path.basename(best);
-      const out = path.join(path.dirname(best), base + '.cbz');
-      if (fs.existsSync(out)) { it.cbz = out; return; }   // 重试场景：册子已在，跳过
-      await new Promise((resolve, reject) => {
-        // 必须用绝对路径调系统 bsdtar——Git Bash 环境的 GNU tar 在 PATH 里优先且不支持 zip。
-        // 路径经 path.join 拼（避免字符串字面量反斜杠被 JS 转义符吃掉）；--format zip 显式指定
-        // （bsdtar 的 -a 只认 .zip 等常见扩展，.cbz 会落回 ustar 格式，实测踩坑）
-        const tarExe = path.join(process.env.SystemRoot || 'C:/Windows', 'System32', 'tar.exe');
-        const child = spawn(tarExe, ['--format', 'zip', '-c', '-f', out, '-C', path.dirname(best), base], { windowsHide: true });
-        let err = '';
-        child.stderr.on('data', d => err += d);
-        child.on('error', reject);
-        child.on('close', code => code === 0 ? resolve() : reject(new Error('tar exit ' + code + ' ' + err.slice(0, 100))));
-        setTimeout(() => { try { child.kill(); } catch (e) {} reject(new Error('cbz 打包超时')); }, 10 * 60000);
+      if (!['gallery-dl', 'direct'].includes(it.engine)) return;
+      const best = cbz.pickImageDir(it._files);
+      if (!best) return;
+      const r = await cbz.makeCbzFromDir(best, {
+        title: path.basename(best),
+        series: path.basename(best),
+        writer: it.uploader || null,      // uploader 可得则写进 ComicInfo（Writer 字段）
+        web: it.url || null,              // 来源 URL（ComicInfo Web 字段）
+        date: it.addedAt || Date.now(),   // Year/Month 取任务入队时间
       });
-      it.cbz = out;
-      if (this.onCbz) { try { this.onCbz(it, out); } catch (e) {} }
-      this.push();
+      if (r.ok && r.cbz) {
+        it.cbz = r.cbz;
+        if (!r.skipped && this.onCbz) { try { this.onCbz(it, r.cbz); } catch (e) {} }   // 幂等命中的已存在册子不重复播报
+        this.push();
+      }
     } catch (e) { console.warn('[queue] cbz:', e.message); }
   }
 
