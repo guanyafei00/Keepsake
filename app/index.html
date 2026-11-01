@@ -589,7 +589,7 @@ document.addEventListener('DOMContentLoaded', a11yEnhance);
 function translateError(e) {
   const s = String(e || '');
   if (/Keepsake 不会绕过访问限制|已被发布者删除|没有认出这篇文章/.test(s)) return s;   // 文章引擎的错误本就是人话，直通不走通用翻译
-  if (/412|-352|请求过于频繁|Precondition/i.test(s)) return 'B 站风控限流中：稍等几分钟会自动重试，或到左下角扫码登录后再试';
+  if (/\b412\b|-352|请求过于频繁|Precondition/i.test(s)) return 'B 站风控限流中：稍等几分钟会自动重试，或到左下角扫码登录后再试';
   if (/\b429\b|Too Many Requests|rate.?limit/i.test(s)) return '请求太快被限流：稍后会自动重试';
   if (/\b403\b/.test(s)) return '站点拒绝访问：可能需要登录（左下角扫码）或链接已失效';
   if (/timeout|timed out|ETIMEDOUT|ECONNRESET|网络/i.test(s)) return '网络超时：点任务上的 ⟳ 重试一下';
@@ -1503,7 +1503,7 @@ function friendlySubFail(m) {
   if (/ENOTFOUND|getaddrinfo|EAI_AGAIN/i.test(k)) return '域名打不开：断网、站点被墙或站点挂了';
   if (/SSL|TLS|certificate|CERT_/i.test(k)) return 'HTTPS 连接异常：网络被劫持或站点证书问题';
   if (/timed?\s?out|ETIMEDOUT|ECONNRESET|ECONNREFUSED|ECONNABORTED|socket hang up/i.test(k)) return '网络超时或中断，稍后自动重试';
-  if (/429|rate.?limit|Too Many/i.test(k)) return '触发站点限流，冷却后自动重试';
+  if (/\b429\b|rate.?limit|Too Many/i.test(k)) return '触发站点限流，冷却后自动重试';
   if (/ENOENT|spawn/i.test(k)) return '下载引擎缺失：到 设置 → 下载引擎 检查或重装';
   if (!core && /退出码|exited with code/i.test(s)) return '站点拉取失败（网络波动或 Cookie 失效），下轮自动重试';   // 剥完没剩主干 = 只有退出码，无具体错因；别误导用户去重装引擎
   const tail = k.replace(/^[（(]+/, '').replace(/[）)]+$/, '').trim();   // 只剩括号备注时去掉括号壳，避免「其他错误：（...）（悬停…」双括号

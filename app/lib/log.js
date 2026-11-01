@@ -25,7 +25,9 @@ function line(level, tag, msg) {
   const d = new Date();
   const p = n => String(n).padStart(2, '0');
   const text = `[${localDate(d)} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}] [${level}] [${tag}] ${String(msg).replace(/\s+/g, ' ').slice(0, 500)}\n`;
-  try { fs.appendFileSync(path.join(DIR, 'keepsake-' + localDate(d) + '.log'), text); } catch (e) {}
+  // #46⑥：日志写失败（磁盘满/权限）不能静默——但也不允许它击穿调用链，warn 到 stderr 即止
+  try { fs.appendFileSync(path.join(DIR, 'keepsake-' + localDate(d) + '.log'), text); }
+  catch (e) { console.warn('[log] 日志落盘失败:', e.message); }
 }
 
 const info = (tag, msg) => line('INFO', tag, msg);

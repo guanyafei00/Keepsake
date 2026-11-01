@@ -3,6 +3,7 @@ const { spawn } = require('child_process');
 const path = require('path');
 const fs = require('fs');
 const enc = require('./enc');
+const { TolerantDecoder } = require('./dec');   // #46⑤ 引擎输出 UTF-8 优先、GBK 回退容错解码
 
 let BIN = path.join(__dirname, '..', 'resources', 'bin');
 let COOKIE_PATH = path.join(__dirname, '..', 'resources', 'cookies.txt');
@@ -107,7 +108,7 @@ function probe(url, timeoutMs = 30000) {
     if (PROXY) args.push('--proxy', PROXY);
     args.push(url.trim());
     let out = '';
-    const dec = new TextDecoder('utf-8');   // yt-dlp 已强制 --encoding utf-8（与 queue.js/subs.js 统一）
+    const dec = new TolerantDecoder();   // yt-dlp 已强制 --encoding utf-8；GBK 回退保险（#46⑤）
     const child = spawn(path.join(BIN, 'yt-dlp.exe'), args, { windowsHide: true });
     const timer = setTimeout(() => child.kill('SIGKILL'), timeoutMs);
     child.stdout.on('data', d => { out += dec.decode(d, { stream: true }); });

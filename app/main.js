@@ -19,9 +19,10 @@ app.disableHardwareAcceleration();
 if (process.env.FETCHIE_AUTOTEST) {
   app.setPath('userData', path.join(os.tmpdir(), 'keepsake-autotest-' + Date.now()));
 }
-// E2E 数据隔离：Playwright 驱动真实窗口跑 UI 流程，同样不得触碰用户数据
+// E2E 数据隔离：Playwright 驱动真实窗口跑 UI 流程，同样不得触碰用户数据。
+// KEEPSAKE_E2E_DIR 可指定固定 profile 目录（跨重启持久化用例需要同一目录；不传则每次全新临时目录）
 if (process.env.KEEPSAKE_E2E) {
-  app.setPath('userData', path.join(os.tmpdir(), 'keepsake-e2e-' + Date.now()));
+  app.setPath('userData', process.env.KEEPSAKE_E2E_DIR || path.join(os.tmpdir(), 'keepsake-e2e-' + Date.now()));
 }
 // README 截图数据隔离：用仓库内演示数据（screenshots/demo-userdata），公开截图不暴露真实订阅
 if (process.env.KEEPSAKE_CAPTURE) {
@@ -55,6 +56,7 @@ const srtLib = require('./lib/srt');
 const backup = require('./lib/backup');
 const textindex = require('./lib/textindex');
 const cbzLib = require('./lib/cbz');   // #37 CBZ 漫画册打包（媒体库一键成册 library:makeCbz 用）
+const { TolerantDecoder } = require('./lib/dec');   // #46⑤ 引擎输出 UTF-8 优先、GBK 回退容错解码
 const articleLib = require('./lib/article');   // 文章引擎（M-A2/A3）：公众号/知乎/B站专栏等网页文章归档 + 删帖复查
 const { atomicWrite } = require('./lib/jsonfile');   // 迁移包导出防半截文件
 
@@ -643,6 +645,9 @@ app.whenReady().then(() => {
     log.info('queue', msg);
     if (win && !win.isDestroyed()) win.webContents.send('queue:interrupted', { count: interruptedN });
   }
+  // #46② 启动也跑一次终态淘汰：历史 tasks.json 里可能积了大量终态任务（pruneFinished 原来只在
+  // push 时触发，冷启动载入后首场 push 前不会清）；顺带广播初始快照并触发持久化
+  try { queue.push(); } catch (e) { console.warn('[boot] 初始快照推送/终态淘汰失败:', e.message); }
   booted = true;   // #39：初始化完成，此后正常退出才写干净标记
 
   // 订阅改名 → 队列历史任务标题同步（老任务入队时还带着「订阅 N」占位名，改名后追平）
@@ -1228,7 +1233,7 @@ app.whenReady().then(() => {
         '--no-warnings', '--skip-download', 'https://www.bilibili.com/',
       ], { windowsHide: true });
       let err = '';
-      const dec = new TextDecoder('utf-8');
+      const dec = new TolerantDecoder();   // #46⑤ yt-dlp 输出容错解码（中文环境报错可能吐 GBK）
       child.stderr.on('data', d => { err += dec.decode(d, { stream: true }); });
       const timer = setTimeout(() => { try { child.kill('SIGKILL'); } catch (e) {} resolve({ ok: false, reason: '读取超时（45s），请确认浏览器已完全退出后重试' }); }, 45000);
       child.on('error', e => { clearTimeout(timer); resolve({ ok: false, reason: '启动 yt-dlp 失败：' + e.message }); });

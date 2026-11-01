@@ -9,7 +9,8 @@
   "main": "main.js",
   "scripts": {
     "start": "electron .",
-    "dist": "electron-builder --win nsis"
+    "dist": "electron-builder --win nsis",
+    "test:e2e": "node tools/e2e/smoke.js"
   },
   "devDependencies": {
     "electron": "^33.0.0",

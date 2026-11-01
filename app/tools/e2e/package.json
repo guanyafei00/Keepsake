@@ -1,0 +1,12 @@
+{
+  "name": "keepsake-e2e",
+  "private": true,
+  "version": "0.0.0",
+  "description": "#38 Playwright E2E 冒烟：驱动真实 Electron 窗口（KEEPSAKE_E2E=1 隔离 userData，绝不触碰用户数据）。独立 package.json——playwright 是纯测试工具链依赖，不进 app 运行时（保持 0 npm 依赖铁律）。",
+  "scripts": {
+    "test": "node smoke.js"
+  },
+  "devDependencies": {
+    "playwright": "1.64.0"
+  }
+}

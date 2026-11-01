@@ -79,7 +79,9 @@ function removeDoc(p) {
   delete data.docs[p];
 }
 
-function flush() { try { atomicWrite(FILE, JSON.stringify(data)); } catch (e) {} }
+function flush() {   // #46⑥：索引持久化失败原先静默——磁盘满/权限坏会导致索引悄悄回退丢失，warn 一声
+  try { atomicWrite(FILE, JSON.stringify(data)); } catch (e) { console.warn('[textindex] 索引落盘失败:', e.message); }
+}
 
 // 查询：所有查询词的 2-gram/词都命中的文档（AND）；按命中 token 数排序。
 // 返回 [{ path, title, up, snippet, hits }]

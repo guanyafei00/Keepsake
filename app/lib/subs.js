@@ -12,6 +12,7 @@ function exe(n) { return process.platform === 'win32' ? n + '.exe' : n; }
 const https = require('https');
 const { spawn } = require('child_process');
 const { atomicWrite, readJson } = require('./jsonfile');
+const { TolerantDecoder } = require('./dec');   // #46⑤ 引擎输出 UTF-8 优先、GBK 回退容错解码
 const { isFeedUrl } = require('./identify');   // feed 链接识别（单一事实源，与 identify.js 共用同一套模式）
 const { cookieBrowserWarning } = require('./browsercookies');   // 浏览器登录态预警（Windows 文件锁根因见该文件头注释）
 
@@ -141,7 +142,7 @@ function cookieDomains() {
         if (d) set.push(d.replace(/^\./, '').toLowerCase());
       }
     }
-  } catch (e) {}
+  } catch (e) {}   // #46⑥ 有意吞：cookies.txt 缺失/解析失败 = 无登录态，走「游客态预警」路径而非报错
   _cookieDomainsCache = set;
   return set;
 }
@@ -280,7 +281,8 @@ function gdlName(url) {
     args.push(...cookieArgs());
     if (PROXY) args.push('--proxy', PROXY);
     args.push(url);
-    const dec = new TextDecoder('utf-8');
+    // #46⑤ gallery-dl -K 输出容错解码（中文环境旁路输出可能吐 GBK）
+    const dec = new TolerantDecoder();
     const child = spawn(path.join(BIN, exe('gallery-dl')), args, { windowsHide: true });
     let buf = Buffer.alloc(0);
     const timer = setTimeout(() => child.kill('SIGKILL'), 60000);
@@ -544,8 +546,9 @@ function fetchViaYtDlp(url, maxItems = 5) {
     if (BILI_LINE && /bilibili\.com/i.test(url)) args.push('--extractor-args', 'bilibili:cdn=' + BILI_LINE);
     if (PROXY) args.push('--proxy', PROXY);
     args.push(url);
-    // 编码：yt-dlp 已强制 --encoding utf-8，按 UTF-8 解码；全量/大量条目清单超时放宽（X 时间线 200 条约需数分钟）
-    const dec = new TextDecoder('utf-8');
+    // 编码：yt-dlp 已强制 --encoding utf-8，但 ffmpeg/OS 层中文报错可能吐 GBK → TolerantDecoder（#46⑤）；
+    // 全量/大量条目清单超时放宽（X 时间线 200 条约需数分钟）
+    const dec = new TolerantDecoder();
     const child = spawn(path.join(BIN, exe('yt-dlp')), args, { windowsHide: true });
     let buf = Buffer.alloc(0), err = '';
     const timer = setTimeout(() => child.kill('SIGKILL'),
@@ -575,7 +578,7 @@ function fetchViaGdl(url, maxItems = 20) {
     args.push(...cookieArgs());
     if (PROXY) args.push('--proxy', PROXY);
     args.push(url);
-    const dec = new TextDecoder('utf-8');   // 配置文件已强制 gallery-dl 输出 UTF-8
+    const dec = new TolerantDecoder();   // 配置文件已强制 gallery-dl 输出 UTF-8；GBK 回退保险（#46⑤）
     const child = spawn(path.join(BIN, exe('gallery-dl')), args, { windowsHide: true });
     let buf = Buffer.alloc(0), err = '';
     const timer = setTimeout(() => child.kill('SIGKILL'), maxItems > 20 ? 5 * 60000 : 120000);

@@ -8,6 +8,7 @@ const fs = require('fs');
 const strategy = require('./strategy');
 const article = require('./article');   // 文章引擎：进程内执行（同 direct 先例，不 spawn 子进程）
 const { cookieBrowserWarning } = require('./browsercookies');   // 浏览器登录态预警（Windows 文件锁根因见该文件头注释）
+const { TolerantDecoder } = require('./dec');   // #46⑤ 引擎输出 UTF-8 优先、GBK 回退容错解码
 
 let BIN = path.join(__dirname, '..', 'resources', 'bin');
 let ENGINES = null;   // 可写引擎目录（userData/engines）：自更新落这里；spawn 时优先取新版
@@ -430,10 +431,10 @@ class DownloadQueue {
     }
 
     fs.mkdirSync(OUTDIR, { recursive: true });
-    // 编码：两引擎输出均为 UTF-8（yt-dlp 用 --encoding；gallery-dl 用 --config 强制 stdout/stderr 为 UTF-8）
-    const ytdlpDec = 'utf-8';
-    const decOut = new TextDecoder(ytdlpDec);
-    const decErr = new TextDecoder(ytdlpDec);
+    // 编码：两引擎本体已强制 UTF-8（yt-dlp --encoding / gallery-dl --config），但 ffmpeg/OS 层
+    // 的中文报错仍可能吐 GBK 字节 → TolerantDecoder：UTF-8 严格优先，非法序列整流回退 GBK（#46⑤）
+    const decOut = new TolerantDecoder();
+    const decErr = new TolerantDecoder();
     const child = spawn(args.exe, args.args, { windowsHide: true });
     it._child = child;
 
@@ -866,4 +867,4 @@ class DownloadQueue {
   }
 }
 
-module.exports = { DownloadQueue, configure, reconfigure: configure, setCookieBrowser, setAutoCbz, setBiliLine };
+module.exports = { DownloadQueue, configure, reconfigure: configure, setCookieBrowser, setAutoCbz, setBiliLine, isRateLimitError };   // isRateLimitError：#46③ 词边界单测用

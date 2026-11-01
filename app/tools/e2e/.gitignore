@@ -1,0 +1,3 @@
+# playwright 是纯测试工具链依赖（独立 package.json），不进 app 运行时 0 依赖；安装产物不入库
+node_modules/
+package-lock.json

@@ -165,7 +165,7 @@ function loadPersistedRemote() {
   try {
     const j = JSON.parse(fs.readFileSync(f, 'utf-8'));
     if (Array.isArray(j.rules)) applyRemoteRules(j.rules, { version: j.version, persist: false });
-  } catch (e) {}
+  } catch (e) { console.warn('[strategy] 远程规则本地缓存读取失败（忽略，用内置策略兜底）:', e.message); }   // #46⑥
 }
 
 // 拉取远程规则（Node https 直连规则服务器，非 B 站域名，无 TLS 指纹问题）
