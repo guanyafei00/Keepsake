@@ -226,6 +226,10 @@ const server = http.createServer((req, res) => {
     report('extractBizFromHtml·非 Mz 开头不认（不编造）', weread.extractBizFromHtml('var biz = "hello world"') === null);
     report('extractNicknameFromHtml·老形态仍兼容', weread.extractNicknameFromHtml('var nickname = "旧号";') === '旧号' && weread.extractNicknameFromHtml('"nick_name":"旧号2"') === '旧号2');
     report('extractNicknameFromHtml·无闭合引号兜底', weread.extractNicknameFromHtml('nickname = htmlDecode("数字生命卡兹克"') === '数字生命卡兹克');
+    // QA Round 2 反例：真·无闭合引号，且后文还有引号。旧 [^"]+ 允许跨行，会吞到下一个引号变成垃圾名，
+    // 导致 _auto=false、cover 的 mpName 不再覆盖，卡片永久显示垃圾名。断言严格等于真名。
+    const brokenQuote = 'var biz = "MzIyMzA5NjEyMA==" || "";\nnickname = htmlDecode("数字生命卡兹克\nvar msg_title = "开源…";\n';
+    report('extractNicknameFromHtml·真·无闭合引号+后文引号不吞垃圾', weread.extractNicknameFromHtml(brokenQuote) === '数字生命卡兹克', weread.extractNicknameFromHtml(brokenQuote));
     // weread:add 短链降级切片：URL 无 __biz → 页内 biz → bookId（不真起 Electron）
     report('weread:add·短链降级切片（extractBiz→meta.biz→bizToBookId）',
       weread.extractBiz(SHORT_URL) === null && !!meta && weread.bizToBookId(meta.biz) === 'MP_WXS_3223096120', meta && meta.biz);

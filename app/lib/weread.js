@@ -483,7 +483,9 @@ function openLoginWindow() {
 // ---- 公众号文章页元数据（贴短链路径用；一次请求同时拿 biz + nickname）----
 // host 白名单：主进程此前对用户传入 URL 直接 https.get，可构造 https://内网地址/?__biz=... 做内网探测
 // （QA 报告问题 1）。对齐 main.js app:openExternal 的 URL 解析锚定主机名做法：只认 https +
-// mp.weixin.qq.com 及其子域，其他一律不发请求。前缀/同前缀伪造域、userinfo 混淆都挡得住。
+// mp.weixin.qq.com 及其子域，其他一律不发请求。前缀/同前缀伪造域挡得住；
+// userinfo 形式（https://evil.com@mp.weixin.qq.com/…）因 hostname 仍是白名单域会放行，
+// 但目标域不变、不构成 SSRF；大小写由 new URL 归一，正确放行。
 function weixinArticleUrl(articleUrl) {
   try {
     const u = new URL(String(articleUrl || ''));
@@ -525,8 +527,8 @@ function extractNicknameFromHtml(html) {
   const s = String(html || '');
   const m = s.match(/var\s+nickname\s*=\s*"([^"]+)"/i)
     || s.match(/"nick_name"\s*:\s*"([^"]+)"/i)
-    || s.match(/\bnickname\s*=\s*htmlDecode\(\s*"([^"]+)"/i)
-    || s.match(/\bnickname\s*=\s*htmlDecode\(\s*'([^']+)'/i)
+    || s.match(/\bnickname\s*=\s*htmlDecode\(\s*"([^"\n]+)"/i)   // 禁跨行，否则会吞到下一个引号，下面的兜底永远不可达
+    || s.match(/\bnickname\s*=\s*htmlDecode\(\s*'([^'\n]+)'/i)
     || s.match(/\bnickname\s*=\s*htmlDecode\(\s*"([^"\n;)]+)/i)   // 页内脚本被截断/无闭合引号时也认
     || s.match(/var\s+nickname\s*=\s*'([^']+)'/i)
     || s.match(/id="js_name"[^>]*>\s*([^<]+?)\s*</i);
