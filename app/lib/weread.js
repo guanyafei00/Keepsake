@@ -6,7 +6,7 @@
 //      动态拼装 Cookie 头——绝不落明文 cookie 文件（项目此前吃过凭证散落的亏）。
 //   ② 节流闸：同一时刻只放行 1 个读书接口请求，任意两次请求间隔 ≥60s；订阅级检查间隔 ≥30 分钟
 //      由 subs.js update 白名单强制。与 RSS/B站 共享 _subChain 串行队列天然错峰。
-//   ③ 失效判定矩阵（§3.3）：errCode -2012/-2013 / 返回 HTML / 缺 wr_skey → expired，
+//   ③ 失效判定矩阵（§3.3）：errCode -2012/-2013 / 登录页特征 HTML / 缺 wr_skey → expired，
 //      不计 failStreak（失效不是站点错误），卡片红标 + 重新扫码后自动恢复。
 //   ④ 契约校准声明（§3.1）：以下端点/参数为非官方接口，**以小号实测为准**——端点与字段映射
 //      全部集中在本文件常量区，微信改版只需修这一个文件。
@@ -32,6 +32,10 @@ const CURSOR_FIELDS = ['nextMaxTime', 'maxTime', 'lastMaxTime'];
 // articlelist 响应里条目数组的字段名（实测确认后修订；逐级回落）
 const LIST_FIELDS = ['articles', 'list', 'items', 'data'];
 const EXPIRED_CODES = new Set([-2012, -2013]);   // 读书侧登录失效信号码（wewe-rss 同款 + 类似鉴权码）
+// 登录页特征（2026-11 实测收窄：/web/mp/* 端点登录态下也可能 404+HTML，「HTML 一律判过期」会误报
+// 登录已过期——只认登录页文案/路由特征，404 页、风控页、改版页走普通失败路径并带诊断信息）
+const LOGIN_PAGE_RE = /weread\.qq\.com\/#login|扫码登录|请登录|登录微信读书|去登录/i;
+const EXPIRED_REASON = '微信读书登录已过期，请重新扫码';   // 失效统一文案（诊断尾巴由 rawGet 追加）
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36';
 const MIN_GAP_MS = 60 * 1000;            // 模块级请求闸：任意两次读书接口请求最小间隔
 const RENEWAL_INTERVAL_MS = 12 * 3600 * 1000;   // 续期节流：距上次成功续期 >12h 才先续期
@@ -53,13 +57,15 @@ function saveState() {
 
 // ---- 失效判定矩阵（纯函数，单测覆盖；§3.3）----
 // statusCode: HTTP 状态码；bodyText: 响应体原文
-//   30x 重定向 / HTML 响应体 / errCode ∈ {-2012,-2013} → 登录已过期
-//   errCode 0 或其他业务码 → 非失效（调用方按普通失败处理）
+//   30x 重定向 / 登录页特征 HTML / errCode ∈ {-2012,-2013} → 登录已过期
+//   其余 HTML（404/风控/改版页）与 errCode 0 或其他业务码 → 非失效（调用方按普通失败处理）
 function isExpiredSignal(statusCode, bodyText) {
   if (statusCode === 301 || statusCode === 302) return true;
   const text = String(bodyText || '').trim();
   if (!text) return false;                       // 空 body：按请求失败处理，不判失效
-  if (text.startsWith('<')) return true;         // 返回 HTML = 被 302 到登录页
+  // 收窄（2026-11 实测）：返回 HTML ≠ 被踢到登录页——mpSearch/articlelist 登录态也可能 404+HTML，
+  // 只有带登录页特征的 HTML 才判过期，其余落「HTTP <状态码>」普通失败路径
+  if (text.startsWith('<')) return LOGIN_PAGE_RE.test(text);
   try {
     const j = JSON.parse(text);
     if (j && EXPIRED_CODES.has(Number(j.errCode))) return true;
@@ -158,6 +164,7 @@ function markExpired() {
 function clearExpired() {
   if (!state.expired) return false;
   state.expired = false;
+  state.lastExpiredDetail = null;   // 失效恢复后旧诊断随之作废
   saveState();
   return true;
 }
@@ -169,6 +176,8 @@ async function wereadState() {
     nickname: state.nickname || null,
     expired: !!state.expired,
     lastRenewalAt: state.lastRenewalAt || 0,
+    // 最近一次失效诊断（statusCode/bodyHead/url/at；UI/日志可据此区分「真过期」与「端点异常」）
+    lastExpiredDetail: state.lastExpiredDetail || null,
   };
 }
 
@@ -178,7 +187,7 @@ async function logout() {
     const ses = session.fromPartition(PARTITION);
     await ses.clearStorageData({ storages: ['cookies', 'localstorage', 'indexdb', 'cachestorage'] });
   } catch (e) {}
-  state = { nickname: null, lastRenewalAt: 0, expired: false };
+  state = { nickname: null, lastRenewalAt: 0, expired: false, lastExpiredDetail: null };
   saveState();
   return { ok: true };
 }
@@ -187,11 +196,36 @@ async function logout() {
 // 返回统一形态（§5.2）：
 //   { ok:true, errCode, data } | { ok:false, expired, newlyExpired?, reason }
 // Cookie 头每次调用实时从分区拼装（不缓存副本，续期后自动生效）
-async function rawGet(url) {
+
+// ---- 诊断摘要（2026-11 BugFix：失效/失败 reason 带结构化上下文，否则多种失败混进「过期」无法定位）----
+// body 摘要：剥 HTML 标签 + 压空白后取前 60 字符（不回传完整 body，避免泄敏感信息）
+function bodyDigest(bodyText) {
+  return String(bodyText || '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 60);
+}
+// body 形态标签：肉眼快速分类失败形态
+function bodyKind(bodyText) {
+  const t = String(bodyText || '').trim();
+  if (!t) return '空 body';
+  if (t.startsWith('<')) return 'HTML 页';
+  try { JSON.parse(t); return 'JSON'; } catch (e) { return '非 JSON'; }
+}
+// 主机+路径（不含 query：mpSearch 的 keyword 等用户输入不进日志/状态文件）
+function siteOf(url) {
+  try { const u = new URL(url); return u.host + u.pathname; } catch (e) { return String(url || '').slice(0, 60); }
+}
+// 失败 reason 的结构化尾巴，如：（HTTP 404 | HTML 页 | weread.qq.com/web/mp/search | <摘要>）
+function diagSuffix(statusCode, bodyText, url) {
+  const d = bodyDigest(bodyText);
+  return `（HTTP ${statusCode} | ${bodyKind(bodyText)} | ${siteOf(url)}${d ? ' | ' + d : ''}）`;
+}
+
+async function rawGet(url, opts = {}) {
+  // renewal 探测传 { markExpired:false }：续期端点偶发 HTML/30x 不得污染失效标记/诊断（§3.3 续期失败不判死）
+  const allowMark = opts.markExpired !== false;
   const cookie = await ensureSessionCookie();
   if (!/(^|;\s*)wr_skey=/.test(cookie)) {
-    // 缺 wr_skey：从未登录 / 已被清（§3.3 第 4 行）
-    return { ok: false, expired: true, newlyExpired: markExpired(), reason: '微信读书登录已过期，请重新扫码' };
+    // 缺 wr_skey：从未登录 / 已被清（§3.3 第 4 行）——确凿失效，无条件标记
+    return { ok: false, expired: true, newlyExpired: markExpired(), reason: EXPIRED_REASON };
   }
   return new Promise(resolve => {
     https.get(url, {
@@ -206,18 +240,25 @@ async function rawGet(url) {
       res.on('data', c => d += c);
       res.on('end', () => {
         if (isExpiredSignal(res.statusCode, d)) {
-          resolve({ ok: false, expired: true, newlyExpired: markExpired(), reason: '微信读书登录已过期，请重新扫码' });
+          const reason = EXPIRED_REASON + diagSuffix(res.statusCode, d, url);
+          if (!allowMark) { resolve({ ok: false, expired: true, newlyExpired: false, reason }); return; }
+          // 诊断信息随失效标记一并落盘（markExpired 内 saveState）；先写 detail 再标记，保证同一落盘包含诊断
+          state.lastExpiredDetail = { statusCode: res.statusCode, bodyHead: bodyDigest(d), url: siteOf(url), at: Date.now() };
+          const newly = markExpired();
+          if (!newly) saveState();   // 早已是失效态：markExpired 跳过落盘，补一次保证最新诊断可查
+          resolve({ ok: false, expired: true, newlyExpired: newly, reason });
           return;
         }
         if (res.statusCode !== 200) {
-          resolve({ ok: false, expired: false, reason: '读书接口 HTTP ' + res.statusCode });
+          // 404/风控/限流等：不是登录失效（实测 mpSearch/articlelist 登录态也可能 404+HTML），带诊断让改版可定位
+          resolve({ ok: false, expired: false, reason: '读书接口请求失败' + diagSuffix(res.statusCode, d, url) });
           return;
         }
         try {
           const j = JSON.parse(d);
           resolve({ ok: Number(j.errCode) === 0, errCode: j.errCode, data: j });
         } catch (e) {
-          resolve({ ok: false, expired: false, reason: '读书接口返回非 JSON（可能已改版，需校准端点）' });
+          resolve({ ok: false, expired: false, reason: '读书接口返回非 JSON（可能已改版，需校准端点）' + diagSuffix(res.statusCode, d, url) });
         }
       });
       res.on('error', e => resolve({ ok: false, expired: false, reason: '网络中断: ' + e.message }));
@@ -227,10 +268,11 @@ async function rawGet(url) {
 }
 
 // 续期策略（§3.3）：距上次成功续期 >12h 先续一次；续期失败不判死（skey 可能未到期），
-// 下次真实请求 -2012 再走判定矩阵
+// 下次真实请求 -2012 再走判定矩阵。markExpired:false：renewal 偶发 HTML/30x 不写失效标记/诊断，
+// 避免刚登录（lastRenewalAt=0）的首轮探测把 UI 状态误污染成「已过期」
 async function ensureRenewed() {
   if (Date.now() - (state.lastRenewalAt || 0) <= RENEWAL_INTERVAL_MS) return;
-  const r = await rawGet(ENDPOINTS.renewal);
+  const r = await rawGet(ENDPOINTS.renewal, { markExpired: false });
   if (r.ok) { state.lastRenewalAt = Date.now(); saveState(); }
 }
 
@@ -344,6 +386,7 @@ function openLoginWindow() {
         const cookies = await sessionCookies();
         if (cookies.some(c => c.name === 'wr_vid' && c.value) && cookies.some(c => c.name === 'wr_skey' && c.value)) {
           state.expired = false;   // 登录成功即复位失效标记（weread:clearExpired 语义内建）
+          state.lastExpiredDetail = null;   // 旧诊断随之作废
           saveState();
           finish({ ok: true });   // m1：先结算成功再关窗——destroy() 同步触发 'closed' 时 finish({ok:false}) 不得抢先
           closeLoginWindow();
@@ -386,5 +429,5 @@ module.exports = {
   isExpiredSignal, articleListToFeedItems, articleUrl, extractCursor, extractBiz,
   createThrottleGate, extractNicknameFromHtml,
   // 常量（单测断言 / 校准参照）
-  PARTITION, ENDPOINTS, MIN_GAP_MS, EXPIRED_CODES,
+  PARTITION, ENDPOINTS, MIN_GAP_MS, EXPIRED_CODES, LOGIN_PAGE_RE,
 };

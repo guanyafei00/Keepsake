@@ -30,15 +30,20 @@ const server = http.createServer((req, res) => {
   await new Promise(r => server.listen(0, '127.0.0.1', r));
   const B = 'http://127.0.0.1:' + server.address().port;
 
-  // ===== ① 失效判定矩阵 isExpiredSignal =====
+  // ===== ① 失效判定矩阵 isExpiredSignal（2026-11 收窄：HTML 只认登录页特征，404/风控页不误报过期）=====
   report('失效·302 重定向', weread.isExpiredSignal(302, '') === true);
   report('失效·301 重定向', weread.isExpiredSignal(301, '{"errCode":0}') === true);
-  report('失效·HTML 响应体', weread.isExpiredSignal(200, '<html>登录页</html>') === true);
+  report('失效·登录页文案 HTML', weread.isExpiredSignal(200, '<html><body>扫码登录，同步你的微信读书</body></html>') === true);
+  report('失效·登录路由特征 HTML', weread.isExpiredSignal(200, '<script>location.replace("https://weread.qq.com/#login")</script>') === true);
   report('失效·errCode -2012', weread.isExpiredSignal(200, '{"errCode":-2012,"data":{}}') === true);
   report('失效·errCode -2013', weread.isExpiredSignal(200, '{"errCode":-2013}') === true);
+  report('非失效·404 HTML 页（端点不存在/改版）不误判', weread.isExpiredSignal(404, '<html><head><title>404 Not Found</title></head><body>page not found</body></html>') === false);
+  report('非失效·风控页 HTML 不误判', weread.isExpiredSignal(200, '<html>当前操作存在风险，请稍后再试</html>') === false);
+  report('非失效·普通业务页 HTML 不误判', weread.isExpiredSignal(200, '<html><title>微信读书</title><div>书架</div></html>') === false);
   report('非失效·errCode 0', weread.isExpiredSignal(200, '{"errCode":0,"data":{"ok":1}}') === false);
   report('非失效·其他业务码', weread.isExpiredSignal(200, '{"errCode":-1}') === false);
   report('非失效·空 body', weread.isExpiredSignal(200, '') === false);
+  report('非失效·空白 body', weread.isExpiredSignal(200, '  \n ') === false);
   report('非失效·半截 JSON', weread.isExpiredSignal(200, '{"errCode":-2012') === false);
   report('非失效·200+合法JSON+429码位不介入', weread.isExpiredSignal(429, '{"errCode":0}') === false);
 
