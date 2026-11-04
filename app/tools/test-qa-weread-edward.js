@@ -103,14 +103,14 @@ function assert(cond, msg) { if (!cond) throw new Error(msg || 'assert failed');
     report('bizToBookId·非数字解码原样回落', weread.bizToBookId('MzA4abc==') === 'MzA4abc==');
     report('bizToBookId·空值→null', weread.bizToBookId(null) === null && weread.bizToBookId('') === null);
     report('articleToken·整链剥前缀/末尾回落', weread.articleToken('https://mp.weixin.qq.com/s/Tok9?x=1', 'R') === 'Tok9' && weread.articleToken(null, 'MP_WXS_1_Tok8') === 'Tok8');
-    report('articleToken·实测 token 含 ~ 放行', weread.articleToken(null, 'MP_WXS_3930750813_kNBdCP0jjYXc0Bq9IKfb~w') === 'kNBdCP0jjYXc0Bq9IKfb~w');
+    report('articleToken·reviewId 末段 ~ 还原 _', weread.articleToken(null, 'MP_WXS_3930750813_kNBdCP0jjYXc0Bq9IKfb~w') === 'kNBdCP0jjYXc0Bq9IKfb_w');
     report('extractBiz·biz 后无参数截断', weread.extractBiz('https://mp.weixin.qq.com/s?__biz=ABC') === 'ABC');
     report('extractBiz·空串→null', weread.extractBiz('') === null);
     // cover 主路径（真实 Cookie 实测形态：无 errCode 字段，只有最新一篇）
     const COVER = { name: '绿联NAS私有云', title: '绿联NAS不止能存文件，还能写长篇小说？', reviewId: 'MP_WXS_3930750813_kNBdCP0jjYXc0Bq9IKfb~w', pic: 'https://x/p.jpg', template: 0 };
     const c1 = weread.coverToFeedItem(COVER);
     report('cover·1 条 feed + id/type/text', c1.id === COVER.reviewId && c1.type === 'feed' && c1.text === COVER.title);
-    report('cover·短链拼对（~ 保留）', c1.url === 'https://mp.weixin.qq.com/s/kNBdCP0jjYXc0Bq9IKfb~w', c1.url);
+    report('cover·短链拼对（~ 还原为 _）', c1.url === 'https://mp.weixin.qq.com/s/kNBdCP0jjYXc0Bq9IKfb_w', c1.url);
     report('cover·超长标题截断 80', weread.coverToFeedItem({ reviewId: 'R_Tok88', title: 'x'.repeat(200) }).text.length === 80);
     report('cover·无 token→url=null', weread.coverToFeedItem({ reviewId: 'R_!bad' }).url === null);
     report('cover·非对象/空数据不抛错', weread.coverToFeedItem(null).id === '' && weread.coverToFeedItem({}).url === null);
@@ -128,10 +128,38 @@ function assert(cond, msg) { if (!cond) throw new Error(msg || 'assert failed');
     };
     const items = await weread.fetchForSub(SUB, 5, fake);
     report('fetchForSub·-2041 静默且只打一次 articles', items.length === 1 && calls === 2, 'n=' + items.length + ' calls=' + calls);
-    report('fetchForSub·回退结果仍是 cover 短链', items[0] && items[0].url === 'https://mp.weixin.qq.com/s/kNBdCP0jjYXc0Bq9IKfb~w', items[0] && items[0].url);
+    report('fetchForSub·回退结果仍是 cover 短链', items[0] && items[0].url === 'https://mp.weixin.qq.com/s/kNBdCP0jjYXc0Bq9IKfb_w', items[0] && items[0].url);
     let err = null;
     try { await weread.fetchForSub(SUB, 1, async () => ({ ok: false, expired: true, reason: '微信读书登录已过期，请重新扫码（HTTP 200 | JSON | weread.qq.com/api/mp/cover）' })); } catch (e) { err = e; }
     report('fetchForSub·cover 失效才抛 wereadExpired', !!err && err.wereadExpired === true, err && err.message);
+  }
+
+  // ===== ③c 短链页元数据 + host 白名单（QA 报告问题 1：主进程不得对用户 URL 直连内网）=====
+  {
+    const PAGE = [
+      'var biz = "MzIyMzA5NjEyMA==";',
+      'var user_name = "gh_94dba26f8ca0";',
+      'nickname = htmlDecode("数字生命卡兹克");',
+    ].join('\n');
+    const SHORT = 'https://mp.weixin.qq.com/s/T9_acg247gxzUNL4j5zrCw';
+    let called = 0;
+    const meta = await weread.fetchArticleMeta(SHORT, async () => { called++; return PAGE; });
+    report('fetchArticleMeta·短链页 var biz + htmlDecode 昵称', !!meta && meta.biz === 'MzIyMzA5NjEyMA==' && meta.nickname === '数字生命卡兹克', JSON.stringify(meta));
+    report('fetchArticleMeta·一次请求', called === 1, 'calls=' + called);
+    for (const u of ['http://127.0.0.1/?__biz=MzIyMzA5NjEyMA==', 'https://evil.com/s?__biz=MzIyMzA5NjEyMA==',
+      'ftp://mp.weixin.qq.com/s/x', 'https://mp.weixin.qq.com.evil.com/s/x', 'https://mp.weixin.qq.com@127.0.0.1/s/x']) {
+      let n = 0;
+      const r = await weread.fetchArticleMeta(u, async () => { n++; return PAGE; });
+      report('白名单·' + u.split('/')[0] + ' 不发请求', r === null && n === 0, 'calls=' + n);
+    }
+    report('白名单·isWeixinArticleUrl 子域/协议判定', weread.isWeixinArticleUrl('https://img.mp.weixin.qq.com/s/x') === true && weread.isWeixinArticleUrl('http://mp.weixin.qq.com/s/x') === false);
+    // extractBiz 容错：&amp; / urldecode / fragment / biz 别名
+    report('extractBiz·&amp; 与 %3D%3D 与 fragment 与别名',
+      weread.extractBiz('https://mp.weixin.qq.com/s?mid=1&amp;__biz=MzIyMzA5NjEyMA%3D%3D') === 'MzIyMzA5NjEyMA=='
+      && weread.extractBiz('https://mp.weixin.qq.com/s/x#biz=MzIyMzA5NjEyMA==') === 'MzIyMzA5NjEyMA=='
+      && weread.extractBiz('https://mp.weixin.qq.com/s/T9_acg247gxzUNL4j5zrCw') === null);
+    report('weread:add·无 biz 的人话提示可引用', /请在微信里打开/.test(weread.NO_BIZ_REASON) && !/缺 __biz 参数/.test(weread.NO_BIZ_REASON));
+    report('articleToken·originalId 带 ~ 原样 / 危险字符仍拒', weread.articleToken('Tok~en1', 'R_X') === 'Tok~en1' && weread.articleToken(null, 'R_!bad') === null);
   }
 
   // ===== ④ subs.js 注入式依赖：RSS 零回归 + weread 隔离 =====

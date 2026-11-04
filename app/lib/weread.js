@@ -48,6 +48,8 @@ const EXPIRED_REASON = '微信读书登录已过期，请重新扫码';   // 失
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36';
 const MIN_GAP_MS = 60 * 1000;            // 模块级请求闸：任意两次读书接口请求最小间隔
 const API_TIMEOUT_MS = 15000;
+const ARTICLE_PAGE_TIMEOUT_MS = 5000;    // 文章页探针超时（实测正文页 ~3.5MB，5s 够用；风控页也要快失败）
+const NO_BIZ_REASON = '这条链接读不到公众号标识。请在微信里打开该公众号任意一篇文章 → 右上角「…」→「复制链接」，再粘贴到这里';
 
 let STATE_FILE = null;
 let state = { nickname: null, lastRenewalAt: 0, expired: false };
@@ -86,16 +88,18 @@ function isExpiredSignal(statusCode, bodyText) {
 //   reviews[].subReviews[].review.{ reviewId, createTime, mpInfo.{ title, pic_url, time, originalId } }
 //   reviewId 形如 <BOOK_ID>_<ARTICLE_TOKEN>；mpInfo.originalId 直接是 mp.weixin.qq.com/s/<token> 的短链 token
 // 字段做多级回落；url 取不到就 null，调用方 itemUrl 兜底跳过该条，绝不拼出坏链。
-// 文章短链 token：优先 mpInfo.originalId（可能是 token 也可能是整链）；缺失时从 reviewId 最后一段 _ 后取。
-// 只放行 URL 路径安全字符集（实测短链 token 含 ~，如 kNBdCP0jjYXc0Bq9IKfb~w）——拿不到就 null。
+// 文章短链 token：优先 mpInfo.originalId（可能是 token 也可能是整链，原样保留）；
+// 缺失时从 reviewId 最后一段 _ 后取——实测读书把 token 里的 _ 编码成 ~（避免与 bookId 自身的 _ 冲突），
+// 直接拼会拿到 31768B 风控空页，回落分支必须把 ~ 还原成 _ 才是可打开的短链。
+// 只放行 URL 路径安全字符集——危险字符仍全拒，拿不到就 null。
 function articleToken(originalId, reviewId) {
   const o = String(originalId || '').trim();
   if (o) {
     const bare = o.replace(/^(?:https?:\/\/)?mp\.weixin\.qq\.com\/s\//i, '').split(/[?#]/)[0];
-    if (/^[A-Za-z0-9_~\-]{4,}$/.test(bare)) return bare;
+    if (/^[A-Za-z0-9_~\-]{4,}$/.test(bare)) return bare;   // 显式 originalId 不做 ~ 还原
   }
   const parts = String(reviewId || '').split('_');
-  const tail = parts[parts.length - 1] || '';
+  const tail = (parts[parts.length - 1] || '').replace(/~/g, '_');   // 仅 reviewId 回落分支还原
   return /^[A-Za-z0-9_~\-]{4,}$/.test(tail) ? tail : null;
 }
 
@@ -115,7 +119,7 @@ function coverToFeedItem(data) {
 }
 
 // 摊平出所有 review 对象：容器字段逐级回落，兼容「直接就是 review 列表」的返回形态。
-// 无 reviewId 的条目不收（没 id 无法做增量 diff），但计入 offset：fetchForSub 用本函数结果数推进偏移。
+// 无 reviewId 的条目不收（没 id 无法做增量 diff），也不计入 offset：fetchForSub 用本函数结果数推进偏移。
 function flattenReviews(data) {
   let roots = [];
   if (Array.isArray(data)) roots = data;
@@ -170,10 +174,16 @@ function bizToBookId(biz) {
   return /^\d+$/.test(decoded) ? 'MP_WXS_' + decoded : raw;
 }
 
-// 从公众号文章链接提取 __biz（weread:add 用；base64 风格值）
+// 从公众号文章链接提取 __biz（weread:add 用；base64 风格值）。
+// 复制出来的长链常把 & 转义成 &amp;、值写成 %3D%3D；参数也可能落在 #fragment 里；biz / __biz 两种别名都认。
+// 只回传页面里真实存在的那段值，绝不编造 biz。
 function extractBiz(url) {
-  const m = String(url || '').match(/[?&]__biz=([A-Za-z0-9+/=]+)&?/);
-  return m ? m[1] : null;
+  const s = String(url || '').replace(/&amp;/gi, '&');
+  const m = s.match(/[?&#](?:__biz|biz)=([^&#\s]+)/i);
+  if (!m) return null;
+  let v = m[1];
+  try { v = decodeURIComponent(v); } catch (e) { /* 非法 % 转义：按原值返回 */ }
+  return v || null;
 }
 
 // ---- 节流闸（纯逻辑，可注入时钟单测）：串行 + 任意两次执行起始间隔 ≥ minGapMs ----
@@ -388,6 +398,9 @@ async function fetchForSub(sub, pages = 1, _get = apiGet) {
     throw new Error(/（HTTP \d+ \|/.test(baseReason) ? baseReason : baseReason + diagSuffix(0, '', coverUrl));
   }
   const out = [item];
+  // cover 带回公众号真名：挂在返回数组上（不改 fetchForSub 的数组返回契约），subs.checkSub 见到
+  // items.mpName 会调 adoptName 认领，卡片显示「数字生命卡兹克」而不是「公众号 · T9_acg...」
+  out.mpName = String((coverRes.data && (coverRes.data.name || coverRes.data.nickname)) || '').slice(0, 40) || null;
   const seen = new Set([item.id]);
 
   // ② 增强：articles 可用时叠加。只有 r.expired 才抛（真失效信号），其余一律静默忽略、不盲翻。
@@ -467,36 +480,100 @@ function openLoginWindow() {
   });
 }
 
-// 从公众号文章页提取公众号昵称（weread:add 贴链接路径用；公开页抓取，契约外辅助步骤，
-// 字段模式以实测校准：页内 var nickname / json nick_name 两种常见形态）
-function extractNicknameFromHtml(html) {
+// ---- 公众号文章页元数据（贴短链路径用；一次请求同时拿 biz + nickname）----
+// host 白名单：主进程此前对用户传入 URL 直接 https.get，可构造 https://内网地址/?__biz=... 做内网探测
+// （QA 报告问题 1）。对齐 main.js app:openExternal 的 URL 解析锚定主机名做法：只认 https +
+// mp.weixin.qq.com 及其子域，其他一律不发请求。前缀/同前缀伪造域、userinfo 混淆都挡得住。
+function weixinArticleUrl(articleUrl) {
+  try {
+    const u = new URL(String(articleUrl || ''));
+    if (u.protocol !== 'https:') return null;
+    const host = u.hostname.toLowerCase();
+    return (host === 'mp.weixin.qq.com' || host.endsWith('.mp.weixin.qq.com')) ? u : null;
+  } catch (e) { return null; }
+}
+function isWeixinArticleUrl(articleUrl) { return !!weixinArticleUrl(articleUrl); }
+
+// 页内 biz：真实短链页实测 var biz = "MzIyMzA5NjEyMA=="（出现 17 次）；兼容 window.biz / "__biz":"..."。
+// 只放行 /^Mz.../ 的 base64 形态——别的字符串一律不认，绝不编造 biz。
+function extractBizFromHtml(html) {
   const s = String(html || '');
-  const m = s.match(/var\s+nickname\s*=\s*"([^"]+)"/) || s.match(/"nick_name"\s*:\s*"([^"]+)"/)
-    || s.match(/var\s+nickname\s*=\s*'([^']+)'/) || s.match(/id="js_name"[^>]*>\s*([^<]+?)\s*</);
-  return m ? m[1].trim().slice(0, 40) : null;
+  const patterns = [
+    /\bvar\s+biz\s*=\s*"([^"]+)"/i,
+    /\bwindow\.biz\s*=\s*"([^"]+)"/i,
+    /"__biz"\s*:\s*"([^"]+)"/i,
+    /\bvar\s+biz\s*=\s*'([^']+)'/i,
+    /\bwindow\.biz\s*=\s*'([^']+)'/i,
+  ];
+  for (const re of patterns) {
+    const m = s.match(re);
+    if (m && /^Mz[A-Za-z0-9+/=]+$/.test(m[1])) return m[1];
+  }
+  return null;
 }
 
-function fetchArticleNickname(articleUrl) {
+// 页内常见实体解码（htmlDecode 包裹的字符串里会有 &amp; 之类）
+function decodeHtmlText(text) {
+  return String(text || '')
+    .replace(/&amp;/gi, '&').replace(/&quot;/gi, '"').replace(/&#39;|&apos;/gi, "'")
+    .replace(/&lt;/gi, '<').replace(/&gt;/gi, '>').replace(/&nbsp;/gi, ' ').trim();
+}
+
+// 从公众号文章页提取昵称：真实短链页是 nickname = htmlDecode("数字生命卡兹克"（无 var、带函数调用），
+// 旧正则匹配不到；其余形态（var nickname / "nick_name" / id="js_name"）保持兼容。
+function extractNicknameFromHtml(html) {
+  const s = String(html || '');
+  const m = s.match(/var\s+nickname\s*=\s*"([^"]+)"/i)
+    || s.match(/"nick_name"\s*:\s*"([^"]+)"/i)
+    || s.match(/\bnickname\s*=\s*htmlDecode\(\s*"([^"]+)"/i)
+    || s.match(/\bnickname\s*=\s*htmlDecode\(\s*'([^']+)'/i)
+    || s.match(/\bnickname\s*=\s*htmlDecode\(\s*"([^"\n;)]+)/i)   // 页内脚本被截断/无闭合引号时也认
+    || s.match(/var\s+nickname\s*=\s*'([^']+)'/i)
+    || s.match(/id="js_name"[^>]*>\s*([^<]+?)\s*</i);
+  return m ? decodeHtmlText(m[1]).slice(0, 40) : null;
+}
+
+// 文章页正文抓取（封顶 4MB：实测正常页 ~3.5MB，风控空页 31KB；异常大响应不撑内存）。
+// 只由 fetchArticleMeta 在白名单通过后调用；_get 可注入供离线单测。
+function fetchArticlePageHtml(articleUrl) {
   return new Promise(resolve => {
     try {
       https.get(articleUrl, {
         headers: { 'User-Agent': UA, 'Referer': 'https://mp.weixin.qq.com/' },
       }, res => {
         let d = '';
-        res.on('data', c => d += c);
-        res.on('end', () => resolve(extractNicknameFromHtml(d)));
+        res.on('data', c => { if (d.length < 4 * 1024 * 1024) d += c; });
+        res.on('end', () => resolve(d));
+        res.on('error', () => resolve(null));
       }).on('error', () => resolve(null))
-        .setTimeout(10000, function () { this.destroy(new Error('文章页超时')); });
+        .setTimeout(ARTICLE_PAGE_TIMEOUT_MS, function () { this.destroy(new Error('文章页超时')); });
     } catch (e) { resolve(null); }
   });
 }
 
+// 一次请求同时返回 { biz, nickname }；非白名单直接 null 且绝不发请求（修内网探测面）。
+async function fetchArticleMeta(articleUrl, _get = fetchArticlePageHtml) {
+  const u = weixinArticleUrl(articleUrl);
+  if (!u) return null;                       // 非白名单：直接 null，绝不发请求
+  let html = null;
+  // 用已校验过的规范化 URL 发请求，杜绝传入字符串被 https.get 二次解析绕过
+  try { html = await _get(u.href); } catch (e) { return null; }
+  if (!html) return null;
+  return { biz: extractBizFromHtml(html), nickname: extractNicknameFromHtml(html) };
+}
+
+// 薄封装：旧调用点只要昵称（保持导出契约；同样受白名单与 5s 超时保护）
+async function fetchArticleNickname(articleUrl) {
+  const meta = await fetchArticleMeta(articleUrl);
+  return meta ? meta.nickname : null;
+}
+
 module.exports = {
   configure, wereadState, logout, openLoginWindow, closeLoginWindow, clearExpired, markExpired,
-  shelfSync, bookIds, mpContent, mpCover, mpSearch, fetchForSub, fetchArticleNickname,
+  shelfSync, bookIds, mpContent, mpCover, mpSearch, fetchForSub, fetchArticleMeta, fetchArticleNickname,
   // 纯函数（离线单测）
   isExpiredSignal, articleListToFeedItems, coverToFeedItem, flattenReviews, articleToken, bizToBookId, extractBiz,
-  createThrottleGate, extractNicknameFromHtml,
-  // 常量（单测断言 / 校准参照）
-  PARTITION, ENDPOINTS, MIN_GAP_MS, EXPIRED_CODES, RISK_CODES, LOGIN_PAGE_RE,
+  createThrottleGate, extractNicknameFromHtml, extractBizFromHtml, isWeixinArticleUrl,
+  // 常量（单测断言 / 校准参照 / 对外文案）
+  PARTITION, ENDPOINTS, MIN_GAP_MS, EXPIRED_CODES, RISK_CODES, LOGIN_PAGE_RE, NO_BIZ_REASON,
 };

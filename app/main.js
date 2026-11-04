@@ -1743,7 +1743,8 @@ app.whenReady().then(() => {
   });
   // 添加公众号订阅：贴文章链接路径（extractBiz → bizToBookId 直接算出 mpId）；UI 传入 mpId 的候选路径仍可直加。
   // 2026-11 端点校准：/web/mp/search、/web/mp/subscribe 是 404 死链，网页端也搜不到公众号，
-  // 故不再搜索定位、不再发关注请求——bookId 从 __biz 离线算出，首检直接用 /web/mp/articles 拉列表。
+  // 故不再搜索定位、不再发关注请求——bookId 从 __biz 离线算出，首检由 /api/mp/cover 打底。
+  // 微信短链（/s/<token>）不带 ?__biz=：页内 var biz 可抓，fetchArticleMeta 一次请求同时拿 biz + 昵称。
   ipcMain.handle('weread:add', async (e, { mpId, url, name }) => {
     const g = _wereadGate(); if (g) return g;
     try {
@@ -1752,10 +1753,17 @@ app.whenReady().then(() => {
       let displayName = String(name || '').trim();
       if (!theMpId && url) {
         biz = weread.extractBiz(url);
-        if (!biz) return { ok: false, reason: '这不是公众号文章链接（缺 __biz 参数）' };
+        let meta = null;
+        if (!biz) {
+          meta = await weread.fetchArticleMeta(url);   // 非白名单 URL 内部直接返回 null，不发请求
+          biz = meta && meta.biz;
+        }
+        if (!biz) return { ok: false, reason: weread.NO_BIZ_REASON };
         theMpId = weread.bizToBookId(biz);
-        // 昵称抓不到不拒加：subs.addWeread 会用链接派生名兜底并打 _auto，拿到真名后可覆盖
-        if (!displayName) displayName = (await weread.fetchArticleNickname(url)) || '';
+        // 昵称抓不到不拒加：subs.addWeread 会用链接派生名兜底并打 _auto，cover 真名随后可覆盖
+        if (!displayName) {
+          displayName = (meta && meta.nickname) || (meta ? '' : (await weread.fetchArticleNickname(url)) || '');
+        }
       }
       if (!theMpId) return { ok: false, reason: '缺少公众号标识（请粘贴该公众号的一篇文章链接）' };
       const r = subs.addWeread({ mpId: theMpId, biz, url: url || null, name: displayName });

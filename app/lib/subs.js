@@ -192,7 +192,7 @@ function normMaxBackfill(v) {
 function wereadFallbackName(url) {
   try {
     const u = new URL(url);
-    const m = u.pathname.match(/\/s\/([A-Za-z0-9_-]{4,})/);
+    const m = u.pathname.match(/\/s\/([A-Za-z0-9_~\-]{4,})/);   // 短链 token 实测含 ~（如 T9~acg...）
     const token = m ? m[1] : (u.searchParams.get('__biz') || '').slice(0, 12);
     return token ? '公众号 · ' + token : null;
   } catch (e) { return null; }
@@ -655,6 +655,9 @@ async function checkSub(sub, onNew) {
   // 只看前 N 条永远看不到新集（新内容在尾部）；known 集合本身有去重，全量不炸
   else if (sub.kind === 'bili-collection') items = await fetchViaYtDlp(sub.url, 0);
   if (!items) return { ok: false, reason: '未知订阅类型' };
+  // M-A5：fetchForSub 把 cover 拿到的公众号真名挂在 items.mpName 上（数组契约不变）。
+  // 只在自动兜底名/占位名时认领，用户手起的名不动（adoptName 内部判 _auto）。
+  if (sub.kind === 'weread' && items.mpName) adoptName(sub.id, items.mpName);
   // 浏览器登录态预警：选了浏览器且（未安装/正在运行）→ 本次 gdl/yt-dlp 检查大概率按游客态跑
   // （gallery-dl 静默回落，结果看着正常实则没带登录态）或直接失败。塞进返回值的 warning
   // 字段透传（前端订阅卡片已会显示）；检查频率低（默认 10 分钟一轮），无需做去重

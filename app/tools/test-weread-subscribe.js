@@ -65,6 +65,12 @@ const server = http.createServer((req, res) => {
   report('articleToken·两者皆坏→null', weread.articleToken('!!!', 'MP_WXS_1_!bad') === null);
   report('extractBiz·base64 含等号', weread.extractBiz('https://mp.weixin.qq.com/s?__biz=MzA4abc123==&mid=22&idx=1&sn=x') === 'MzA4abc123==');
   report('extractBiz·无 __biz → null', weread.extractBiz('https://mp.weixin.qq.com/s/xyz') === null);
+  // 2026-11 真实短链页实测：URL 上无 __biz，页内 var biz 可抓；链接容错见下一节
+  report('extractBiz·&amp; 还原', weread.extractBiz('https://mp.weixin.qq.com/s?mid=1&amp;__biz=MzIyMzA5NjEyMA==&amp;idx=1') === 'MzIyMzA5NjEyMA==');
+  report('extractBiz·值 urldecode %3D%3D', weread.extractBiz('https://mp.weixin.qq.com/s?__biz=MzIyMzA5NjEyMA%3D%3D') === 'MzIyMzA5NjEyMA==');
+  report('extractBiz·fragment 内参数', weread.extractBiz('https://mp.weixin.qq.com/s/T9_acg247gxzUNL4j5zrCw#?__biz=MzIyMzA5NjEyMA==') === 'MzIyMzA5NjEyMA==');
+  report('extractBiz·biz 别名', weread.extractBiz('https://mp.weixin.qq.com/s?biz=MzIyMzA5NjEyMA==') === 'MzIyMzA5NjEyMA==');
+  report('extractBiz·短链无参数→null（不编造 biz）', weread.extractBiz('https://mp.weixin.qq.com/s/T9_acg247gxzUNL4j5zrCw') === null);
 
   // ===== ③ /web/mp/articles reviews 结构 → feed 条目（type:'feed' 复用 onNew 分流）=====
   // reviews[].subReviews[].review.{ reviewId, mpInfo.{ title, originalId } }；originalId 缺失回落 reviewId 末段
@@ -100,12 +106,16 @@ const server = http.createServer((req, res) => {
   };
   const ci = weread.coverToFeedItem(COVER);
   report('cover·产出 1 条 feed', ci.type === 'feed' && ci.id === COVER.reviewId);
-  report('cover·短链拼对（实测 token 含 ~）', ci.url === 'https://mp.weixin.qq.com/s/kNBdCP0jjYXc0Bq9IKfb~w', ci.url);
+  report('cover·短链拼对（reviewId 的 ~ 还原为 _）', ci.url === 'https://mp.weixin.qq.com/s/kNBdCP0jjYXc0Bq9IKfb_w', ci.url);
   report('cover·title 原样', ci.text === COVER.title);
   report('cover·超长 title 截断 80', weread.coverToFeedItem({ reviewId: 'R_TokenX1', title: 'x'.repeat(200) }).text.length === 80);
   report('cover·无 token → url=null（不拼坏链）', weread.coverToFeedItem({ reviewId: 'R_!bad', title: 'x' }).url === null);
   report('cover·缺 reviewId → id 为空（调用方判不可用）', weread.coverToFeedItem({ title: 'x' }).id === '');
-  report('articleToken·~ 放行', weread.articleToken(null, COVER.reviewId) === 'kNBdCP0jjYXc0Bq9IKfb~w');
+  report('articleToken·reviewId 末段 ~ 还原 _', weread.articleToken(null, COVER.reviewId) === 'kNBdCP0jjYXc0Bq9IKfb_w');
+  report('articleToken·真实短链号 ~ 还原 _', weread.articleToken(null, 'MP_WXS_3223096120_T9~acg247gxzUNL4j5zrCw') === 'T9_acg247gxzUNL4j5zrCw');
+  report('articleToken·originalId 带 ~ 原样保留', weread.articleToken('Tok~en1', 'R_X') === 'Tok~en1');
+  report('articleToken·危险字符仍全拒', weread.articleToken(null, 'R_!bad') === null && weread.articleToken('javascript:alert(1)', 'R_X') === null);
+  report('cover·真实短链号 url 可打开', weread.coverToFeedItem({ name: '数字生命卡兹克', title: '开源…', reviewId: 'MP_WXS_3223096120_T9~acg247gxzUNL4j5zrCw' }).url === 'https://mp.weixin.qq.com/s/T9_acg247gxzUNL4j5zrCw');
 
   const SUB = { mpId: 'MP_WXS_3930750813' };
   // articles -2041 → 静默回退，只留 cover 1 条；且确实按「先 cover 后 articles」试过一次
@@ -173,6 +183,58 @@ const server = http.createServer((req, res) => {
     let err = null;
     try { await weread.fetchForSub(SUB, 1, async () => ({ ok: true, data: { title: '无 id' } })); } catch (e) { err = e; }
     report('fetchForSub·cover 缺 reviewId 不产出空 id 条目', !!err, err && err.message);
+  }
+
+  // ===== ③c 短链页元数据 / host 白名单 / weread:add 降级切片（注入假响应，不真发网络）=====
+  // 主人真实短链 https://mp.weixin.qq.com/s/T9_acg247gxzUNL4j5zrCw 的页内形态（带凭证实测）
+  const SHORT_URL = 'https://mp.weixin.qq.com/s/T9_acg247gxzUNL4j5zrCw';
+  const PAGE = [
+    '<html><head><script>',
+    'var biz = "MzIyMzA5NjEyMA==";',
+    'var user_name = "gh_94dba26f8ca0";',
+    "var msg_title = '开源我这折腾了1年的「Agent自动化系统」'.html(false);",
+    'nickname = htmlDecode("数字生命卡兹克");',
+    '</script></head><body></body></html>',
+  ].join('\n');
+  {
+    let called = 0;
+    const meta = await weread.fetchArticleMeta(SHORT_URL, async () => { called++; return PAGE; });
+    report('fetchArticleMeta·页内 var biz', !!meta && meta.biz === 'MzIyMzA5NjEyMA==', meta && meta.biz);
+    report('fetchArticleMeta·nickname = htmlDecode(...)', !!meta && meta.nickname === '数字生命卡兹克', meta && meta.nickname);
+    report('fetchArticleMeta·一次请求同时拿两值', called === 1, 'calls=' + called);
+    // 白名单：非 https / 非 mp.weixin.qq.com 域一律不发请求直接 null（防主进程内网探测）
+    const bad = [
+      ['http 内网', 'http://127.0.0.1/?__biz=MzIyMzA5NjEyMA=='],
+      ['外部域 https', 'https://evil.com/s?__biz=MzIyMzA5NjEyMA=='],
+      ['ftp 协议', 'ftp://mp.weixin.qq.com/s/T9_acg247gxzUNL4j5zrCw'],
+      ['同前缀伪造域', 'https://mp.weixin.qq.com.evil.com/s/x?__biz=MzIyMzA5NjEyMA=='],
+      ['userinfo 混淆', 'https://mp.weixin.qq.com@127.0.0.1/s/x'],
+      ['非 URL', 'not a url'],
+    ];
+    for (const [label, u] of bad) {
+      let n = 0;
+      const r = await weread.fetchArticleMeta(u, async () => { n++; return PAGE; });
+      report('白名单·' + label + ' 不发请求返回 null', r === null && n === 0, 'calls=' + n);
+    }
+    let n = 0;
+    const subOK = await weread.fetchArticleMeta('https://img.mp.weixin.qq.com/s/x', async () => { n++; return PAGE; });
+    report('白名单·mp.weixin.qq.com 子域放行', !!subOK && subOK.biz === 'MzIyMzA5NjEyMA==' && n === 1);
+    // 纯解析函数：三种 biz 形态 + 严格格式 + 昵称老形态
+    report('extractBizFromHtml·var biz', weread.extractBizFromHtml('var biz = "MzIyMzA5NjEyMA==";') === 'MzIyMzA5NjEyMA==');
+    report('extractBizFromHtml·window.biz', weread.extractBizFromHtml('window.biz = "MzIyMzA5NjEyMA=="') === 'MzIyMzA5NjEyMA==');
+    report('extractBizFromHtml·"__biz":"..."', weread.extractBizFromHtml('{"__biz":"MzIyMzA5NjEyMA=="}') === 'MzIyMzA5NjEyMA==');
+    report('extractBizFromHtml·非 Mz 开头不认（不编造）', weread.extractBizFromHtml('var biz = "hello world"') === null);
+    report('extractNicknameFromHtml·老形态仍兼容', weread.extractNicknameFromHtml('var nickname = "旧号";') === '旧号' && weread.extractNicknameFromHtml('"nick_name":"旧号2"') === '旧号2');
+    report('extractNicknameFromHtml·无闭合引号兜底', weread.extractNicknameFromHtml('nickname = htmlDecode("数字生命卡兹克"') === '数字生命卡兹克');
+    // weread:add 短链降级切片：URL 无 __biz → 页内 biz → bookId（不真起 Electron）
+    report('weread:add·短链降级切片（extractBiz→meta.biz→bizToBookId）',
+      weread.extractBiz(SHORT_URL) === null && !!meta && weread.bizToBookId(meta.biz) === 'MP_WXS_3223096120', meta && meta.biz);
+    report('weread:add·拿不到 biz 的人话提示', /请在微信里打开/.test(weread.NO_BIZ_REASON) && /复制链接/.test(weread.NO_BIZ_REASON));
+    // cover 真名挂在返回数组上，不破坏数组契约
+    const items = await weread.fetchForSub({ mpId: 'MP_WXS_3223096120' }, 1, async url => url.includes('/api/mp/cover')
+      ? { ok: true, data: { name: '数字生命卡兹克', title: '开源…', reviewId: 'MP_WXS_3223096120_T9~acg247gxzUNL4j5zrCw' } }
+      : { ok: false, reason: '读书接口暂时拒绝请求，稍后再试（HTTP 200 | JSON | weread.qq.com/web/mp/articles）' });
+    report('fetchForSub·cover 真名挂 mpName 且仍是数组', Array.isArray(items) && items.length === 1 && items.mpName === '数字生命卡兹克');
   }
 
   // ===== ④ 节流闸 createThrottleGate =====
@@ -314,6 +376,26 @@ const server = http.createServer((req, res) => {
   report('classify·不产生 weread 类型', !cls || cls.kind !== 'weread', cls && cls.kind);
   const sc = subs.classify(mpUrl);
   report('subs.classify·公众号链接不作为常规订阅源', !sc || sc.kind !== 'weread', sc && sc.kind);
+
+  // ===== ⑪ checkSub 认领 cover 真名（items.mpName + _auto 兜底名）=====
+  {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ks-weread-name-'));
+    subs.configure({ binDir: dir, cookiePath: path.join(dir, 'c.txt'), file: path.join(dir, 'subs.json') });
+    const added = subs.addWeread({ mpId: 'MP_WXS_3223096120', url: 'https://mp.weixin.qq.com/s/T9_acg247gxzUNL4j5zrCw' });
+    report('显示名·无昵称时 _auto URL 兜底名', added.ok && added.sub._auto === true && /^公众号 · /.test(added.sub.name), added.sub && added.sub.name);
+    subs.setWereadFetcher(async () => {
+      const out = [{ id: 'MP_WXS_3223096120_T9~acg247gxzUNL4j5zrCw', type: 'feed', text: '开源…', url: 'https://mp.weixin.qq.com/s/T9_acg247gxzUNL4j5zrCw' }];
+      out.mpName = '数字生命卡兹克';   // 挂属性，不改数组返回契约
+      return out;
+    });
+    await subs.checkSub(subs.get(added.sub.id), () => true);
+    const after = subs.get(added.sub.id);
+    report('显示名·cover 真名认领自动兜底名', after.name === '数字生命卡兹克' && after._auto === false, after.name);
+    // 用户手起的名不被覆盖
+    const manual = subs.addWeread({ mpId: 'MP_WXS_3930750813', url: 'https://mp.weixin.qq.com/s/kNBdCP0jjYXc0Bq9IKfb_w', name: '我自己起的名字' });
+    await subs.checkSub(subs.get(manual.sub.id), () => true);
+    report('显示名·用户手起的名不被 cover 覆盖', subs.get(manual.sub.id).name === '我自己起的名字', subs.get(manual.sub.id).name);
+  }
 
   server.close();
   console.log('----');

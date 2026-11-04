@@ -223,7 +223,7 @@
     <div id="wrStateCard" class="hint" style="margin:0 2px 8px">公众号追更状态查询中…</div>
     <div class="paste-box" style="margin:0 2px 10px">
       <span>📖</span>
-      <input id="wrKw" placeholder="粘贴该公众号任意一篇文章链接，点＋即可添加追更" style="flex:1;border:none;outline:none;font:inherit;font-size:13.5px;background:transparent;color:var(--txt)">
+      <input id="wrKw" placeholder="粘贴该公众号任意一篇文章链接（含微信短链），点＋即可添加追更" style="flex:1;border:none;outline:none;font:inherit;font-size:13.5px;background:transparent;color:var(--txt)">
       <button class="btn-dl" onclick="wereadAddFlow()">＋ 添加追更</button>
     </div>
     <div id="wrCandidates" class="hint" style="display:none;margin:-4px 2px 8px"></div>
@@ -1893,7 +1893,7 @@ async function wereadClearExpiredFlow() {
 }
 // 添加追更：文章链接（含 __biz）走直加路径；按昵称搜索已停用（微信读书没有这个接口），保留候选控件与点击添加。
 // 2026-11 端点校准：bookId 由 __biz 离线算出，不再经搜索定位。
-const WR_NO_SEARCH_HINT = '微信读书不支持按名字搜公众号。粘贴该公众号任意一篇文章链接，点＋即可添加';
+const WR_NO_SEARCH_HINT = '微信读书不支持按名字搜公众号。粘贴该公众号任意一篇文章链接，点＋即可添加；也可直接粘贴微信文章短链';
 async function wereadAddFlow() {
   const v = $('wrKw').value.trim();
   if (!v) return toast('先粘贴该公众号的一篇文章链接');
