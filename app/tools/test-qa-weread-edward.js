@@ -1,7 +1,7 @@
 // QA 独立补充单测（Edward）：M-A5 公众号追更——针对工程师自测未覆盖的边界
 // 重点：① 节流闸并发 10 次真串行 + 最小间隔（注入时钟，零真实等待）
 //       ② 失效矩阵误判面（空 body/半截 JSON/网络错误/字符串 errCode）
-//       ③ articleListToFeedItems 字段名变体逐级回落 + url 缺失不拼坏链
+//       ③ /web/mp/articles reviews 结构解析 + bizToBookId 公式 + 不拼坏链
 //       ④ subs.js 注入式依赖下 RSS 零回归 + weread 异常不污染其他订阅
 // 运行：node tools/test-qa-weread-edward.js
 const fs = require('fs');
@@ -73,29 +73,65 @@ function assert(cond, msg) { if (!cond) throw new Error(msg || 'assert failed');
   report('非失效·半截 JSON+2012 前缀不误判', weread.isExpiredSignal(200, '{"errCode":-20121') === false);
   report('失效·307 不在重定向矩阵内（按设计只认 301/302）', weread.isExpiredSignal(307, '{}') === false);
   report('非失效·null statusCode+JSON 不误判', weread.isExpiredSignal(null, '{"errCode":0}') === false);
+  report('失效·errCode -2010（缺登录态）', weread.isExpiredSignal(200, '{"errCode":"-2010"}') === true);
+  report('非失效·errCode -2041（风控）', weread.isExpiredSignal(200, '{"errCode":"-2041"}') === false);
+  report('非失效·风控页 HTML 不误判', weread.isExpiredSignal(200, '<html><body>404 Not Found</body></html>') === false);
 
-  // ===== ③ articleListToFeedItems 字段名变体 + url 缺失容错 =====
+  // ===== ③ /web/mp/articles reviews 结构 + bizToBookId（2026-11 端点校准后）=====
   {
-    // LIST_FIELDS 逐级回落：articles / list / items / data
-    for (const k of ['articles', 'list', 'items', 'data']) {
-      const items = weread.articleListToFeedItems({ [k]: [{ articleId: 'x1', title: 'T', url: 'https://mp.weixin.qq.com/s/a' }] });
-      report('feedItems·容器字段回落 ' + k, items.length === 1 && items[0].id === 'x1');
+    const R = (id, title, originalId) => ({ reviewId: id, mpInfo: { title, originalId } });
+    // 容器逐级回落：reviews / data / items / list / 顶层数组
+    for (const k of ['reviews', 'data', 'items', 'list']) {
+      const items = weread.articleListToFeedItems({ [k]: [{ subReviews: [{ review: R('MP_WXS_1_TokenX1', '标题', 'TokenX1') }] }] });
+      report('feedItems·容器字段回落 ' + k, items.length === 1 && items[0].id === 'MP_WXS_1_TokenX1');
     }
     const noArr = weread.articleListToFeedItems({ foo: 1 });
-    report('feedItems·无可识别数组→空', noArr.length === 0);
-    const bare = weread.articleListToFeedItems([{ articleId: 'b1' }]);   // 无 title 无 url
-    report('feedItems·缺 title 兜底空串+url=null', bare.length === 1 && bare[0].text === '' && bare[0].url === null && bare[0].type === 'feed');
-    const numId = weread.articleListToFeedItems([{ id: 42, title: 'N', url: 'https://mp.weixin.qq.com/s/n' }]);
-    report('feedItems·数字 id 归一为字符串', numId[0].id === '42');
-    const longTitle = weread.articleListToFeedItems([{ articleId: 'L', title: 'x'.repeat(200), url: 'https://mp.weixin.qq.com/s/l' }]);
+    report('feedItems·无可识别容器→空', noArr.length === 0);
+    const bare = weread.articleListToFeedItems({ reviews: [{ subReviews: [{ review: { reviewId: 'MP_WXS_1_TokenB1' } }] }] });
+    report('feedItems·缺 mpInfo 兜底空标题 + reviewId 尾段短链', bare.length === 1 && bare[0].text === '' && bare[0].url === 'https://mp.weixin.qq.com/s/TokenB1' && bare[0].type === 'feed');
+    const noId = weread.articleListToFeedItems({ reviews: [{ review: { mpInfo: { title: '无 id' } } }] });
+    report('feedItems·无 reviewId 条目过滤', noId.length === 0);
+    const badToken = weread.articleListToFeedItems({ reviews: [{ review: { reviewId: 'MP_WXS_1_!bad' } }] });
+    report('feedItems·坏 token→url=null（不拼坏链）', badToken.length === 1 && badToken[0].url === null);
+    const numId = weread.articleListToFeedItems({ reviews: [{ review: { reviewId: 42, mpInfo: { originalId: 'Tok42' } } }] });
+    report('feedItems·数字 reviewId 归一为字符串', numId[0].id === '42');
+    const longTitle = weread.articleListToFeedItems({ reviews: [{ review: R('R_Long1', 'x'.repeat(200), 'Long1') }] });
     report('feedItems·超长标题截断 80', longTitle[0].text.length === 80);
-    // 相对协议/非 http url 拒绝走拼装路径（articleUrl 只认 http(s) 开头）
-    report('articleUrl·非 http url 走拼装兜底', weread.articleUrl({ url: 'javascript:alert(1)', __biz: 'B', mid: '1', idx: '1', sn: 's' }) !== 'javascript:alert(1)');
-    // 四参拼装对特殊字符编码
-    const enc = weread.articleUrl({ __biz: 'a/b+c=', mid: 'm&1', idx: 'i', sn: 's s' });
-    report('articleUrl·参数全部 encodeURIComponent', /^https:\/\/mp\.weixin\.qq\.com\/s\?__biz=a%2Fb%2Bc%3D&mid=m%261&idx=i&sn=s%20s$/.test(enc), enc);
+    report('flattenReviews·原始条数计入 offset', weread.flattenReviews({ reviews: [{ subReviews: [{ review: R('A_T1', 'a', 'T1') }, { review: R('B_T2', 'b', 'T2') }] }] }).length === 2);
+    // bookId 公式：'MP_WXS_' + base64_decode(__biz)；解不出纯数字原样回落
+    report('bizToBookId·标准/缺 padding/urldecode', weread.bizToBookId('MzkzMDc1MDgxMw==') === 'MP_WXS_3930750813' && weread.bizToBookId('MzkzMDc1MDgxMw') === 'MP_WXS_3930750813' && weread.bizToBookId('MzkzMDc1MDgxMw%3D%3D') === 'MP_WXS_3930750813');
+    report('bizToBookId·非数字解码原样回落', weread.bizToBookId('MzA4abc==') === 'MzA4abc==');
+    report('bizToBookId·空值→null', weread.bizToBookId(null) === null && weread.bizToBookId('') === null);
+    report('articleToken·整链剥前缀/末尾回落', weread.articleToken('https://mp.weixin.qq.com/s/Tok9?x=1', 'R') === 'Tok9' && weread.articleToken(null, 'MP_WXS_1_Tok8') === 'Tok8');
+    report('articleToken·实测 token 含 ~ 放行', weread.articleToken(null, 'MP_WXS_3930750813_kNBdCP0jjYXc0Bq9IKfb~w') === 'kNBdCP0jjYXc0Bq9IKfb~w');
     report('extractBiz·biz 后无参数截断', weread.extractBiz('https://mp.weixin.qq.com/s?__biz=ABC') === 'ABC');
     report('extractBiz·空串→null', weread.extractBiz('') === null);
+    // cover 主路径（真实 Cookie 实测形态：无 errCode 字段，只有最新一篇）
+    const COVER = { name: '绿联NAS私有云', title: '绿联NAS不止能存文件，还能写长篇小说？', reviewId: 'MP_WXS_3930750813_kNBdCP0jjYXc0Bq9IKfb~w', pic: 'https://x/p.jpg', template: 0 };
+    const c1 = weread.coverToFeedItem(COVER);
+    report('cover·1 条 feed + id/type/text', c1.id === COVER.reviewId && c1.type === 'feed' && c1.text === COVER.title);
+    report('cover·短链拼对（~ 保留）', c1.url === 'https://mp.weixin.qq.com/s/kNBdCP0jjYXc0Bq9IKfb~w', c1.url);
+    report('cover·超长标题截断 80', weread.coverToFeedItem({ reviewId: 'R_Tok88', title: 'x'.repeat(200) }).text.length === 80);
+    report('cover·无 token→url=null', weread.coverToFeedItem({ reviewId: 'R_!bad' }).url === null);
+    report('cover·非对象/空数据不抛错', weread.coverToFeedItem(null).id === '' && weread.coverToFeedItem({}).url === null);
+  }
+
+  // ===== ③b fetchForSub 注入式依赖：articles 风控静默回退（不真发网络请求）=====
+  {
+    const SUB = { mpId: 'MP_WXS_3930750813' };
+    const COVER = { reviewId: 'MP_WXS_3930750813_kNBdCP0jjYXc0Bq9IKfb~w', title: '最新一篇' };
+    let calls = 0;
+    const fake = async url => {
+      calls++;
+      if (url.includes('/api/mp/cover')) return { ok: true, data: COVER };
+      return { ok: false, expired: false, reason: '读书接口暂时拒绝请求，稍后再试（HTTP 200 | JSON | weread.qq.com/web/mp/articles）' };
+    };
+    const items = await weread.fetchForSub(SUB, 5, fake);
+    report('fetchForSub·-2041 静默且只打一次 articles', items.length === 1 && calls === 2, 'n=' + items.length + ' calls=' + calls);
+    report('fetchForSub·回退结果仍是 cover 短链', items[0] && items[0].url === 'https://mp.weixin.qq.com/s/kNBdCP0jjYXc0Bq9IKfb~w', items[0] && items[0].url);
+    let err = null;
+    try { await weread.fetchForSub(SUB, 1, async () => ({ ok: false, expired: true, reason: '微信读书登录已过期，请重新扫码（HTTP 200 | JSON | weread.qq.com/api/mp/cover）' })); } catch (e) { err = e; }
+    report('fetchForSub·cover 失效才抛 wereadExpired', !!err && err.wereadExpired === true, err && err.message);
   }
 
   // ===== ④ subs.js 注入式依赖：RSS 零回归 + weread 隔离 =====

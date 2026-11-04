@@ -6,10 +6,15 @@
 //      动态拼装 Cookie 头——绝不落明文 cookie 文件（项目此前吃过凭证散落的亏）。
 //   ② 节流闸：同一时刻只放行 1 个读书接口请求，任意两次请求间隔 ≥60s；订阅级检查间隔 ≥30 分钟
 //      由 subs.js update 白名单强制。与 RSS/B站 共享 _subChain 串行队列天然错峰。
-//   ③ 失效判定矩阵（§3.3）：errCode -2012/-2013 / 登录页特征 HTML / 缺 wr_skey → expired，
+//   ③ 失效判定矩阵（§3.3）：errCode -2010/-2012/-2013 / 登录页特征 HTML / 缺 wr_skey → expired，
 //      不计 failStreak（失效不是站点错误），卡片红标 + 重新扫码后自动恢复。
 //   ④ 契约校准声明（§3.1）：以下端点/参数为非官方接口，**以小号实测为准**——端点与字段映射
 //      全部集中在本文件常量区，微信改版只需修这一个文件。
+//      2026-11 端点全线校准：带有效 Cookie 逐条实测，/web/mp/search、/web/mp/subscribe、
+//      /web/mp/<id>/articlelist、/web/login/renewal 全是 404 死链（不是登录过期）；现行路线改为
+//      现行路线：/api/mp/cover 打底（实测 200，返回最新一篇）→ 文章链接 __biz 离线算出 bookId；
+//      /web/mp/articles?bookId=&offset= 仅作风控放行时的历史增强（当前必现 -2041，静默回退）。
+//      微信读书网页端搜不到公众号（scope/type 六种组合全返回出版书 type:0），按昵称搜索这条路不存在。
 const { BrowserWindow, session } = require('electron');
 const https = require('https');
 const path = require('path');
@@ -18,27 +23,30 @@ const { atomicWrite, readJson } = require('./jsonfile');
 // ---- 契约常量区（⚠ 以小号实测为准；改版只动这里）----
 const PARTITION = 'persist:weread';
 const HOME = 'https://weread.qq.com/';
+// 2026-11 带有效登录 Cookie 逐条实测（wr_skey/wr_vid/wr_rt 全在）：下列 5 个端点 200；
+// 旧 mpSearch / mpSubscribe / articleList / renewal 四个端点均 404 HTML，已删除，绝不再发请求。
+// articles 的 offset 是「列表偏移量」（每页按返回条数递增），不是时间戳——旧 maxTime 游标已废弃。
 const ENDPOINTS = {
   shelfSync: 'https://weread.qq.com/web/shelf/sync',
-  mpSearch: 'https://weread.qq.com/web/mp/search',
-  mpSubscribe: 'https://weread.qq.com/web/mp/subscribe',
-  articleList: (mpId) => `https://weread.qq.com/web/mp/${encodeURIComponent(mpId)}/articlelist`,
-  renewal: 'https://weread.qq.com/web/login/renewal',
+  bookIds: 'https://weread.qq.com/web/shelf/bookIds',
+  articles: (bookId, offset) => `https://weread.qq.com/web/mp/articles?bookId=${encodeURIComponent(bookId)}&offset=${encodeURIComponent(offset)}`,
+  content: (reviewId) => `https://weread.qq.com/web/mp/content?reviewId=${encodeURIComponent(reviewId)}`,
+  cover: (bookId) => `https://weread.qq.com/api/mp/cover?bookId=${encodeURIComponent(bookId)}`,
 };
-// articlelist 条目 → 文章链接的字段映射（wewe-rss 实践拼法；实测确认后修订）
-const ARTICLE_URL_FIELDS = { biz: '__biz', mid: 'mid', idx: 'idx', sn: 'sn' };
-// articlelist 分页游标字段（实测确认后修订；逐级回落）
-const CURSOR_FIELDS = ['nextMaxTime', 'maxTime', 'lastMaxTime'];
-// articlelist 响应里条目数组的字段名（实测确认后修订；逐级回落）
-const LIST_FIELDS = ['articles', 'list', 'items', 'data'];
-const EXPIRED_CODES = new Set([-2012, -2013]);   // 读书侧登录失效信号码（wewe-rss 同款 + 类似鉴权码）
+// /web/mp/articles 响应字段（社区情报 we-mp-rss 解析代码，待真实文章链接带凭证实测校准；逐级回落）
+// 结构：reviews[].subReviews[].review.{ reviewId, createTime, mpInfo.{ title, pic_url, time, originalId } }
+const REVIEW_LIST_FIELDS = ['reviews', 'data', 'items', 'list'];      // 顶层列表容器
+const SUB_REVIEW_FIELDS = ['subReviews', 'sub_reviews', 'reviews'];    // 每组子评论容器
+const MP_INFO_FIELDS = ['mpInfo', 'mp_info', 'mpInfoVO'];              // 公众号信息容器
+const EXPIRED_CODES = new Set([-2010, -2012, -2013]);   // -2010 缺登录态/用户不存在（content 无凭证实测）→ 需重新扫码；-2012 Cookie 过期；-2013 类似鉴权码
+const RISK_CODES = new Set([-2041]);                    // 风控/旧 Cookie：普通失败，不判过期、不盲目重试
+const RISK_REASON = '读书接口暂时拒绝请求，稍后再试';   // -2041 对外人话文案
 // 登录页特征（2026-11 实测收窄：/web/mp/* 端点登录态下也可能 404+HTML，「HTML 一律判过期」会误报
 // 登录已过期——只认登录页文案/路由特征，404 页、风控页、改版页走普通失败路径并带诊断信息）
 const LOGIN_PAGE_RE = /weread\.qq\.com\/#login|扫码登录|请登录|登录微信读书|去登录/i;
 const EXPIRED_REASON = '微信读书登录已过期，请重新扫码';   // 失效统一文案（诊断尾巴由 rawGet 追加）
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36';
 const MIN_GAP_MS = 60 * 1000;            // 模块级请求闸：任意两次读书接口请求最小间隔
-const RENEWAL_INTERVAL_MS = 12 * 3600 * 1000;   // 续期节流：距上次成功续期 >12h 才先续期
 const API_TIMEOUT_MS = 15000;
 
 let STATE_FILE = null;
@@ -57,13 +65,13 @@ function saveState() {
 
 // ---- 失效判定矩阵（纯函数，单测覆盖；§3.3）----
 // statusCode: HTTP 状态码；bodyText: 响应体原文
-//   30x 重定向 / 登录页特征 HTML / errCode ∈ {-2012,-2013} → 登录已过期
-//   其余 HTML（404/风控/改版页）与 errCode 0 或其他业务码 → 非失效（调用方按普通失败处理）
+//   30x 重定向 / 登录页特征 HTML / errCode ∈ {-2010,-2012,-2013} → 登录已过期
+//   其余 HTML（404/风控/改版页）、-2041 风控码与其他业务码 → 非失效（调用方按普通失败处理）
 function isExpiredSignal(statusCode, bodyText) {
   if (statusCode === 301 || statusCode === 302) return true;
   const text = String(bodyText || '').trim();
   if (!text) return false;                       // 空 body：按请求失败处理，不判失效
-  // 收窄（2026-11 实测）：返回 HTML ≠ 被踢到登录页——mpSearch/articlelist 登录态也可能 404+HTML，
+  // 收窄（2026-11 实测）：返回 HTML ≠ 被踢到登录页——旧 mp/* 端点全是 404+HTML 死链，
   // 只有带登录页特征的 HTML 才判过期，其余落「HTTP <状态码>」普通失败路径
   if (text.startsWith('<')) return LOGIN_PAGE_RE.test(text);
   try {
@@ -73,40 +81,93 @@ function isExpiredSignal(statusCode, bodyText) {
   return false;
 }
 
-// ---- articlelist 响应 → feed 条目（纯函数，单测覆盖；§4.1 刻意 type:'feed' 复用 onNew 分流）----
-// 条目 url 拼法：读书若直接回传 url 优先用；否则按 ARTICLE_URL_FIELDS 组装 mp.weixin 链接；
-// 字段缺失 → url=null（调用方 itemUrl 兜底跳过该条，绝不拼出坏链）
-function articleUrl(entry) {
-  if (!entry) return null;
-  if (entry.url && /^https?:\/\//i.test(String(entry.url))) return String(entry.url);
-  const f = ARTICLE_URL_FIELDS;
-  const biz = entry[f.biz], mid = entry[f.mid], idx = entry[f.idx], sn = entry[f.sn];
-  if (biz && mid && idx && sn) {
-    return `https://mp.weixin.qq.com/s?__biz=${encodeURIComponent(biz)}&mid=${encodeURIComponent(mid)}&idx=${encodeURIComponent(idx)}&sn=${encodeURIComponent(sn)}`;
+// ---- /web/mp/articles 响应 → feed 条目（纯函数，单测覆盖；§4.1 刻意 type:'feed' 复用 onNew 分流）----
+// 结构（社区情报 we-mp-rss，待真实文章链接带凭证实测校准）：
+//   reviews[].subReviews[].review.{ reviewId, createTime, mpInfo.{ title, pic_url, time, originalId } }
+//   reviewId 形如 <BOOK_ID>_<ARTICLE_TOKEN>；mpInfo.originalId 直接是 mp.weixin.qq.com/s/<token> 的短链 token
+// 字段做多级回落；url 取不到就 null，调用方 itemUrl 兜底跳过该条，绝不拼出坏链。
+// 文章短链 token：优先 mpInfo.originalId（可能是 token 也可能是整链）；缺失时从 reviewId 最后一段 _ 后取。
+// 只放行 URL 路径安全字符集（实测短链 token 含 ~，如 kNBdCP0jjYXc0Bq9IKfb~w）——拿不到就 null。
+function articleToken(originalId, reviewId) {
+  const o = String(originalId || '').trim();
+  if (o) {
+    const bare = o.replace(/^(?:https?:\/\/)?mp\.weixin\.qq\.com\/s\//i, '').split(/[?#]/)[0];
+    if (/^[A-Za-z0-9_~\-]{4,}$/.test(bare)) return bare;
   }
-  return null;
+  const parts = String(reviewId || '').split('_');
+  const tail = parts[parts.length - 1] || '';
+  return /^[A-Za-z0-9_~\-]{4,}$/.test(tail) ? tail : null;
+}
+
+// /api/mp/cover 响应 → 1 条 feed（纯函数，单测覆盖）。
+// 实测形态：{ name, title, reviewId, pic, avatar, template }——无 errCode 字段、只有最新一篇；
+// name/pic/avatar 本期不用（显示名已有 subs 兜底；文章正文走 mp.weixin 短链交 article 引擎）。
+function coverToFeedItem(data) {
+  const c = data && typeof data === 'object' ? data : {};
+  const reviewId = String(c.reviewId || c.review_id || '');   // 缺 reviewId → id 为空，调用方按 cover 不可用处理
+  const token = articleToken(null, reviewId);
+  return {
+    id: reviewId,
+    type: 'feed',
+    text: String(c.title || '').slice(0, 80),
+    url: token ? 'https://mp.weixin.qq.com/s/' + token : null,
+  };
+}
+
+// 摊平出所有 review 对象：容器字段逐级回落，兼容「直接就是 review 列表」的返回形态。
+// 无 reviewId 的条目不收（没 id 无法做增量 diff），但计入 offset：fetchForSub 用本函数结果数推进偏移。
+function flattenReviews(data) {
+  let roots = [];
+  if (Array.isArray(data)) roots = data;
+  else if (data && typeof data === 'object') {
+    for (const k of REVIEW_LIST_FIELDS) {
+      const v = data[k];
+      if (Array.isArray(v)) { roots = v; break; }
+      if (v && typeof v === 'object' && Array.isArray(v.reviews)) { roots = v.reviews; break; }  // { data: { reviews: [] } }
+    }
+  }
+  const out = [];
+  for (const r of roots) {
+    if (!r || typeof r !== 'object') continue;
+    let nest = null;
+    for (const k of SUB_REVIEW_FIELDS) if (Array.isArray(r[k])) { nest = r[k]; break; }
+    const list = nest || [r];
+    for (const s of list) {
+      const rv = s && (s.review || s);
+      if (rv && rv.reviewId) out.push(rv);
+    }
+  }
+  return out;
 }
 
 function articleListToFeedItems(data) {
-  const raw = Array.isArray(data) ? data : (data && LIST_FIELDS.map(k => data[k]).find(Array.isArray)) || [];
-  return raw
-    .filter(e => e && (e.articleId || e.id))
-    .map(e => ({
-      id: String(e.articleId || e.id),
+  return flattenReviews(data).map(rv => {
+    let info = {};
+    for (const k of MP_INFO_FIELDS) if (rv[k] && typeof rv[k] === 'object') { info = rv[k]; break; }
+    const token = articleToken(info.originalId || info.original_id, rv.reviewId);
+    return {
+      id: String(rv.reviewId),
       type: 'feed',
-      text: String(e.title || '').slice(0, 80),
-      url: articleUrl(e),
-    }));
+      text: String(info.title || rv.title || '').slice(0, 80),
+      url: token ? 'https://mp.weixin.qq.com/s/' + token : null,
+    };
+  });
 }
 
-// 分页游标提取（实测确认后修订；取不到游标 = 首页即停，绝不盲翻）
-function extractCursor(data) {
-  if (!data || typeof data !== 'object') return 0;
-  for (const k of CURSOR_FIELDS) {
-    const v = Number(data[k]);
-    if (Number.isFinite(v) && v > 0) return v;
-  }
-  return 0;
+// __biz（base64 数字串）→ 读书 bookId：'MP_WXS_' + base64_decode(__biz)（2026-11 社区情报，待带凭证实测校准）。
+// 先 urldecode、补 = 到 4 的倍数、base64 解码成 utf8、去空白；/^\d+$/ 才拼前缀。
+// 解不出纯数字就原样返回 biz 交给接口自己报错（绝不拼出假 bookId 把诊断带偏）。
+function bizToBookId(biz) {
+  const raw = String(biz || '').trim();
+  if (!raw) return null;
+  let s = raw;
+  try { s = decodeURIComponent(s); } catch (e) { /* 非法 % 转义：按原文继续 */ }
+  s = s.replace(/\s+/g, '');
+  const pad = s.length % 4;
+  if (pad) s += '='.repeat(4 - pad);   // 复制链接常丢 padding
+  let decoded = '';
+  try { decoded = Buffer.from(s, 'base64').toString('utf8').trim(); } catch (e) { /* 解码失败走回落 */ }
+  return /^\d+$/.test(decoded) ? 'MP_WXS_' + decoded : raw;
 }
 
 // 从公众号文章链接提取 __biz（weread:add 用；base64 风格值）
@@ -175,7 +236,7 @@ async function wereadState() {
     loggedIn: await hasSkey(),
     nickname: state.nickname || null,
     expired: !!state.expired,
-    lastRenewalAt: state.lastRenewalAt || 0,
+    lastRenewalAt: state.lastRenewalAt || 0,   // 兼容旧状态文件；续期端点已下线，此值不再更新
     // 最近一次失效诊断（statusCode/bodyHead/url/at；UI/日志可据此区分「真过期」与「端点异常」）
     lastExpiredDetail: state.lastExpiredDetail || null,
   };
@@ -209,19 +270,17 @@ function bodyKind(bodyText) {
   if (t.startsWith('<')) return 'HTML 页';
   try { JSON.parse(t); return 'JSON'; } catch (e) { return '非 JSON'; }
 }
-// 主机+路径（不含 query：mpSearch 的 keyword 等用户输入不进日志/状态文件）
+// 主机+路径（不含 query：bookId / keyword 等入参不进日志/状态文件）
 function siteOf(url) {
   try { const u = new URL(url); return u.host + u.pathname; } catch (e) { return String(url || '').slice(0, 60); }
 }
-// 失败 reason 的结构化尾巴，如：（HTTP 404 | HTML 页 | weread.qq.com/web/mp/search | <摘要>）
+// 失败 reason 的结构化尾巴，如：（HTTP 404 | HTML 页 | weread.qq.com/web/mp/articles | <摘要>）
 function diagSuffix(statusCode, bodyText, url) {
   const d = bodyDigest(bodyText);
   return `（HTTP ${statusCode} | ${bodyKind(bodyText)} | ${siteOf(url)}${d ? ' | ' + d : ''}）`;
 }
 
-async function rawGet(url, opts = {}) {
-  // renewal 探测传 { markExpired:false }：续期端点偶发 HTML/30x 不得污染失效标记/诊断（§3.3 续期失败不判死）
-  const allowMark = opts.markExpired !== false;
+async function rawGet(url) {
   const cookie = await ensureSessionCookie();
   if (!/(^|;\s*)wr_skey=/.test(cookie)) {
     // 缺 wr_skey：从未登录 / 已被清（§3.3 第 4 行）——确凿失效，无条件标记
@@ -241,7 +300,6 @@ async function rawGet(url, opts = {}) {
       res.on('end', () => {
         if (isExpiredSignal(res.statusCode, d)) {
           const reason = EXPIRED_REASON + diagSuffix(res.statusCode, d, url);
-          if (!allowMark) { resolve({ ok: false, expired: true, newlyExpired: false, reason }); return; }
           // 诊断信息随失效标记一并落盘（markExpired 内 saveState）；先写 detail 再标记，保证同一落盘包含诊断
           state.lastExpiredDetail = { statusCode: res.statusCode, bodyHead: bodyDigest(d), url: siteOf(url), at: Date.now() };
           const newly = markExpired();
@@ -250,99 +308,110 @@ async function rawGet(url, opts = {}) {
           return;
         }
         if (res.statusCode !== 200) {
-          // 404/风控/限流等：不是登录失效（实测 mpSearch/articlelist 登录态也可能 404+HTML），带诊断让改版可定位
+          // 404/风控/限流等：不是登录失效（2026-11 实测旧 mp/* 端点全是 404 死链），带诊断让改版可定位
           resolve({ ok: false, expired: false, reason: '读书接口请求失败' + diagSuffix(res.statusCode, d, url) });
           return;
         }
         try {
           const j = JSON.parse(d);
-          resolve({ ok: Number(j.errCode) === 0, errCode: j.errCode, data: j });
+          // 部分端点（实测：/api/mp/cover、/web/shelf/bookIds）成功响应不带 errCode 字段，缺字段按 0 处理；
+          // 否则 Number(undefined)=NaN 会被当成非零错误码，cover 主路径永远进不来
+          const code = (j && j.errCode !== undefined && j.errCode !== null) ? Number(j.errCode) : 0;
+          // -2041 风控/旧 Cookie：普通失败，人话文案，不判过期也不盲目重试
+          if (RISK_CODES.has(code)) {
+            resolve({ ok: false, expired: false, errCode: j.errCode, reason: RISK_REASON + diagSuffix(res.statusCode, d, url) });
+            return;
+          }
+          if (code !== 0) {
+            resolve({ ok: false, expired: false, errCode: j.errCode, reason: '读书接口返回错误码 ' + code + diagSuffix(res.statusCode, d, url) });
+            return;
+          }
+          resolve({ ok: true, errCode: j.errCode, data: j });
         } catch (e) {
           resolve({ ok: false, expired: false, reason: '读书接口返回非 JSON（可能已改版，需校准端点）' + diagSuffix(res.statusCode, d, url) });
         }
       });
-      res.on('error', e => resolve({ ok: false, expired: false, reason: '网络中断: ' + e.message }));
-    }).on('error', e => resolve({ ok: false, expired: false, reason: '网络请求失败: ' + e.message }))
+      res.on('error', e => resolve({ ok: false, expired: false, reason: '网络中断: ' + e.message + diagSuffix(0, '', url) }));
+    }).on('error', e => resolve({ ok: false, expired: false, reason: '网络请求失败: ' + e.message + diagSuffix(0, '', url) }))
       .setTimeout(API_TIMEOUT_MS, function () { this.destroy(new Error('读书接口请求超时')); });
   });
 }
 
-// 续期策略（§3.3）：距上次成功续期 >12h 先续一次；续期失败不判死（skey 可能未到期），
-// 下次真实请求 -2012 再走判定矩阵。markExpired:false：renewal 偶发 HTML/30x 不写失效标记/诊断，
-// 避免刚登录（lastRenewalAt=0）的首轮探测把 UI 状态误污染成「已过期」
-async function ensureRenewed() {
-  if (Date.now() - (state.lastRenewalAt || 0) <= RENEWAL_INTERVAL_MS) return;
-  const r = await rawGet(ENDPOINTS.renewal, { markExpired: false });
-  if (r.ok) { state.lastRenewalAt = Date.now(); saveState(); }
-}
-
-// 统一出口：所有读书接口请求（检查/回溯/续期/搜索）共享同一个 60s 节流闸（§4.3）
+// 统一出口：所有读书接口请求（检查/回溯/校准探针）共享同一个 60s 节流闸（§4.3）。
+// 续期端点已下线（404），请求前不再做任何续期探测——真过期由业务响应的 -2010/-2012 按矩阵判定。
 async function apiGet(url) {
-  return gate.run(async () => {
-    await ensureRenewed();
-    return rawGet(url);
-  });
+  return gate.run(() => rawGet(url));
 }
 
-// ---- 5 个接口封装（§3.1）----
-// 书架同步（登录态探针/备用；公众号在书架中以 MP_WX_ 前缀 bookId 呈现）
+// ---- 接口封装（§3.1；端点全部集中在 ENDPOINTS，改版只动常量区）----
+// 书架同步（登录态探针/备用；公众号在书架中以 MP_WXS_ 前缀 bookId 呈现）
 async function shelfSync() { return apiGet(ENDPOINTS.shelfSync); }
+// 书架 bookId 列表（校准备用；实测 200 {"data":[]}）
+async function bookIds() { return apiGet(ENDPOINTS.bookIds); }
+// 单篇文章内容（reviewId 来自列表；常规追更不拉正文——入口是 mp.weixin 短链走 article 引擎）
+async function mpContent(reviewId) { return apiGet(ENDPOINTS.content(reviewId)); }
+// 公众号封面（2026-11 实测可用主路径：200 返回最新一篇 name/title/reviewId/pic；见 fetchForSub）
+async function mpCover(bookId) { return apiGet(ENDPOINTS.cover(bookId)); }
 
-// 搜索公众号候选
+// 微信读书网页端搜不到公众号：scope=2/4、type=2 六种组合实测只返回出版书（bookId 纯数字、type:0），
+// 社区工具 weread-mp-fetcher README 亦记录六种接口/参数组合全部无效。旧 /web/mp/search 是 404 死链，
+// 故这里不发请求，直接给「贴文章链接」的人话提示（保留 IPC 形参兼容 UI 调用）。
 async function mpSearch(keyword) {
-  const kw = String(keyword || '').trim();
-  if (!kw) return { ok: false, expired: false, candidates: [], reason: '请输入公众号昵称' };
-  const r = await apiGet(`${ENDPOINTS.mpSearch}?keyword=${encodeURIComponent(kw)}&maxCount=10`);
-  if (!r.ok) return { ok: false, expired: !!r.expired, candidates: [], reason: r.reason };
-  // 候选数组字段名以实测为准（逐级回落）
-  const d = r.data || {};
-  const arr = Array.isArray(d) ? d : (d.candidates || d.list || d.items || []);
-  return {
-    ok: true,
-    candidates: arr.filter(x => x && (x.mpId || x.id)).map(x => ({
-      mpId: String(x.mpId || x.id),
-      title: String(x.title || x.nickname || '').slice(0, 40),
-    })),
-  };
+  // keyword 仅保留 IPC 形参兼容（UI 仍会传），不再参与任何逻辑
+  void keyword;
+  return { ok: false, expired: false, candidates: [], reason: '微信读书不支持按名字搜公众号，请粘贴该公众号的一篇文章链接' };
 }
 
-// 关注公众号（加入读书书架；失败则后续拉不到列表）
-async function mpSubscribe(mpId) {
-  if (!mpId) return { ok: false, expired: false, reason: '缺少 mpId' };
-  return apiGet(`${ENDPOINTS.mpSubscribe}?mpId=${encodeURIComponent(mpId)}`);
-}
-
-// 公众号文章列表 → feed 条目。pages=1 增量检查（首页 ~20 条窗口）；pages≤5 手动回溯。
-// 增量语义（§3.1）：只对首页 + 至多 1 页翻页 diff，绝不高频全量翻页
-async function fetchForSub(sub, pages = 1) {
+// 公众号文章列表 → feed 条目。pages=1 增量检查；pages≤5 手动回溯。
+// 2026-11 实测：/api/mp/cover 是可用主路径（200，最新一篇）；/web/mp/articles 当前必现 -2041 风控，只能当增强。
+// 故 cover 打底 1 条，articles 可用再叠加历史（按 id 去重，cover 优先）；articles 任何普通失败静默忽略，
+// 绝不让风控把整个检查判失败、也绝不误计 failStreak。offset 是列表偏移量（按返回条数递增），不是时间戳。
+// _get 可注入（离线单测用假响应，不真发网络请求）；默认走共享 60s 节流闸的 apiGet。
+async function fetchForSub(sub, pages = 1, _get = apiGet) {
   if (!sub || !sub.mpId) throw new Error('订阅缺少公众号 mpId');
-  const out = [];
-  let maxTime = 0;
   const n = Math.max(1, Math.min(5, Number(pages) || 1));
+  const coverUrl = ENDPOINTS.cover(sub.mpId);
+
+  // ① 主路径：cover。只有 expired 抛带标记的错；其余按普通失败抛（rawGet 的 reason 已带 diagSuffix 尾巴）。
+  let coverRes = null;
+  try { coverRes = await _get(coverUrl); }
+  catch (e) { throw new Error('读书接口请求失败: ' + String(e && e.message || e) + diagSuffix(0, '', coverUrl)); }
+  if (coverRes && coverRes.expired) {
+    const e = new Error(coverRes.reason || EXPIRED_REASON);
+    e.wereadExpired = true;   // main.js catch 据此跳过 failStreak（失效≠站点错误）
+    throw e;
+  }
+  const item = coverRes && coverRes.ok ? coverToFeedItem(coverRes.data) : null;
+  if (!coverRes || !coverRes.ok || !item || !item.id) {
+    const baseReason = (coverRes && coverRes.reason) || '读书接口请求失败';
+    // rawGet 的失败 reason 自带诊断尾巴；注入式依赖/异常路径不带时补上，保证 UI 能定位失败形态
+    throw new Error(/（HTTP \d+ \|/.test(baseReason) ? baseReason : baseReason + diagSuffix(0, '', coverUrl));
+  }
+  const out = [item];
+  const seen = new Set([item.id]);
+
+  // ② 增强：articles 可用时叠加。只有 r.expired 才抛（真失效信号），其余一律静默忽略、不盲翻。
+  let offset = 0;
   for (let i = 0; i < n; i++) {
-    const r = await apiGet(`${ENDPOINTS.articleList(sub.mpId)}?listMode=1&maxTime=${maxTime}&count=20`);
-    if (!r.ok) {
-      if (r.expired) {
-        const e = new Error(r.reason);
-        e.wereadExpired = true;   // main.js catch 据此跳过 failStreak（失效≠站点错误）
+    let r = null;
+    try { r = await _get(ENDPOINTS.articles(sub.mpId, offset)); }
+    catch (e) { break; }               // 请求失败：静默，cover 结果照常返回
+    if (!r || !r.ok) {
+      if (r && r.expired) {
+        const e = new Error(r.reason || EXPIRED_REASON);
+        e.wereadExpired = true;
         throw e;
       }
-      throw new Error(r.reason || '读书接口请求失败');
+      break;                          // -2041/非零 errCode/非 200/非 JSON：静默，不抛错不判过期
     }
-    const items = articleListToFeedItems(r.data);
-    out.push(...items);
-    const cursor = extractCursor(r.data);
-    if (!cursor || !items.length) break;   // 无游标/空页：首页即停
-    maxTime = cursor;
+    const raw = flattenReviews(r.data);
+    for (const it of articleListToFeedItems(r.data)) {
+      if (!seen.has(it.id)) { seen.add(it.id); out.push(it); }
+    }
+    if (!raw.length) break;           // 空页即停
+    offset += raw.length;             // 按原始条数推进，被过滤的无效条目不会造成重复拉取
   }
   return out;
-}
-
-// skey 续期（暴露给 UI/测试；常规路径由 ensureRenewed 自动触发）
-async function renewal() {
-  const r = await apiGet(ENDPOINTS.renewal);
-  if (r.ok) { state.lastRenewalAt = Date.now(); saveState(); }
-  return r;
 }
 
 // ---- 登录窗口（persist:weread 分区；参照 login.js 先例）----
@@ -424,10 +493,10 @@ function fetchArticleNickname(articleUrl) {
 
 module.exports = {
   configure, wereadState, logout, openLoginWindow, closeLoginWindow, clearExpired, markExpired,
-  shelfSync, mpSearch, mpSubscribe, fetchForSub, renewal,
+  shelfSync, bookIds, mpContent, mpCover, mpSearch, fetchForSub, fetchArticleNickname,
   // 纯函数（离线单测）
-  isExpiredSignal, articleListToFeedItems, articleUrl, extractCursor, extractBiz,
+  isExpiredSignal, articleListToFeedItems, coverToFeedItem, flattenReviews, articleToken, bizToBookId, extractBiz,
   createThrottleGate, extractNicknameFromHtml,
   // 常量（单测断言 / 校准参照）
-  PARTITION, ENDPOINTS, MIN_GAP_MS, EXPIRED_CODES, LOGIN_PAGE_RE,
+  PARTITION, ENDPOINTS, MIN_GAP_MS, EXPIRED_CODES, RISK_CODES, LOGIN_PAGE_RE,
 };

@@ -223,7 +223,7 @@
     <div id="wrStateCard" class="hint" style="margin:0 2px 8px">公众号追更状态查询中…</div>
     <div class="paste-box" style="margin:0 2px 10px">
       <span>📖</span>
-      <input id="wrKw" placeholder="搜索公众号昵称，或粘贴公众号文章链接（更新自动归档追更）" style="flex:1;border:none;outline:none;font:inherit;font-size:13.5px;background:transparent;color:var(--txt)">
+      <input id="wrKw" placeholder="粘贴该公众号任意一篇文章链接，点＋即可添加追更" style="flex:1;border:none;outline:none;font:inherit;font-size:13.5px;background:transparent;color:var(--txt)">
       <button class="btn-dl" onclick="wereadAddFlow()">＋ 添加追更</button>
     </div>
     <div id="wrCandidates" class="hint" style="display:none;margin:-4px 2px 8px"></div>
@@ -1891,23 +1891,25 @@ async function wereadClearExpiredFlow() {
   toast('已重试检查');
   loadSubs(); loadWereadState();
 }
-// 添加追更：文章链接（含 __biz）走直加路径；其他输入当昵称搜索，候选点击添加
+// 添加追更：文章链接（含 __biz）走直加路径；按昵称搜索已停用（微信读书没有这个接口），保留候选控件与点击添加。
+// 2026-11 端点校准：bookId 由 __biz 离线算出，不再经搜索定位。
+const WR_NO_SEARCH_HINT = '微信读书不支持按名字搜公众号。粘贴该公众号任意一篇文章链接，点＋即可添加';
 async function wereadAddFlow() {
   const v = $('wrKw').value.trim();
-  if (!v) return toast('先输入公众号昵称或文章链接');
+  if (!v) return toast('先粘贴该公众号的一篇文章链接');
   if (/mp\.weixin\.qq\.com/i.test(v)) {
     toast('正在识别公众号…');
     const r = await window.keepsake.wereadAdd({ url: v });
     if (r && r.ok) { $('wrKw').value = ''; toast('已添加追更：' + ((r.sub && r.sub.name) || '公众号') + ' ✓ 首次检查中…'); loadSubs(); }
     else toast('添加失败：' + ((r && r.reason) || '未知原因'));
   } else {
-    toast('搜索公众号中…');
+    toast('查询中…');
     const box = $('wrCandidates');
-    box.style.display = 'block'; box.textContent = '搜索中…';
+    box.style.display = 'block'; box.textContent = '查询中…';
     let r;
-    try { r = await window.keepsake.wereadSearch(v); } catch (e) { box.textContent = '搜索失败：' + String(e.message || e).slice(0, 60); return; }
-    if (!r.ok) { box.textContent = '搜索失败：' + (r.reason || '未知原因'); return; }
-    if (!r.candidates || !r.candidates.length) { box.textContent = '没有找到匹配的公众号，换个昵称关键词试试'; return; }
+    try { r = await window.keepsake.wereadSearch(v); } catch (e) { box.textContent = WR_NO_SEARCH_HINT; return; }
+    if (!r.ok) { box.textContent = WR_NO_SEARCH_HINT; return; }
+    if (!r.candidates || !r.candidates.length) { box.textContent = WR_NO_SEARCH_HINT; return; }
     box.innerHTML = '找到 ' + r.candidates.length + ' 个候选，点击添加：' +
       r.candidates.map(c => `<span class="act" style="cursor:pointer;margin-left:8px;color:var(--acc2)" onclick="wereadPickCandidate('${escAttr(String(c.mpId))}','${escAttr(String(c.title || c.mpId))}')">＋ ${esc(String(c.title || c.mpId))}</span>`).join('');
   }

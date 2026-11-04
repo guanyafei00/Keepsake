@@ -187,16 +187,28 @@ function normMaxBackfill(v) {
   return MAX_BACKFILL_CHOICES.includes(n) ? n : 0;
 }
 
+// 公众号文章链接兜底名：优先 /s/<短 token>，否则 __biz 前 12 位；_auto 让 adoptName 拿到真名后可覆盖。
+// 2026-11 端点校准后贴链接即可直加，文章页风控抓不到昵称是常态，不能再因此拒加。
+function wereadFallbackName(url) {
+  try {
+    const u = new URL(url);
+    const m = u.pathname.match(/\/s\/([A-Za-z0-9_-]{4,})/);
+    const token = m ? m[1] : (u.searchParams.get('__biz') || '').slice(0, 12);
+    return token ? '公众号 · ' + token : null;
+  } catch (e) { return null; }
+}
+
 // M-A5 公众号专用入口（只经 weread:add IPC 创建，classify 不自动识别——防与 RSS/单篇语义混淆）。
 // intervalMin 强制 30 起步（设计 §4.1）；不维护 gone/lastSeen（同 RSS：列表只保留最近窗口）
 function addWeread({ mpId, biz, url, name } = {}) {
   if (!mpId) return { ok: false, reason: '缺少公众号 mpId' };
   if (subs.some(s => s.kind === 'weread' && s.mpId === String(mpId))) return { ok: false, reason: '该公众号已在订阅中' };
+  const auto = !String(name || '').trim() && url ? wereadFallbackName(url) : null;
   const sub = {
     id: 's' + Date.now().toString(36), kind: 'weread',
     mpId: String(mpId), biz: biz || null, url: url || null,
-    name: String(name || '').trim().slice(0, 40) || ('公众号 ' + (subs.length + 1)),
-    _auto: false,
+    name: String(name || '').trim().slice(0, 40) || auto || ('公众号 ' + (subs.length + 1)),
+    _auto: !!auto,
     lastCheck: 0, lastNew: 0, known: [], checked: 0,
     autoBackfill: false, group: '',
     intervalMin: 30,       // 强制下限 30 分钟（读书接口频率红线，设计 §6.1）
