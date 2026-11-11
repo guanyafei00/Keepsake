@@ -59,6 +59,7 @@ contextBridge.exposeInMainWorld('keepsake', {
   settingsSetCookieBrowser: (b) => ipcRenderer.invoke('settings:setCookieBrowser', { b }),
   settingsSetBiliLine: (l) => ipcRenderer.invoke('settings:setBiliLine', { line: l }),
   settingsSetCbz: (on) => ipcRenderer.invoke('settings:setCbz', { on }),
+  settingsSetUi: (ui) => ipcRenderer.invoke('settings:setUi', ui),   // U6 外观（theme/accent/layout）
   appVersion: () => ipcRenderer.invoke('app:version'),
   appCheckUpdate: () => ipcRenderer.invoke('app:checkUpdate'),
   appApplyUpdate: (url, sha256) => ipcRenderer.invoke('app:applyUpdate', { url, sha256 }),

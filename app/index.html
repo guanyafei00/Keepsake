@@ -18,6 +18,28 @@
     --shadow:0 1px 3px rgba(16,24,40,.06), 0 8px 24px rgba(16,24,40,.05);
     --shadow-lg:0 18px 50px rgba(16,24,40,.25);
   }
+  /* ===== U6.1 主题系统（浅色为默认基线；强调色与深色均为纯变量覆盖，不改组件规则）===== */
+  html[data-accent="purple"] { --acc:#6d28d9; --acc2:#5b21b6; --accbg:#f3eeff; --acc-bright:#8b5cf6; --acc-soft:#a78bfa; --acc-border:#ddd6fe; }
+  html[data-accent="green"]  { --acc:#047857; --acc2:#065f46; --accbg:#ecfdf5; --acc-bright:#10b981; --acc-soft:#34d399; --acc-border:#a7f3d0; }
+  html[data-theme="dark"] {
+    --bg:#101418; --panel:#171c22; --panel2:#1f262e; --line:#2a323c; --line-strong:#3d4753;
+    --txt:#e6eaf0; --txt2:#9aa4b2;
+    --accbg:rgba(14,165,233,.13); --acc-border:rgba(14,165,233,.38);
+    --greenbg:rgba(34,197,94,.13); --redbg:rgba(220,38,38,.16); --yellowbg:rgba(217,164,65,.14); --infobg:rgba(59,130,246,.14);
+    --shadow-sm:0 1px 2px rgba(0,0,0,.45);
+    --shadow:0 1px 3px rgba(0,0,0,.5), 0 8px 24px rgba(0,0,0,.35);
+    --shadow-lg:0 18px 50px rgba(0,0,0,.65);
+  }
+  html[data-theme="dark"][data-accent="purple"] { --acc:#8b5cf6; --acc2:#7c3aed; --accbg:rgba(139,92,246,.14); --acc-border:rgba(139,92,246,.4); }
+  html[data-theme="dark"][data-accent="green"]  { --acc:#10b981; --acc2:#059669; --accbg:rgba(16,185,129,.13); --acc-border:rgba(16,185,129,.4); }
+  /* ===== U6.2 订阅布局三选一：grid=现状行卡 / stream=紧凑列表 / dash=仪表盘摘要条+行卡（同一份数据，只分渲染层）===== */
+  #subList.stream .task { padding:7px 10px; gap:8px; }
+  #subList.stream .t-thumb { display:none; }
+  #subList.stream .task .meta { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .kpi-row { display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:10px; margin:0 2px 12px; }
+  .kpi-cell { background:var(--panel); border:1px solid var(--line); border-radius:var(--r-md); padding:10px 12px; box-shadow:var(--shadow-sm); }
+  .kpi-cell b { display:block; font-size:20px; font-weight:800; line-height:1.25; }
+  .kpi-cell span { font-size:11.5px; color:var(--txt2); }
   * { margin:0; padding:0; box-sizing:border-box; }
   body { font-family:"Segoe UI","Microsoft YaHei",system-ui,sans-serif; background:var(--bg); color:var(--txt); height:100dvh; display:flex; overflow:hidden; }
 
@@ -166,13 +188,13 @@
   <div class="nav on" data-page="tasks" onclick="switchPage('tasks')">⬇ 任务队列 <span class="cnt" id="q-cnt">0</span></div>
   <div class="nav" data-page="rss" onclick="switchPage('rss')">📡 订阅 <span class="cnt" id="s-cnt">0</span></div>
   <div class="nav" data-page="lib" onclick="switchPage('lib')">📚 媒体库 <span class="cnt" id="l-cnt">0</span></div>
-  <div class="nav" data-page="strategy" onclick="switchPage('strategy')">🛡 风控策略</div>
+  <div class="nav" data-page="strategy" onclick="switchPage('strategy')">🛡 限流策略</div>
   <div class="nav" onclick="openChannelsWin()" title="打开微信视频号受控浏览器：官方页面正常登录浏览，播放后点窗口内【📥 归档】一键保存">📹 视频号</div>
   <div class="nav" onclick="openXhsWin()" title="打开小红书受控浏览器：浏览笔记页后点窗口内【📥 归档】一键保存图文/视频">📕 小红书</div>
   <div class="nav" data-page="settings" onclick="switchPage('settings')">⚙ 设置</div>
   <div class="side-foot">
     <div id="loginBadge" class="act" onclick="openLogin()">🔑 登录 B 站</div>
-    <div>🛡 风控规则 <span class="act" onclick="refreshRules()" id="rulesVer">自动更新</span></div>
+    <div>🛡 限流规则 <span class="act" onclick="refreshRules()" id="rulesVer">自动更新</span></div>
     <div>⟳ <span class="act" onclick="checkUpd()">检查引擎更新</span> <span id="updBadge" onclick="doUpdate()">可更新!</span></div>
     <div><b>本地运行 · 隐私安全</b></div>
   </div>
@@ -196,7 +218,7 @@
 
     <div class="sec-t">⬇️ 任务队列 <span class="cnt" id="q-cnt2">0</span></div>
     <div id="queue"><div class="empty">队列空空如也——贴个链接试试，比如 B 站视频或 UP 主主页</div></div>
-    <div class="hint" style="margin:-2px 0 12px">站点风控冷却中的任务不占下载名额：其他站点的任务会继续下载，同站点任务等冷却结束自动重试（卡片上的 ⛔ 是倒计时）</div>
+    <div class="hint" style="margin:-2px 0 12px">站点限流冷却中的任务不占下载名额：其他站点的任务会继续下载，同站点任务等冷却结束自动重试（卡片上的 ⛔ 是倒计时）</div>
 
     <div class="sec-t">✅ 已完成 / 失败 <span class="cnt" id="d-cnt">0</span> <span class="x" style="margin-left:auto;cursor:pointer;font-size:12px" onclick="clearFinishedTasks()" title="清空全部已完/失败记录（不删磁盘文件）">🧹 清空记录</span></div>
     <div id="doneList"><div class="empty">下载完成的媒体会出现在这里（UP 主删除源视频不影响已下载文件）</div></div>
@@ -216,7 +238,7 @@
       </select>
       <button class="btn-dl" onclick="addSub()">＋ 添加订阅</button>
     </div>
-    <div class="hint">每 10 分钟自动增量检查（轻量单次请求，不触发风控）· 添加后会询问是否回溯全部历史 · 新内容自动入队 · <b>UP 主删除源视频不会删除你已下载的文件</b></div>
+    <div class="hint">每 10 分钟自动增量检查（轻量单次请求，对站点压力小）· 添加后会询问是否回溯全部历史 · 新内容自动入队 · <b>UP 主删除源视频不会删除你已下载的文件</b></div>
     <div id="subsCapacity" class="hint" style="margin-top:-4px">下载目录容量查询中…</div>
     <!-- M-A5 公众号追更（独立区块，与 RSS 订阅互不混淆；频率下限 ≥30 分钟）-->
     <div class="sec-t" style="margin-top:18px">📖 公众号追更 <span class="cnt" id="wr-cnt">0</span> <span class="act" style="cursor:pointer;font-size:12px;margin-left:auto" id="wrLoginBtn" onclick="wereadLoginFlow()">🔑 扫码登录</span> <span class="act" style="cursor:pointer;font-size:12px;display:none" id="wrLogoutBtn" onclick="wereadLogoutFlow()">退出登录</span></div>
@@ -251,15 +273,43 @@
 
   <!-- 策略页 -->
   <div class="page" id="page-strategy">
-    <div class="hint" style="margin:0 2px 12px">各站点的风控参数与自适应状态 · 优先级 <b>远程规则 &gt; 运行时学习 &gt; 内置默认</b> · 启动及每 6 小时自动拉取线上规则</div>
+    <div class="hint" style="margin:0 2px 12px">各站点的限流参数与自适应状态 · 优先级 <b>远程规则 &gt; 运行时学习 &gt; 内置默认</b> · 启动及每 6 小时自动拉取线上规则</div>
     <div class="sec-t">🛡 远程规则 <span class="cnt" id="st-version">…</span> <span class="act" style="cursor:pointer;font-size:12px;margin-left:auto" onclick="refreshRules();loadStrategySoon()">⟳ 立即更新</span></div>
     <div id="strategyList"><div class="empty">检查中…</div></div>
     <div class="sec-t">📈 运行时自适应 <span class="cnt" id="st-learned">0</span></div>
-    <div id="learnedList"><div class="empty">还没积累到学习数据——风控退避/熔断发生后这里会出现各站状态</div></div>
+    <div id="learnedList"><div class="empty">还没积累到学习数据——限流退避/熔断发生后这里会出现各站状态</div></div>
   </div>
 
   <!-- 设置页 -->
   <div class="page" id="page-settings">
+    <div class="card">
+      <h3>🎨 外观 <span class="rec">主题 · 强调色</span></h3>
+      <div class="row">
+        <label>主题</label>
+        <select id="uiThemeSel" onchange="saveUiAppearance()" style="max-width:260px">
+          <option value="light">浅色</option>
+          <option value="dark">深色</option>
+          <option value="auto">跟随系统</option>
+        </select>
+      </div>
+      <div class="row" style="margin-bottom:0">
+        <label>强调色</label>
+        <select id="uiAccentSel" onchange="saveUiAppearance()" style="max-width:260px">
+          <option value="brand">品牌蓝</option>
+          <option value="purple">紫</option>
+          <option value="green">绿</option>
+        </select>
+      </div>
+      <div class="row">
+        <label>订阅布局</label>
+        <select id="uiLayoutSel" onchange="saveUiAppearance()" style="max-width:260px">
+          <option value="grid">卡片行（默认）</option>
+          <option value="stream">紧凑列表</option>
+          <option value="dash">仪表盘摘要</option>
+        </select>
+      </div>
+      <div class="note" style="margin:6px 0 0">即时生效，选择保存在本机设置里。三种布局共用同一份订阅数据，只换呈现方式。</div>
+    </div>
     <div class="card">
       <h3>⚙ 下载设置</h3>
       <div class="desc">媒体统一保存到以下目录，按「站点 / UP主」分文件夹</div>
@@ -273,7 +323,7 @@
 
     <div class="card">
       <h3>🚦 并发与限速</h3>
-      <div class="desc">同时进行的下载任务越多总速度越快，但太激进容易触发站点风控（被冷却反而更慢）；限速适合「下载时还想玩游戏/开会」的场景。</div>
+      <div class="desc">同时进行的下载任务越多总速度越快，但太激进容易触发站点限流（被冷却反而更慢）；限速适合「下载时还想玩游戏/开会」的场景。</div>
       <div class="row">
         <label>同时下载任务数</label>
         <select id="maxConcurrentSel" style="max-width:120px;padding:8px 11px;border:1px solid var(--line);border-radius:var(--r-md);font:inherit;background:var(--panel2);color:var(--txt)">
@@ -314,7 +364,7 @@
           <option value="6">6 个（最激进）</option>
         </select>
       </div>
-      <div class="note" style="margin:6px 0 0">同时回溯的订阅数（新订阅自动全量 / 手动 ⤓ 回溯时生效）；调大可加快大量订阅的清单拉取，但过重可能触发站点风控。单个订阅还可在「⚙ 订阅设置」里设<b>回溯条数上限</b>（只从最新往回数 N 条，添加订阅时也可选）。</div>
+      <div class="note" style="margin:6px 0 0">同时回溯的订阅数（新订阅自动全量 / 手动 ⤓ 回溯时生效）；调大可加快大量订阅的清单拉取，但过重可能触发站点限流。单个订阅还可在「⚙ 订阅设置」里设<b>回溯条数上限</b>（只从最新往回数 N 条，添加订阅时也可选）。</div>
       <div class="note" style="margin:6px 0 0">B站 视频可手动指定 CDN 线路（部分网络环境下换线路能改善连接质量）；留「自动」即交给引擎默认。</div>
       <div class="note" style="margin:6px 0 0">调小并发立即生效；调大立即补位启动排队任务 · 限速对视频下载（yt-dlp / 直连引擎）生效；图文站（gallery-dl）走请求间隔保护，不限速</div>
     </div>
@@ -341,7 +391,7 @@
 
     <div class="card">
       <h3>🔑 Cookie 管理 <span class="rec">多站点通用</span></h3>
-      <div class="desc">B 站登录后自动写入。其他站点（YouTube / Pixiv / X / Instagram…）可用浏览器扩展 <b>Get cookies.txt LOCALLY</b> 登录后导出 Netscape 格式 cookies.txt，在此导入——下载时会自动带上对应站点的登录态（更高清晰度、更少风控）。Cookie 只存本机。</div>
+      <div class="desc">B 站登录后自动写入。其他站点（YouTube / Pixiv / X / Instagram…）可用浏览器扩展 <b>Get cookies.txt LOCALLY</b> 登录后导出 Netscape 格式 cookies.txt，在此导入——下载时会自动带上对应站点的登录态（更高清晰度、更稳定）。Cookie 只存本机。</div>
       <div class="row">
         <label>已保存站点</label>
         <div id="cookieDomains" style="flex:1"><span class="chip2">（暂无，B 站登录后自动出现 bilibili.com）</span></div>
@@ -388,14 +438,15 @@
       <div class="note" style="margin:6px 0 0">Pixiv 下载不走 cookie（官方接口只认 OAuth refresh-token，实测带 cookie 照样被拒）。点上面按钮弹出 Pixiv 官方登录窗，登录成功即自动完成授权——之后 Pixiv 订阅和下载全部可用。token 只存本机。</div>
     </div>
 
-    <div class="card">
-      <h3>📝 本地转写（Whisper）<span class="rec">推荐 Turbo</span></h3>
+    <div class="card" style="border-left:3px solid var(--acc,#0369A1)">
+      <h3>📝 本地转写（Whisper）<span class="rec">推荐 Turbo</span><span style="font-size:10px;font-weight:600;padding:1px 7px;border-radius:4px;background:var(--acc,#0369A1);color:#fff;margin-left:6px">本地 AI</span></h3>
       <div class="desc">下载转写模型到本机，<b>音频不会上传任何服务器</b>，模型下载后完全离线可用 · 下载任务勾「📝 转写」或媒体库点 📝 即可生成带时间戳的字幕（SRT）和文字稿（TXT）</div>
       <div id="asrModelList"><div class="empty">加载中…</div></div>
       <div class="row" style="margin:12px 0 0">
         <label>模型下载源</label>
         <select id="asrMirror" onchange="switchMirror()"></select>
       </div>
+      <div style="margin-top:12px;padding:8px 12px;border-radius:var(--r-sm,6px);background:var(--accbg,#F0F9FF);border-left:3px solid var(--acc,#0369A1);font-size:12px;color:var(--txt2,#5C6470)">🔒 本地优先：转写模型在本机运行，音频<strong>不上传任何服务器</strong>，模型下载后完全离线可用。</div>
     </div>
 
     <div class="card">
@@ -451,8 +502,8 @@
       <div class="note" style="margin:6px 0 0">导出 = 一份 JSON 文件（含全部设置 + 订阅清单及跟踪进度 + AI 配置）；导入 = 设置覆盖恢复、订阅按链接合并不重复。不含 Cookie（换机请重新登录）与媒体文件本体（拷下载目录即可）</div>
     </div>
 
-    <div class="card">
-      <h3>✨ AI 文稿助理 <span class="rec">BYOK 自备 Key</span></h3>
+    <div class="card" style="border-left:3px solid var(--acc,#0369A1)">
+      <h3>✨ AI 文稿助理 <span class="rec">BYOK 自备 Key</span><span style="font-size:10px;font-weight:600;padding:1px 7px;border-radius:4px;background:var(--acc,#0369A1);color:#fff;margin-left:6px">本地 AI</span></h3>
       <div class="desc">对已转写的文字稿跑 <b>AI 摘要 / 翻译</b>。填任意 <b>OpenAI 兼容接口</b>（OpenAI / DeepSeek / 硅基流动 / Ollama / LM Studio 均可）。Key 只存本机 settings.json，不经任何第三方。媒体库文件点 ✨ 即可使用，结果存为同名 <code>.ai.md</code>。</div>
       <div class="row">
         <label>接口地址</label>
@@ -478,6 +529,7 @@
         <button class="btn-mini" type="button" onclick="saveAiConfig()">💾 保存</button>
         <span id="aiCfgState" style="font-size:12px;color:var(--txt2)"></span>
       </div>
+      <div style="margin-top:12px;padding:8px 12px;border-radius:var(--r-sm,6px);background:var(--accbg,#F0F9FF);border-left:3px solid var(--acc,#0369A1);font-size:12px;color:var(--txt2,#5C6470)">🔒 Key 只存本机 <code style="font-family:Consolas,monospace">settings.json</code>，摘要 / 翻译结果存为同名 <code style="font-family:Consolas,monospace">.ai.md</code>，不经任何第三方。</div>
     </div>
 
     <div class="card">
@@ -497,7 +549,7 @@
 
     <div class="card">
       <h3>🛠 下载引擎 <span class="cnt" style="font-size:11px">yt-dlp · gallery-dl</span></h3>
-      <div class="desc">上游社区每天都在更新风控对抗规则，引擎保持最新 = 下载成功率最高。默认<b>每天自动更新</b>（仅在下载队列空闲时进行）。手动更新随时可点：<b>下载不占用任务队列名额</b>，只有下发替换时若引擎正被下载任务调用，会等当前任务跑完再换（几秒到几分钟）。</div>
+      <div class="desc">上游社区每天都在更新站点适配规则，引擎保持最新 = 下载成功率最高。默认<b>每天自动更新</b>（仅在下载队列空闲时进行）。手动更新随时可点：<b>下载不占用任务队列名额</b>，只有下发替换时若引擎正被下载任务调用，会等当前任务跑完再换（几秒到几分钟）。</div>
       <div id="engineList"><div class="empty">检查中…</div></div>
       <div class="row" style="margin-bottom:0">
         <label>自动更新</label>
@@ -542,7 +594,7 @@
       <div class="ob-num">2</div>
       <div class="ob-body">
         <h4>设置浏览器登录态 / cookies</h4>
-        <p>想下载更高清、更少风控的内容？到设置里选一个已登录的浏览器（引擎自动读取），或导入 cookies.txt。登录态只存本机。</p>
+        <p>想下载更高清、更稳定的内容？到设置里选一个已登录的浏览器（引擎自动读取），或导入 cookies.txt。登录态只存本机。</p>
         <div class="ob-warn">⚠ 浏览器读取 Cookie 时请先<strong>完全退出</strong>该浏览器——Windows 会锁定 Cookie 文件，正在运行会导致读取失败（呼应之前的登录态锁检测）。</div>
         <div class="ob-go"><button class="btn-mini" onclick="obGo('set-cookies')">🔑 去设置登录态</button></div>
       </div>
@@ -589,7 +641,7 @@ document.addEventListener('DOMContentLoaded', a11yEnhance);
 function translateError(e) {
   const s = String(e || '');
   if (/Keepsake 不会绕过访问限制|已被发布者删除|没有认出这篇文章/.test(s)) return s;   // 文章引擎的错误本就是人话，直通不走通用翻译
-  if (/\b412\b|-352|请求过于频繁|Precondition/i.test(s)) return 'B 站风控限流中：稍等几分钟会自动重试，或到左下角扫码登录后再试';
+  if (/\b412\b|-352|请求过于频繁|Precondition/i.test(s)) return 'B 站限流中：稍等几分钟会自动重试，或到左下角扫码登录后再试';
   if (/\b429\b|Too Many Requests|rate.?limit/i.test(s)) return '请求太快被限流：稍后会自动重试';
   if (/\b403\b/.test(s)) return '站点拒绝访问：可能需要登录（左下角扫码）或链接已失效';
   if (/timeout|timed out|ETIMEDOUT|ECONNRESET|网络/i.test(s)) return '网络超时：点任务上的 ⟳ 重试一下';
@@ -767,7 +819,7 @@ const siteBadgeOf = t => {
   if (/kuaishou\.com|chenzhongtech/i.test(u) || /[\\/]kuaishou[\\/]/i.test(p)) return '快手';
   return '';
 };
-const stName = { queued:'排队中', downloading:'下载中', held:'风控冷却', done:'完成', error:'失败', canceled:'已取消', interrupted:'已中断' };   // #39 interrupted：异常退出未完成的任务
+const stName = { queued:'排队中', downloading:'下载中', held:'限流冷却', done:'完成', error:'失败', canceled:'已取消', interrupted:'已中断' };   // #39 interrupted：异常退出未完成的任务
 const heldMin = ms => Math.max(1, Math.ceil(ms/60000));
 
 function render() {
@@ -806,7 +858,7 @@ function render() {
   const activeCard = t => {
     const openPath = t.filePath || t._destPath;   // gallery-dl 首批落盘文件 / yt-dlp Destination 行——下载途中就能打开所在位置
     if (openPath) _filePathMap.set(t.id, openPath);
-    const heldNote = t.status === 'held' ? `<span style="color:var(--yellow)">⛔ 站点风控冷却，约 ${heldMin(t.heldRemainMs||0)} 分钟后自动重试</span>` : '';
+    const heldNote = t.status === 'held' ? `<span style="color:var(--yellow)">⛔ 站点限流冷却，约 ${heldMin(t.heldRemainMs||0)} 分钟后自动重试</span>` : '';
     const badge = siteBadgeOf(t);
     return `
     <div class="task">
@@ -1066,9 +1118,37 @@ function switchPage(p) {
   if (p === 'settings') { loadSettings(); loadCookieInfo(); loadPixivState(); loadAsr().then(initMirrorSelect).catch(() => {}); loadEngines(); }
 }
 
+// ===== U6 外观：主题 + 强调色（即时生效；持久化走 settings:setUi）=====
+let currentUi = { theme: 'light', accent: 'brand' };
+const _sysThemeDark = window.matchMedia('(prefers-color-scheme: dark)');
+function resolvedTheme(t) { return t === 'auto' ? (_sysThemeDark.matches ? 'dark' : 'light') : (t === 'dark' ? 'dark' : 'light'); }
+function applyUiAppearance(ui) {
+  const u = ui || {};
+  const next = {
+    theme: ['light', 'dark', 'auto'].includes(u.theme) ? u.theme : 'light',
+    accent: ['brand', 'purple', 'green'].includes(u.accent) ? u.accent : 'brand',
+    layout: ['grid', 'stream', 'dash'].includes(u.layout) ? u.layout : 'grid'
+  };
+  const layoutChanged = currentUi.layout !== next.layout && typeof renderSubs === 'function' && $('subList');
+  currentUi = next;
+  document.documentElement.dataset.theme = resolvedTheme(currentUi.theme);
+  document.documentElement.dataset.accent = currentUi.accent;
+  if (layoutChanged) try { renderSubs(); } catch (e) {}   // 切布局时若订阅页已渲染，立即重渲染
+}
+_sysThemeDark.addEventListener('change', () => { if (currentUi.theme === 'auto') applyUiAppearance(currentUi); });
+async function saveUiAppearance() {
+  const r = await window.keepsake.settingsSetUi({ theme: $('uiThemeSel').value, accent: $('uiAccentSel').value, layout: $('uiLayoutSel').value });
+  applyUiAppearance(r && r.ui);
+}
+window.keepsake.settingsGet().then(s => applyUiAppearance(s && s.ui)).catch(() => {});   // 启动即套主题，不等进设置页
+
 // ===== 设置：下载目录 =====
 async function loadSettings() {
   const s = await window.keepsake.settingsGet();
+  currentUi = s.ui || currentUi; applyUiAppearance(currentUi);
+  $('uiThemeSel').value = currentUi.theme || 'light';
+  $('uiAccentSel').value = currentUi.accent || 'brand';
+  $('uiLayoutSel').value = currentUi.layout || 'grid';
   $('outDirInput').value = s.outDir;
   $('proxyInput').value = s.proxy || '';
   $('updateUrlInput').value = s.updateUrl || '';
@@ -1518,6 +1598,24 @@ async function renderSubs() {
   else if (gf) items = items.filter(s => (s.group || '').trim() === gf);
   $('s-cnt2').textContent = items.length;
   window._subOrder = items.map(s => s.id);   // 当前显示顺序（Shift 范围选基准，含分组过滤）
+  // U6.2 布局三选一：同一份数据三种呈现（grid 现状行卡 / stream 紧凑列表 / dash 仪表盘摘要+行卡），只分渲染层不动业务逻辑
+  const layout = (currentUi && currentUi.layout) || 'grid';
+  el.classList.toggle('stream', layout === 'stream');
+  let kpiHtml = '';
+  if (layout === 'dash') {
+    const nFailPaused = items.filter(s => s.paused).length;
+    const nPaused = items.filter(s => s.userPaused && !s.paused).length;
+    const nFailRecent = items.filter(s => s.lastError && (!s.lastCheck || (s.lastFailAt || 0) > (s.lastCheck || 0)) && !s.paused && !s.userPaused).length;
+    const nCooling = items.filter(s => s._observability && s._observability.cooldownUntil > Date.now()).length;
+    const cell = (n, label, color) => `<div class="kpi-cell"><b style="${color ? 'color:' + color : ''}">${n}</b><span>${label}</span></div>`;
+    kpiHtml = '<div class="kpi-row">' +
+      cell(items.length, '订阅总数') +
+      cell(nFailRecent, '最近检查失败', 'var(--yellow)') +
+      cell(nFailPaused, '连续失败暂停', 'var(--red)') +
+      cell(nPaused, '手动暂停') +
+      cell(nCooling, '站点冷却中', 'var(--info)') +
+      '</div>';
+  }
   const htmls = [];
   for (const s of items) {
     const ago = s.lastCheck ? Math.round((Date.now() - s.lastCheck) / 60000) : null;
@@ -1572,7 +1670,7 @@ async function renderSubs() {
       <div class="x" onclick="removeSub('${s.id}')" title="取消订阅">✕</div>
     </div>`);
   }
-  el.innerHTML = htmls.length ? htmls.join('') : (subsItems.length ? `<div class="empty">该分组下暂无订阅</div>` : `<div class="empty">还没有订阅——支持 B站UP主/合集 / YouTube频道 / X用户 / Pixiv / 微博 / Reddit / Instagram / Danbooru 等站点主页</div>`);
+  el.innerHTML = kpiHtml + (htmls.length ? htmls.join('') : (subsItems.length ? `<div class="empty">该分组下暂无订阅</div>` : `<div class="empty">还没有订阅——支持 B站UP主/合集 / YouTube频道 / X用户 / Pixiv / 微博 / Reddit / Instagram / Danbooru 等站点主页</div>`));
   const wrCnt = $('wr-cnt'); if (wrCnt) wrCnt.textContent = subsItems.filter(s => s.kind === 'weread').length;   // M-A5 公众号追更计数同步
   updateSelBar();
 }
@@ -1647,7 +1745,7 @@ function editSubOpts(id) {
         <input id="soGroup" value="${escAttr(s.group || '')}" placeholder="如：追更 / 学习 / 保存" style="width:100%;box-sizing:border-box;padding:8px 11px;border:1px solid var(--line);border-radius:var(--r-md);font:inherit;background:var(--panel2);color:var(--txt)">
       </div>
       <div>
-        <div style="font-size:12.5px;color:var(--txt2);margin-bottom:5px">${s.kind === 'weread' ? '检查频率（公众号追更下限 30 分钟，间隔越长越稳）' : '检查频率（间隔越长越省请求，防风控更稳）'}</div>
+        <div style="font-size:12.5px;color:var(--txt2);margin-bottom:5px">${s.kind === 'weread' ? '检查频率（公众号追更下限 30 分钟，间隔越长越稳）' : '检查频率（间隔越长越省请求，也更稳）'}</div>
         <select id="soInterval" style="width:100%;padding:8px 11px;font:inherit;background:var(--panel2);color:var(--txt);border:1px solid var(--line);border-radius:var(--r-md);outline:none">
           ${s.kind === 'weread'
             ? '<option value="30" ' + (s.intervalMin === 30 ? 'selected' : '') + '>每 30 分钟</option><option value="60" ' + (s.intervalMin === 60 ? 'selected' : '') + '>每 60 分钟</option>'
@@ -1922,14 +2020,14 @@ async function wereadPickCandidate(mpId, title) {
 async function removeSub(id) { await window.keepsake.subsRemove(id); loadSubs(); }
 async function resumeSub(id) { await window.keepsake.subsResume(id); toast('已恢复检查'); loadSubs(); }
 async function backfillSub(id) {
-  if (!confirm('把这个订阅已发布的全部内容（视频+图文，含历史）加入下载队列？\n内容多时清单要拉一会儿，入队后按风控策略自动限速慢慢下。')) return;
+  if (!confirm('把这个订阅已发布的全部内容（视频+图文，含历史）加入下载队列？\n内容多时清单要拉一会儿，入队后按限流策略自动限速慢慢下。')) return;
   toast('正在拉取内容清单…');
   try {
     const r = await window.keepsake.subsBackfill(id);
     if (!r.ok) return toast(r.reason);
     if (r.queued) return toast('队列正忙，已排入待回溯队列——当前任务完成后自动开始');
     if (!r.added && !r.skipped) return toast('未发现可下载的内容（纯文字动态无媒体）');
-    toast(`已入队 ${r.added} 个任务${r.skipped ? `（${r.skipped} 个已在队列跳过）` : ''}，按风控策略自动限速下载`);
+    toast(`已入队 ${r.added} 个任务${r.skipped ? `（${r.skipped} 个已在队列跳过）` : ''}，按限流策略自动限速下载`);
   } catch (e) { toast('回溯失败：' + (e.message || e)); }
   loadSubs();
 }
@@ -2219,7 +2317,7 @@ async function loadStrategy() {
           <div class="meta">当前档位 ${s.level || 0}（间隔 ${(snap.defaults.find(d => host.includes(d.host))?.backoffLevels || [])[s.level] || '-'}s）· 累计失败 ${s.failures || 0} 次 ${breakerLeft}</div>
         </div>
         <div class="st ${s.level ? 'held' : 'flat'}">档位 ${s.level || 0}</div>
-      </div>`;}).join('') : `<div class="empty">还没积累到学习数据——风控退避/熔断发生后这里会出现各站状态</div>`;
+      </div>`;}).join('') : `<div class="empty">还没积累到学习数据——限流退避/熔断发生后这里会出现各站状态</div>`;
   } catch (e) { toast('策略加载失败：' + e.message); }
 }
 
@@ -2250,11 +2348,11 @@ async function doUpdate() {
   toast('更新完成，之后的下载立即用上新引擎');
 }
 
-// ===== 风控规则 / B 站登录 =====
+// ===== 限流规则 / B 站登录 =====
 async function refreshRules() {
-  toast('正在更新风控规则…');
+  toast('正在更新限流规则…');
   const r = await window.keepsake.strategyRefresh();
-  if (r.ok) { toast(`风控策略已更新 ✓ ${r.applied}/${r.total} 条规则 · 版本 ${r.version || '未知'}`); $('rulesVer').textContent = 'v' + (r.version || '?'); }
+  if (r.ok) { toast(`限流策略已更新 ✓ ${r.applied}/${r.total} 条规则 · 版本 ${r.version || '未知'}`); $('rulesVer').textContent = 'v' + (r.version || '?'); }
   else toast('策略更新失败（已沿用现有策略）：' + (r.reason || ''));
 }
 async function refreshLoginBadge() {
@@ -2266,11 +2364,11 @@ async function refreshLoginBadge() {
 async function openLogin() {
   toast('已打开登录窗口，用 B 站 App 扫码或直接登录');
   const r = await window.keepsake.openLogin();
-  if (r.ok) { toast('登录成功！下载走账号通道，更高清也更少风控'); refreshLoginBadge(); }
+  if (r.ok) { toast('登录成功！下载走账号通道，更高清也更稳定'); refreshLoginBadge(); }
   else if (r.reason && r.reason !== '已取消') toast('登录失败：' + r.reason);
 }
 async function logoutBili() {
-  if (!confirm('确定退出 B 站登录吗？退出后部分内容的下载可能受风控限制。')) return;
+  if (!confirm('确定退出 B 站登录吗？退出后部分内容的下载可能受站点限流。')) return;
   await window.keepsake.logout();
   refreshLoginBadge();
   toast('已退出 B 站登录');

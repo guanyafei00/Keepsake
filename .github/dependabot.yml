@@ -1,0 +1,20 @@
+# 依赖版本更新 PR（可选配置）。
+# 注意：Dependabot alerts 是仓库设置里的开关，与本文件无关；
+# 本文件只管「要不要自动开版本更新 PR」。
+# 频率压得低、同时开的数量压得少，避免刷屏。不想要直接删掉本文件即可。
+version: 2
+updates:
+  - package-ecosystem: "npm"
+    directory: "/app"
+    schedule:
+      interval: "monthly"
+    open-pull-requests-limit: 3
+    groups:
+      production-dependencies:
+        dependency-type: "production"
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "monthly"
+    open-pull-requests-limit: 2

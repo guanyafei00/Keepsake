@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 先看常见问题
+    url: https://github.com/guanyafei00/Keepsake#常见问题
+    about: 限流提示、文件位置、首次运行组件下载等问题，README 里已有答案。
+  - name: 报告安全漏洞
+    url: https://github.com/guanyafei00/Keepsake/blob/main/SECURITY.md
+    about: 不要开公开 issue，按 SECURITY.md 的私下渠道报告。

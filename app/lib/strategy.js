@@ -6,6 +6,7 @@
 const path = require('path');
 const fs = require('fs');
 const https = require('https');
+const crypto = require('crypto');
 const { atomicWrite, readJson } = require('./jsonfile');
 
 let statePath = null;
@@ -26,7 +27,7 @@ function save() {
 // 内置兜底策略：按 host 后缀匹配（子域自动命中，如 space.bilibili.com → bilibili.com）
 const DEFAULTS = [
   { host: 'bilibili.com', sleep: 3, breakerThreshold: 3, breakerCooldownMs: 10 * 60 * 1000,
-    backoffLevels: [3, 6, 15, 40], note: 'B站：连续请求触发 5min 惩罚，必须带间隔' },
+    backoffLevels: [3, 6, 15, 40], note: 'B站：请求失败后退避重试' },
   { host: 'pixiv.net', sleep: 1, breakerThreshold: 4, breakerCooldownMs: 15 * 60 * 1000,
     backoffLevels: [1, 3, 8, 20] },
   { host: 'x.com', sleep: 2, breakerThreshold: 3, breakerCooldownMs: 15 * 60 * 1000,
@@ -159,11 +160,14 @@ function applyRemoteRules(rules, meta = {}) {
 }
 
 // 启动时恢复上次应用的远程规则（远程服务不可达也不丢策略）
+// R1.5：本地缓存同样验签——缓存文件在 userData，可被本机恶意软件/误编辑改动
 function loadPersistedRemote() {
   const f = remoteFile();
   if (!f) return;
   try {
     const j = JSON.parse(fs.readFileSync(f, 'utf-8'));
+    const v = verifyRulesSig(j);
+    if (!v.ok) { console.warn('[strategy] 本地远程规则缓存验签失败，忽略缓存（用内置策略兜底）:', v.reason); return; }
     if (Array.isArray(j.rules)) applyRemoteRules(j.rules, { version: j.version, persist: false });
   } catch (e) { console.warn('[strategy] 远程规则本地缓存读取失败（忽略，用内置策略兜底）:', e.message); }   // #46⑥
 }
@@ -182,6 +186,9 @@ function fetchRemoteRules(url, timeoutMs = 10000) {
         res.on('end', () => {
           try {
             const j = JSON.parse(d);
+            const v = verifyRulesSig(j);   // R1.5：签名坏 = 整体拒收，绝不把可疑参数放进策略层
+            if (!v.ok) return reject(new Error('规则文件验签失败，已拒绝应用: ' + v.reason));
+            if (v.unsigned) console.warn('[strategy] 远程规则未签名（当前容忍；规则站部署签名版后建议收紧为强制验签）');
             if (!Array.isArray(j.rules)) return reject(new Error('rules 字段缺失'));
             resolve(j);
           } catch (e) { reject(new Error('bad json')); }
@@ -194,4 +201,31 @@ function fetchRemoteRules(url, timeoutMs = 10000) {
 
 function snapshot() { return { defaults: DEFAULTS, learned: state._hosts }; }
 
-module.exports = { configure, forUrl, isBreakered, breakerRemainMs, reportFailure, reportSuccess, applyRemoteRules, loadPersistedRemote, fetchRemoteRules, snapshot };
+// ===== R1.5 远程规则验签（Ed25519）：rules.json 顶层可选 sig 字段 =====
+// 签名对象 = { version, rules } 的规范化序列化（JSON.stringify 固定字段顺序）。
+// 无 sig → 放行 + 警告（线上 rules.json 还没部署签名版，直接拒绝会断所有用户的规则更新；
+//          签名版上线后可把容忍开关收紧）。有 sig 但验签失败 → 整体拒绝：
+//          规则源被劫持/挂马时改 sleep/breaker 参数就是改请求行为，必须挡在 applyRemoteRules 之前。
+const RULES_PUBKEY_SPKI_DER_HEX = '302a300506032b65700321004e69b18a8ea96ef5fe577d407fde9c1363db4d24b34c62852d514600eeb365ff';
+let _rulesPubkey = null;
+function rulesPubkey() {
+  if (!_rulesPubkey) _rulesPubkey = crypto.createPublicKey({ key: Buffer.from(RULES_PUBKEY_SPKI_DER_HEX, 'hex'), format: 'der', type: 'spki' });
+  return _rulesPubkey;
+}
+function verifyRulesSig(j, pubDerHex) {
+  if (!j || typeof j !== 'object' || Array.isArray(j)) return { ok: false, reason: '规则文件不是对象' };
+  if (j.sig === undefined) return { ok: true, unsigned: true };
+  if (typeof j.sig !== 'string' || !j.sig.length) return { ok: false, reason: 'sig 字段非法' };
+  try {
+    const pub = pubDerHex
+      ? crypto.createPublicKey({ key: Buffer.from(pubDerHex, 'hex'), format: 'der', type: 'spki' })
+      : rulesPubkey();
+    const payload = Buffer.from(JSON.stringify({ version: j.version, rules: j.rules }), 'utf8');
+    const ok = crypto.verify(null, payload, pub, Buffer.from(j.sig, 'base64'));
+    return ok ? { ok: true } : { ok: false, reason: 'Ed25519 验签失败：规则文件被篡改或签名不匹配' };
+  } catch (e) {
+    return { ok: false, reason: '验签异常: ' + e.message };
+  }
+}
+
+module.exports = { configure, forUrl, isBreakered, breakerRemainMs, reportFailure, reportSuccess, applyRemoteRules, loadPersistedRemote, fetchRemoteRules, snapshot, verifyRulesSig };

@@ -1,18 +1,21 @@
-Keepsake — 个人使用许可（EULA 摘要）
-Copyright (c) 2026 Keepsake Author. All Rights Reserved.
+MIT License
 
-1. 授权范围
-   本软件的原创代码、界面与设计归作者所有。允许任何人免费下载、安装并在个人设备上出于个人目的使用本软件（公测期免费，后续收费以软件内公告为准）。
+Copyright (c) 2026 Keepsake Author
 
-2. 禁止事项
-   未经作者书面许可，禁止：再分发本软件安装包或修改版；将本软件用于商业用途；移除本声明。
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
 
-3. 第三方组件
-   本软件封装 yt-dlp、gallery-dl、FFmpeg、whisper.cpp 等开源组件。各组件归其原作者所有，遵循其原始许可证（见 THIRD-PARTY-NOTICES.md）。组件与第三方网站的交互行为由各组件自行负责。
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
 
-4. 免责声明
-   本软件不破解任何 DRM 或付费内容。用户使用本软件下载内容的行为，请自行遵守目标网站的服务条款与所在地区法律，由此产生的一切责任由用户自行承担。
-   本软件按「现状」提供，不附带任何明示或默示的担保。作者不对使用本软件造成的任何损失承担责任。
-
-5. 联系方式
-   通过 GitHub 仓库 Issue 联系作者。
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.

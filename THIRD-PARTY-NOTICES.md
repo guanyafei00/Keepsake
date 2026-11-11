@@ -12,7 +12,7 @@ Keepsake 封装、调用或随安装包分发以下开源组件。各组件归�
 | [Node.js](https://github.com/nodejs/node) | 运行时 | **MIT** | https://github.com/nodejs/node |
 | [@mozilla/readability](https://github.com/mozilla/readability) | 文章正文提取（归档用） | **Apache-2.0** | https://github.com/mozilla/readability |
 
-> Keepsake 主程序自身为私有许可（见 `LICENSE`），与上述组件之间仅为命令行参数级的数据交换与独立进程调用，属于 GPL 认可的「聚合（mere aggregation）」关系；主程序源码不受 GPL 约束，但严格遵循各组件许可证义务（保留版权声明、提供源码链接 / 要约）。
+> Keepsake 主程序自身采用 MIT 许可证（见 `LICENSE`），与上述组件之间仅为命令行参数级的数据交换与独立进程调用，属于 GPL 认可的「聚合（mere aggregation）」关系；主程序源码不受 GPL 约束，但严格遵循各组件许可证义务（保留版权声明、提供源码链接 / 要约）。
 
 ## 随包分发的引擎二进制（app/resources/bin）
 
@@ -23,7 +23,7 @@ Keepsake 封装、调用或随安装包分发以下开源组件。各组件归�
 | `yt-dlp.exe` | yt-dlp | The Unlicense | https://github.com/yt-dlp/yt-dlp |
 | `gallery-dl.exe` | gallery-dl | **GPL-3.0** | https://github.com/mikf/gallery-dl |
 | `ffmpeg.exe` | FFmpeg | LGPL-2.1+ / GPL | https://github.com/FFmpeg/FFmpeg |
-| `bili-probe.exe` | B站探针（Keepsake 自研） | Keepsake 私有许可 | —（本项目原创代码） |
+| `bili-probe.exe` | B站探针（Keepsake 自研） | Keepsake MIT 许可证 | —（本项目原创代码） |
 | `whisper/whisper-cli.exe` + `whisper/*.dll` | whisper.cpp | MIT | https://github.com/ggml-org/whisper.cpp |
 
 - **gallery-dl（GPL-3.0）源码要约**：其完整对应源码随时可从上游仓库获取 —— https://github.com/mikf/gallery-dl （含各发布版本 tag 与源码归档）。Keepsake 不修改、不捆绑该组件，仅按原样调用。

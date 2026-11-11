@@ -45,6 +45,7 @@ const library = require('./lib/library');
 const login = require('./lib/login');
 const pixivauth = require('./lib/pixivauth');
 const settings = require('./lib/settings');
+const secure = require('./lib/secure');
 const asr = require('./lib/asr');
 const { runEngine } = require('./lib/engine_probe');
 const ai = require('./lib/ai');
@@ -321,8 +322,13 @@ app.whenReady().then(() => {
   try { videosDir = app.getPath('videos'); } catch (e) {}
   settings.configure({ file: path.join(userData, 'settings.json'), defaultOutDir: path.join(videosDir || userData, 'Keepsake') });
   log.init(path.join(userData, 'logs'));   // 关键事件落盘 userData/logs/，保留 7 天
+  // R1.4 启动迁移：历史明文 aiKey 一次性加密回写（safeStorage=Windows DPAPI，机器+用户绑定）
+  secure.migrateSecret(
+    () => settings.get().aiKey,
+    (enc) => settings.set({ aiKey: enc })
+  );
   const sc = settings.get();
-  ai.configure({ url: sc.aiUrl, key: sc.aiKey, model: sc.aiModel });   // BYOK：OpenAI 兼容接口
+  ai.configure({ url: sc.aiUrl, key: secure.decryptSecret(sc.aiKey), model: sc.aiModel });   // BYOK：OpenAI 兼容接口
   const outDir = settings.get().outDir;   // 下载目录：settings.json 可覆盖默认 userData/downloads
   fs.mkdirSync(outDir, { recursive: true });
 
@@ -865,6 +871,11 @@ app.whenReady().then(() => {
     setAutoCbz(r.autoCbz);
     return { ok: true, autoCbz: r.autoCbz };
   });
+  // U6 外观设置（theme/accent；layout 留给 U6.2）。渲染层负责即时生效，主进程只持久化
+  ipcMain.handle('settings:setUi', (e, ui) => {
+    const r = settings.set({ ui: ui || {} });
+    return { ok: true, ui: r.ui };
+  });
   // ★★#5 剪贴板监听开关（热启停：开=启动轮询，关=停止并丢弃实例）
   ipcMain.handle('settings:setClipboard', (e, { on }) => {
     const r = settings.set({ clipboardWatch: !!on });
@@ -1366,21 +1377,21 @@ app.whenReady().then(() => {
     catch (e) { try { fs.unlinkSync(path.join(legacy, 'cookies.txt')); } catch (e2) {} }   // 改名不成至少删明文凭证
     console.log('[migrate] ' + legacyName + ' → Keepsake 数据迁移完成');
   }
-  // ===== AI 文稿后处理（BYOK：任意 OpenAI 兼容接口，key 存本地 settings.json）=====
+  // ===== AI 文稿后处理（BYOK：任意 OpenAI 兼容接口，key 经 safeStorage 加密后存本地 settings.json）=====
   ipcMain.handle('ai:getConfig', () => {
     const c = settings.get();
-    return { url: c.aiUrl || '', key: c.aiKey || '', model: c.aiModel || '', ready: ai.ready() };
+    return { url: c.aiUrl || '', key: secure.decryptSecret(c.aiKey), model: c.aiModel || '', ready: ai.ready() };
   });
   ipcMain.handle('ai:saveConfig', (e, cfg) => {
-    settings.set({ aiUrl: String(cfg.url || '').trim(), aiKey: String(cfg.key || '').trim(), aiModel: String(cfg.model || '').trim() });
+    settings.set({ aiUrl: String(cfg.url || '').trim(), aiKey: secure.encryptSecret(String(cfg.key || '').trim()), aiModel: String(cfg.model || '').trim() });
     const c = settings.get();
-    ai.configure({ url: c.aiUrl, key: c.aiKey, model: c.aiModel });
+    ai.configure({ url: c.aiUrl, key: secure.decryptSecret(c.aiKey), model: c.aiModel });
     return { ok: true, ready: ai.ready() };
   });
   // 拉取模型列表：只读 settings 的 aiUrl/aiKey，避免依赖 CFG 是否最新（ai.js 的 fetchModels 自行处理 GET + 解析 + 兜底）
   ipcMain.handle('ai:fetchModels', () => {
     const s = settings.get();
-    return ai.fetchModels(s.aiUrl, s.aiKey);
+    return ai.fetchModels(s.aiUrl, secure.decryptSecret(s.aiKey));
   });
   // 对已转写的媒体文件跑 AI：读同名 .txt（或 .srt），结果存同名 .ai.md
   // 补 insideOutDir 校验（同文件其他文件操作都有，唯独这里漏了 → 越界读写）

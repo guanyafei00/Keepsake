@@ -1,0 +1,21 @@
+# R1.3 最小 CI：零依赖单测（不需要 npm install，纯 Node 断言）
+# 后续给 main 开分支保护时，这里就是 required status checks 的检查项
+name: test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  unit:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm test

@@ -1,0 +1,43 @@
+name: 需求建议
+description: 想解决什么场景，不用写实现方案
+title: "[建议] "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        先说场景和困扰，方案由维护者判断。
+
+        不接收要求新增规避平台限制、或代为抓取特定内容的请求。
+
+  - type: textarea
+    id: scenario
+    attributes:
+      label: 什么场景下遇到
+      description: 你原本想做什么、卡在哪一步
+    validations:
+      required: true
+
+  - type: textarea
+    id: current
+    attributes:
+      label: 现在怎么绕过去的（如果有）
+
+  - type: dropdown
+    id: kind
+    attributes:
+      label: 大致属于
+      options:
+        - 订阅 / 归档
+        - 媒体库 / 查找
+        - 转写 / 文稿
+        - 界面 / 交互
+        - 文档 / 说明
+        - 其他
+
+  - type: checkboxes
+    id: confirm
+    attributes:
+      label: 提交前确认
+      options:
+        - label: 这份建议不涉及未公开的平台或规避平台限制
+          required: true

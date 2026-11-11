@@ -42,6 +42,11 @@ function configure({ file, defaultOutDir }) {
   if (data.clipboardWatch === undefined) data.clipboardWatch = true; else data.clipboardWatch = !!data.clipboardWatch;
   // 公众号追更总开关（M-A5；默认开——仅控制 weread 相关 IPC 与订阅检查入口，不影响其他订阅）
   if (data.wereadEnabled === undefined) data.wereadEnabled = true; else data.wereadEnabled = !!data.wereadEnabled;
+  // U6 外观设置（主题 light/dark/auto；强调色 brand/purple/green；layout 留给 U6.2 三视图，先归一化防脏值）
+  if (!data.ui || typeof data.ui !== 'object' || Array.isArray(data.ui)) data.ui = {};
+  if (!['light', 'dark', 'auto'].includes(data.ui.theme)) data.ui.theme = 'light';
+  if (!['brand', 'purple', 'green'].includes(data.ui.accent)) data.ui.accent = 'brand';
+  if (!['grid', 'stream', 'dash'].includes(data.ui.layout)) data.ui.layout = 'grid';
 }
 
 function get() { return { ...data }; }
@@ -62,6 +67,15 @@ function set(patch) {
   if (p.autoCbz !== undefined) p.autoCbz = !!p.autoCbz;
   if (p.clipboardWatch !== undefined) p.clipboardWatch = !!p.clipboardWatch;
   if (p.wereadEnabled !== undefined) p.wereadEnabled = !!p.wereadEnabled;
+  // U6 外观：写路径与 configure 同规则（局部 merge，坏值归一化）
+  if (p.ui !== undefined) {
+    const cur = { ...data.ui };
+    const inc = (p.ui && typeof p.ui === 'object' && !Array.isArray(p.ui)) ? p.ui : {};
+    p.ui = { ...cur, ...inc };
+    if (!['light', 'dark', 'auto'].includes(p.ui.theme)) p.ui.theme = 'light';
+    if (!['brand', 'purple', 'green'].includes(p.ui.accent)) p.ui.accent = 'brand';
+    if (!['grid', 'stream', 'dash'].includes(p.ui.layout)) p.ui.layout = 'grid';
+  }
   Object.assign(data, p);
   try { atomicWrite(FILE, JSON.stringify(data, null, 2)); } catch (e) { console.warn('[settings] save fail:', e.message); }
   return get();

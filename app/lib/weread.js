@@ -17,6 +17,7 @@
 //      微信读书网页端搜不到公众号（scope/type 六种组合全返回出版书 type:0），按昵称搜索这条路不存在。
 const { BrowserWindow, session } = require('electron');
 const https = require('https');
+const zlib = require('zlib');
 const path = require('path');
 const { atomicWrite, readJson } = require('./jsonfile');
 
@@ -535,17 +536,40 @@ function extractNicknameFromHtml(html) {
   return m ? decodeHtmlText(m[1]).slice(0, 40) : null;
 }
 
+// 响应体解码：微信偶发返回 gzip/deflate/br（且不一定看 Accept-Encoding），旧实现用字符串累加
+// `d += c`，二进制按 utf8 拼接会变乱码 → 抽不到 __biz → 贴了正确短链却提示「读不到公众号标识」。
+// 显式要求 identity，同时按 Content-Encoding 兜底解压；解压失败按原文继续，由上层判空。
+function decodeArticleBody(chunks, encoding) {
+  const buf = Buffer.concat(chunks);
+  const enc = String(encoding || '').toLowerCase();
+  try {
+    if (enc === 'gzip') return zlib.gunzipSync(buf).toString('utf8');
+    if (enc === 'deflate') return zlib.inflateSync(buf).toString('utf8');
+    if (enc === 'br') return zlib.brotliDecompressSync(buf).toString('utf8');
+  } catch (e) { /* 解压失败：按原文继续，避免把可解析的页面判死 */ }
+  return buf.toString('utf8');
+}
+
 // 文章页正文抓取（封顶 4MB：实测正常页 ~3.5MB，风控空页 31KB；异常大响应不撑内存）。
 // 只由 fetchArticleMeta 在白名单通过后调用；_get 可注入供离线单测。
-function fetchArticlePageHtml(articleUrl) {
+// 短链偶发 302：只跟白名单域、最多 3 跳，防被带到站外（SSRF 面不放宽）。
+function fetchArticlePageHtml(articleUrl, redirects = 0) {
   return new Promise(resolve => {
     try {
       https.get(articleUrl, {
-        headers: { 'User-Agent': UA, 'Referer': 'https://mp.weixin.qq.com/' },
+        headers: { 'User-Agent': UA, 'Referer': 'https://mp.weixin.qq.com/', 'Accept-Encoding': 'identity' },
       }, res => {
-        let d = '';
-        res.on('data', c => { if (d.length < 4 * 1024 * 1024) d += c; });
-        res.on('end', () => resolve(d));
+        if ([301, 302, 303, 307, 308].includes(res.statusCode) && res.headers.location && redirects < 3) {
+          res.resume();
+          let next = null;
+          try { next = new URL(res.headers.location, articleUrl).href; } catch (e) { return resolve(null); }
+          if (!isWeixinArticleUrl(next)) return resolve(null);   // 站外跳转不跟
+          return resolve(fetchArticlePageHtml(next, redirects + 1));
+        }
+        const chunks = [];
+        let size = 0;
+        res.on('data', c => { if (size < 4 * 1024 * 1024) { chunks.push(c); size += c.length; } });
+        res.on('end', () => resolve(decodeArticleBody(chunks, res.headers['content-encoding'])));
         res.on('error', () => resolve(null));
       }).on('error', () => resolve(null))
         .setTimeout(ARTICLE_PAGE_TIMEOUT_MS, function () { this.destroy(new Error('文章页超时')); });
@@ -575,7 +599,7 @@ module.exports = {
   shelfSync, bookIds, mpContent, mpCover, mpSearch, fetchForSub, fetchArticleMeta, fetchArticleNickname,
   // 纯函数（离线单测）
   isExpiredSignal, articleListToFeedItems, coverToFeedItem, flattenReviews, articleToken, bizToBookId, extractBiz,
-  createThrottleGate, extractNicknameFromHtml, extractBizFromHtml, isWeixinArticleUrl,
+  createThrottleGate, extractNicknameFromHtml, extractBizFromHtml, isWeixinArticleUrl, decodeArticleBody,
   // 常量（单测断言 / 校准参照 / 对外文案）
   PARTITION, ENDPOINTS, MIN_GAP_MS, EXPIRED_CODES, RISK_CODES, LOGIN_PAGE_RE, NO_BIZ_REASON,
 };

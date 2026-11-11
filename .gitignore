@@ -12,6 +12,15 @@ app/resources/bin/ffmpeg.exe
 # 凭据/设备指纹文件绝不入库
 app/resources/cookies.txt
 cookies.txt
+# G0（2026-11-10）：e2e 持久化 Chromium profile 含真实登录态，整目录排除。
+# 实测 app/tools/e2e/.profile-weread-channels/ 300 文件：cookies.txt +
+# Partitions/{weread,channels}/Network/Cookies(-journal)；只挡 cookies.txt 不够，
+# git add -A 仍会把整个 profile 推上 GitHub。
+app/tools/e2e/.profile-*/
+**/Network/Cookies
+**/Network/Cookies-journal
+**/Login Data
+**/Login Data-journal
 
 # 内部文档（调研报告，不对外）
 DGO会审材料_v3.md
@@ -47,8 +56,9 @@ screenshots/*
 !screenshots/keepsake-subs.png
 !screenshots/keepsake-home.png
 
-# 测试与下载产物（不入库）
-test/
+# 测试与下载产物（不入库）。test/ 只指仓库根的运行时产物目录；
+# 裸写 test/ 会把 app/test/（R1.3 单测源码，必须入库）也误伤——commit 会静默跳过，CI 找不到文件
+/test/
 app/downloads/
 app/.npmcache/
 
