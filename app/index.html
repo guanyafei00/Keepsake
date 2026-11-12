@@ -48,7 +48,7 @@
   .ui-prev-item { border:1.5px solid var(--line); border-radius:var(--r-md); padding:9px 10px 10px; background:var(--panel); cursor:pointer; transition:.15s; min-width:0; }
   .ui-prev-item:hover { border-color:var(--acc); }
   .ui-prev-item.on { border-color:var(--acc); box-shadow:0 0 0 2px var(--accbg); }
-  .pv-cap { font-size:11.5px; font-weight:700; color:var(--txt2); margin-bottom:8px; white-space:nowrap; }
+  .pv-cap { font-size:11.5px; font-weight:700; color:var(--txt2); margin-bottom:8px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   .ui-prev-item.on .pv-cap { color:var(--acc2); }
   .pv-body { display:flex; flex-direction:column; gap:5px; }
   .pv-row { display:flex; align-items:center; gap:7px; background:var(--panel2); border:1px solid var(--line); border-radius:var(--r-sm); padding:7px 8px; }
@@ -61,6 +61,109 @@
   .pv-kpi { display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:4px; }
   .pv-kpi i { display:block; height:20px; border-radius:4px; background:var(--accbg); border:1px solid var(--acc-border); }
   .pv-row em { font-style:normal; color:var(--txt2); font-size:10px; flex-shrink:0; }
+  /* ===== U6.4 整站界面风格：把三份效果图真正落进应用 =====
+     grid   = 经典卡片（旧版原貌，零覆盖）/ stream = 方案 X 极简单栏流式 / dash = 方案 Y 仪表盘卡片式
+     差异落在骨架上：侧栏宽度与导航形态、顶部状态条 / 四 KPI、订阅列表形态、底部队列条。
+     以下全部是追加的高特异性覆盖规则，不修改任何既有组件定义；数据来源仍是现有 IPC，不造假。 */
+  .skin-bar { display:none; flex:0 0 auto; padding:0 22px; margin-top:14px; }
+  .skin-drawer { display:none; flex:0 0 46px; align-items:center; gap:12px; margin:0 22px 14px; padding:0 16px;
+    background:var(--panel); border:1px solid var(--line); border-left:3px solid var(--acc);
+    border-radius:var(--r-md); font-size:12.5px; color:var(--txt2); }
+  html[data-skin="stream"] .skin-bar, html[data-skin="dash"] .skin-bar { display:block; }
+  html[data-skin="stream"] .skin-drawer, html[data-skin="dash"] .skin-drawer { display:flex; }
+  .skin-strip { display:flex; align-items:stretch; height:58px; background:var(--panel); border:1px solid var(--line);
+    border-radius:var(--r-md); box-shadow:var(--shadow-sm); }
+  .skin-cell { flex:1; min-width:0; display:flex; align-items:center; gap:10px; padding:0 16px; position:relative; }
+  .skin-cell + .skin-cell::before { content:""; position:absolute; left:0; top:12px; bottom:12px; width:1px; background:var(--line); }
+  .skin-dot { width:9px; height:9px; flex:0 0 9px; border-radius:50%; background:var(--acc); }
+  .skin-dot.g { background:var(--green); } .skin-dot.y { background:var(--yellow); } .skin-dot.r { background:var(--red); }
+  .skin-cell .l { font-size:11px; color:var(--txt2); }
+  .skin-cell .v { font-size:17px; font-weight:800; line-height:1.15; }
+  .skin-cell .r { margin-left:auto; font-size:11px; color:var(--txt2); white-space:nowrap; }
+  .skin-kpis { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px; }
+  .skin-kpi { background:var(--panel); border:1px solid var(--line); border-top:3px solid var(--acc);
+    border-radius:var(--r-md); padding:12px 15px; box-shadow:var(--shadow-sm); }
+  .skin-kpi.warn { border-top-color:var(--yellow); } .skin-kpi.err { border-top-color:var(--red); } .skin-kpi.info { border-top-color:var(--info); }
+  .skin-kpi .l { font-size:11px; color:var(--txt2); }
+  .skin-kpi .v { font-size:23px; font-weight:800; line-height:1.15; margin-top:2px; }
+  .skin-kpi .s { font-size:10.5px; color:var(--txt2); margin-top:2px; }
+  .skin-drawer b { color:var(--txt); font-size:13px; }
+  .skin-go { margin-left:auto; color:var(--acc2); font-weight:700; cursor:pointer; white-space:nowrap; }
+
+  /* --- 方案 X：窄侧栏 / 分组导航 / 薄状态条 / 单列流 --- */
+  html[data-skin="stream"] .sidebar { width:168px; background:var(--panel2); padding:12px 8px; }
+  html[data-skin="stream"] .logo { font-size:13px; padding:2px 8px 12px; }
+  html[data-skin="stream"] .logo .gem { width:24px; height:24px; border-radius:7px; }
+  html[data-skin="stream"] .nav { position:relative; height:32px; padding:0 9px; gap:8px; font-size:12.5px; border-radius:5px; }
+  html[data-skin="stream"] .nav[data-page="tasks"] { margin-top:17px; }
+  html[data-skin="stream"] .nav[data-page="settings"] { margin-top:17px; }
+  html[data-skin="stream"] .nav[data-page="tasks"]::before,
+  html[data-skin="stream"] .nav[data-page="settings"]::before { position:absolute; left:9px; top:-15px; font-size:10px;
+    letter-spacing:.06em; color:var(--txt2); font-weight:600; }
+  html[data-skin="stream"] .nav[data-page="tasks"]::before { content:"工作流"; }
+  html[data-skin="stream"] .nav[data-page="settings"]::before { content:"更多"; }
+  html[data-skin="stream"] .side-foot { font-size:10.5px; line-height:1.9; padding:8px 9px; }
+  html[data-skin="stream"] .page { padding:14px 22px 18px; }
+  html[data-skin="stream"] .paste-box,
+  html[data-skin="stream"] .card,
+  html[data-skin="stream"] .pick { border-radius:7px; box-shadow:none; }
+  html[data-skin="stream"] .card { padding:13px 16px; margin-bottom:11px; }
+  html[data-skin="stream"] .sec-t { margin:14px 2px 8px; }
+  html[data-skin="stream"] .btn-dl { border-radius:7px; }
+  html[data-skin="stream"] .empty { padding:16px 0; }
+  html[data-skin="stream"] #subList .task { box-shadow:none; border:0; border-bottom:1px solid var(--line);
+    border-radius:0; padding:8px; margin-bottom:0; gap:10px; }
+  html[data-skin="stream"] #subList .t-thumb { width:34px; height:34px; border-radius:50%; font-size:14px; }
+  html[data-skin="stream"] #subList .t-thumb .eng { display:none; }
+  html[data-skin="stream"] #subList .t-info .name { font-size:13px; }
+  html[data-skin="stream"] #subList .t-info .meta { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; font-size:11px; }
+  html[data-skin="stream"] #subList .bar { margin-top:5px; height:3px; }
+  html[data-skin="stream"] #subList .kpi-row { display:none; }
+
+  /* --- 方案 Y：宽侧栏 / 四 KPI / 订阅卡片网格 --- */
+  html[data-skin="dash"] .sidebar { width:216px; padding:18px 12px; }
+  html[data-skin="dash"] .logo { font-size:15.5px; padding:4px 12px 18px; }
+  html[data-skin="dash"] .nav { height:38px; padding:0 14px; border-radius:8px; font-size:13.5px; }
+  html[data-skin="dash"] .page { padding:22px 28px 30px; }
+  html[data-skin="dash"] .card { border-radius:16px; box-shadow:var(--shadow); padding:18px 22px; }
+  html[data-skin="dash"] .paste-box { border-radius:14px; }
+  html[data-skin="dash"] .sec-t { margin:22px 2px 12px; font-size:12.5px; }
+  html[data-skin="dash"] #subList { display:grid; grid-template-columns:repeat(auto-fill,minmax(268px,1fr)); gap:14px; align-items:start; }
+  html[data-skin="dash"] #subList .kpi-row { display:none; }
+  html[data-skin="dash"] #subList > .empty { grid-column:1/-1; }
+  html[data-skin="dash"] #subList .task { flex-wrap:wrap; align-content:flex-start; gap:9px; padding:14px 16px;
+    border-radius:14px; margin-bottom:0; min-height:126px; }
+  html[data-skin="dash"] #subList .t-info { flex:1 1 calc(100% - 60px); min-width:0; }
+  html[data-skin="dash"] #subList .t-info .meta { display:block; white-space:normal; line-height:1.65;
+    font-size:11px; max-height:52px; overflow:hidden; }
+  html[data-skin="dash"] #subList .t-thumb { width:38px; height:38px; border-radius:11px; }
+  html[data-skin="dash"] #subList .bar { flex:1 1 100%; margin-top:2px; }
+  html[data-skin="dash"] #subList .x { font-size:13px; }
+
+  /* --- 设置页预览升级：画「迷你整站」而不是只画列表 --- */
+  .pv-app { display:flex; height:78px; border:1px solid var(--line); border-radius:5px; overflow:hidden; background:var(--bg); }
+  .pv-side { flex:0 0 16px; background:var(--panel); border-right:1px solid var(--line); padding:5px 2px;
+    display:flex; flex-direction:column; gap:3px; }
+  .pv-side i { display:block; width:9px; height:5px; border-radius:2px; background:var(--line-strong); }
+  .pv-side i:first-child { background:var(--acc); }
+  .pv-main { flex:1; min-width:0; display:flex; flex-direction:column; gap:3px; padding:4px; }
+  .pv-top { height:12px; border-radius:3px; background:var(--accbg); border:1px solid var(--acc-border); }
+  .pv-top.kpis { display:grid; grid-template-columns:repeat(4,1fr); gap:2px; background:none; border:0; }
+  .pv-top.kpis i { display:block; background:var(--accbg); border:1px solid var(--acc-border); border-radius:2px; }
+  .pv-rows { flex:1; min-height:0; display:flex; flex-direction:column; gap:3px; }
+  .pv-r { height:14px; border-radius:3px; background:var(--panel); border:1px solid var(--line);
+    display:flex; align-items:center; gap:4px; padding:0 4px; }
+  .pv-r i { width:8px; height:8px; border-radius:2px; background:var(--acc); flex-shrink:0; }
+  .pv-r b { display:block; height:4px; width:58%; border-radius:2px; background:var(--line-strong); }
+  .pv-r s { display:block; height:3px; width:22%; border-radius:2px; background:var(--line); text-decoration:none; margin-left:auto; }
+  .ui-prev-item[data-l="stream"] .pv-side { flex-basis:12px; }
+  .ui-prev-item[data-l="dash"] .pv-side { flex-basis:20px; }
+  .ui-prev-item[data-l="stream"] .pv-r { height:9px; border:0; border-bottom:1px solid var(--line);
+    border-left:2px solid var(--acc); border-radius:0; padding:0 3px; }
+  .ui-prev-item[data-l="stream"] .pv-r s { display:none; }
+  .ui-prev-item[data-l="dash"] .pv-rows { display:grid; grid-template-columns:repeat(2,1fr); gap:3px; }
+  .ui-prev-item[data-l="dash"] .pv-r { height:100%; min-height:16px; flex-direction:column; align-items:flex-start; justify-content:center; }
+
   * { margin:0; padding:0; box-sizing:border-box; }
   body { font-family:"Segoe UI","Microsoft YaHei",system-ui,sans-serif; background:var(--bg); color:var(--txt); height:100dvh; display:flex; overflow:hidden; }
 
@@ -304,7 +407,7 @@
   <!-- 设置页 -->
   <div class="page" id="page-settings">
     <div class="card">
-      <h3>🎨 外观 <span class="rec">主题 · 强调色</span></h3>
+      <h3>🎨 外观 <span class="rec">主题 · 强调色 · 界面风格</span></h3>
       <div class="row">
         <label>主题</label>
         <select id="uiThemeSel" onchange="saveUiAppearance()" style="max-width:260px">
@@ -322,20 +425,20 @@
         </select>
       </div>
       <div class="row">
-        <label>订阅布局</label>
+        <label>界面风格</label>
         <select id="uiLayoutSel" onchange="saveUiAppearance()" style="max-width:260px">
-          <option value="grid">卡片行（默认）</option>
-          <option value="stream">紧凑列表</option>
-          <option value="dash">仪表盘摘要</option>
+          <option value="grid">经典卡片（原版）</option>
+          <option value="stream">单栏流式 · 方案 X</option>
+          <option value="dash">仪表盘 · 方案 Y</option>
         </select>
       </div>
-      <!-- U6.3：设置页内直接预览三种布局，切换下拉/点小图当场可见，不必跑到订阅页找变化 -->
-      <div style="margin:4px 0 2px;font-size:12px;font-weight:700;color:var(--txt2)">实时预览（点小图也能直接切换）</div>
+      <!-- U6.4：三种风格改的是整站骨架，这里画迷你整站预览，点小图/下拉当场切换 -->
+      <div style="margin:4px 0 2px;font-size:12px;font-weight:700;color:var(--txt2)">整站预览（点小图也能直接切换）</div>
       <div class="ui-prev" id="uiPrev"></div>
       <div id="uiStateLine" style="font-size:11.5px;color:var(--txt2);line-height:1.7;margin-bottom:8px"></div>
       <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
         <button class="btn-mini" onclick="switchPage('rss')">去订阅页看实际效果 →</button>
-        <span style="font-size:11.5px;color:var(--txt2)">主题 / 强调色立刻作用于整个界面；三种订阅布局只改订阅页列表的呈现方式，共用同一份订阅数据。</span>
+        <span style="font-size:11.5px;color:var(--txt2)">切换后<b>整个应用</b>都会变：侧栏宽度、顶部状态条 / 统计卡、订阅列表形态、底部队列条。三种风格共用同一份真实数据，不会多存一份。</span>
       </div>
     </div>
     <div class="card">
@@ -1151,19 +1254,73 @@ let currentUi = { theme: 'light', accent: 'brand' };
 const _sysThemeDark = window.matchMedia('(prefers-color-scheme: dark)');
 const UI_THEME_NAME = { light: '浅色', dark: '深色', auto: '跟随系统' };
 const UI_ACCENT_NAME = { brand: '品牌蓝', purple: '紫', green: '绿' };
-const UI_LAYOUT_NAME = { grid: '卡片行', stream: '紧凑列表', dash: '仪表盘摘要' };
+const UI_LAYOUT_NAME = { grid: '经典卡片', stream: '单栏流式（方案 X）', dash: '仪表盘（方案 Y）' };
 function resolvedTheme(t) { return t === 'auto' ? (_sysThemeDark.matches ? 'dark' : 'light') : (t === 'dark' ? 'dark' : 'light'); }
+
+// ===== U6.4 整站外观层 =====
+// 只往 .main 首尾各插入一个容器，不动任何既有 DOM 节点；统计值来自现有计数与 subsItems，不造假。
+// grid 风格下两层都不显示，视觉与旧版完全一致。
+function skinStats() {
+  let items = [];
+  try { items = Array.isArray(subsItems) ? subsItems : []; } catch (e) { items = []; }
+  const txt = id => { const n = $(id); return n ? (n.textContent || '0').trim() : '0'; };
+  return {
+    subs: items.length,
+    fail: items.filter(s => s.lastError && (!s.lastCheck || (s.lastFailAt || 0) > (s.lastCheck || 0)) && !s.paused && !s.userPaused).length,
+    paused: items.filter(s => s.paused).length,
+    cooling: items.filter(s => s._observability && s._observability.cooldownUntil > Date.now()).length,
+    queue: txt('q-cnt'), done: txt('d-cnt'), lib: txt('l-cnt')
+  };
+}
+function mountSkinLayer() {
+  const main = document.querySelector('.main'); if (!main) return;
+  if (!$('skinBar')) {
+    const bar = document.createElement('div'); bar.id = 'skinBar'; bar.className = 'skin-bar';
+    main.insertBefore(bar, main.firstChild);
+  }
+  if (!$('skinDrawer')) {
+    const d = document.createElement('div'); d.id = 'skinDrawer'; d.className = 'skin-drawer';
+    main.appendChild(d);
+  }
+  renderSkinBar();
+}
+function renderSkinBar() {
+  const bar = $('skinBar'); if (!bar) return;
+  const st = skinStats(), skin = (currentUi && currentUi.layout) || 'grid';
+  if (skin === 'stream') {
+    bar.innerHTML = `<div class="skin-strip">
+      <div class="skin-cell"><span class="skin-dot"></span><div><div class="l">订阅</div><div class="v">${st.subs}</div></div><span class="r">本地归档 · 数据不出机</span></div>
+      <div class="skin-cell"><span class="skin-dot y"></span><div><div class="l">任务队列</div><div class="v">${st.queue}</div></div><span class="r">已完成 ${st.done}</span></div>
+      <div class="skin-cell"><span class="skin-dot ${st.fail ? 'r' : 'g'}"></span><div><div class="l">最近检查失败</div><div class="v">${st.fail}</div></div><span class="r">媒体库 ${st.lib}</span></div>
+    </div>`;
+  } else if (skin === 'dash') {
+    const kpi = (v, l, s, cls) => `<div class="skin-kpi ${cls || ''}"><div class="l">${l}</div><div class="v">${v}</div><div class="s">${s}</div></div>`;
+    bar.innerHTML = `<div class="skin-kpis">` +
+      kpi(st.subs, '订阅总数', '本机订阅') +
+      kpi(st.fail, '最近检查失败', '失败后会自动重试', 'warn') +
+      kpi(st.paused, '连续失败暂停', '满 3 次自动暂停', 'err') +
+      kpi(st.cooling, '站点冷却中', '其他站点不受影响', 'info') + `</div>`;
+  } else bar.innerHTML = '';
+  const dr = $('skinDrawer');
+  if (dr) dr.innerHTML = `<span>▸</span><b>任务队列 ${st.queue}</b><span>· 已完成 ${st.done}</span><span class="skin-go" onclick="switchPage('tasks')">查看队列 →</span>`;
+}
 // U6.3（11-12）：三种布局原本只在订阅页呈现，用户在设置页切换时看不到任何反馈。
 // 这里直接把三种形态画在设置页，切换下拉或点小图当场变色变形，并显式说明「跟随系统」当前实际是浅还是深。
 function updateUiPreview() {
   const box = $('uiPrev'); if (!box) return;
-  const rowCard = '<div class="pv-row"><i class="pv-thumb"></i><div class="pv-lines"><b></b><s></s></div><em>⋯</em></div>';
-  const demo = l => l === 'grid' ? rowCard + rowCard
-    : l === 'stream' ? [1, 2, 3].map(() => '<div class="pv-row streamline"><div class="pv-lines"><b></b></div><em>⋯</em></div>').join('')
-      : '<div class="pv-kpi">' + [1, 2, 3, 4, 5].map(() => '<i></i>').join('') + '</div>' + rowCard;
+  // 迷你整站：侧栏宽窄 + 顶部条有无/形态 + 列表形态，与真实 skin 一一对应
+  const side = [1, 2, 3, 4, 5].map(() => '<i></i>').join('');
+  const demo = l => {
+    const top = l === 'grid' ? ''
+      : l === 'stream' ? '<div class="pv-top"></div>'
+        : '<div class="pv-top kpis">' + [1, 2, 3, 4].map(() => '<i></i>').join('') + '</div>';
+    const rows = l === 'grid' ? [1, 2] : l === 'stream' ? [1, 2, 3] : [1, 2, 3, 4];
+    return `<div class="pv-app"><div class="pv-side">${side}</div><div class="pv-main">${top}<div class="pv-rows">` +
+      rows.map(() => '<div class="pv-r"><i></i><b></b><s></s></div>').join('') + '</div></div></div>';
+  };
   box.innerHTML = ['grid', 'stream', 'dash'].map(l => {
     const on = currentUi.layout === l;
-    return `<div class="ui-prev-item${on ? ' on' : ''}" onclick="pickUiLayout('${l}')" title="点击切换到${UI_LAYOUT_NAME[l]}">
+    return `<div class="ui-prev-item${on ? ' on' : ''}" data-l="${l}" onclick="pickUiLayout('${l}')" title="点击切换到${UI_LAYOUT_NAME[l]}">
       <div class="pv-cap">${UI_LAYOUT_NAME[l]}${on ? ' · 当前' : ''}</div><div class="pv-body">${demo(l)}</div></div>`;
   }).join('');
   const line = $('uiStateLine'); if (!line) return;
@@ -1185,6 +1342,8 @@ function applyUiAppearance(ui) {
   currentUi = next;
   document.documentElement.dataset.theme = resolvedTheme(currentUi.theme);
   document.documentElement.dataset.accent = currentUi.accent;
+  document.documentElement.dataset.skin = currentUi.layout;   // U6.4：整站骨架切换，切完当场可见
+  mountSkinLayer();                                          // 顶部状态条 / 四 KPI + 底部队列条
   if (layoutChanged) try { renderSubs(); } catch (e) {}   // 切布局时若订阅页已渲染，立即重渲染
   updateUiPreview();
 }
@@ -1193,9 +1352,13 @@ async function saveUiAppearance() {
   const t = $('uiThemeSel').value, a = $('uiAccentSel').value, l = $('uiLayoutSel').value;
   const r = await window.keepsake.settingsSetUi({ theme: t, accent: a, layout: l });
   applyUiAppearance(r && r.ui);
-  toast(`外观已保存：${UI_THEME_NAME[t]} · ${UI_ACCENT_NAME[a]} · ${UI_LAYOUT_NAME[l]}${l === 'grid' ? '' : '（订阅页看布局）'}`);
+  toast(`界面风格已切换：${UI_LAYOUT_NAME[l]} · 整站生效（侧栏 / 顶部条 / 列表 / 队列条）`);
 }
 window.keepsake.settingsGet().then(s => applyUiAppearance(s && s.ui)).catch(() => {});   // 启动即套主题，不等进设置页
+// 切页或数据更新后刷新整站概览；纯读现有 DOM 计数，不额外发 IPC
+const _origSwitchPage = switchPage;
+window.switchPage = function (p) { const r = _origSwitchPage(p); try { renderSkinBar(); } catch (e) {} return r; };
+setInterval(() => { try { renderSkinBar(); } catch (e) {} }, 15000);
 
 // ===== 设置：下载目录 =====
 async function loadSettings() {
