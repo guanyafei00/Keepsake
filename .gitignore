@@ -21,6 +21,12 @@ app/tools/e2e/.profile-*/
 **/Network/Cookies-journal
 **/Login Data
 **/Login Data-journal
+**/cookies.json
+
+# G0 补漏（2026-11-12）：本地 biliup 上传/登录工具目录。实测 cookies.json 含
+# cookie_info / sso / token_info 登录态，login-out.txt 是登录流程输出；两者原先
+# 都没被任何规则挡住，git add -A 会直接把登录态推上公开仓库。整目录排除，磁盘不动。
+biliup-tool/
 
 # 内部文档（调研报告，不对外）
 DGO会审材料_v3.md
