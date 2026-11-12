@@ -32,14 +32,35 @@
   }
   html[data-theme="dark"][data-accent="purple"] { --acc:#8b5cf6; --acc2:#7c3aed; --accbg:rgba(139,92,246,.14); --acc-border:rgba(139,92,246,.4); }
   html[data-theme="dark"][data-accent="green"]  { --acc:#10b981; --acc2:#059669; --accbg:rgba(16,185,129,.13); --acc-border:rgba(16,185,129,.4); }
-  /* ===== U6.2 订阅布局三选一：grid=现状行卡 / stream=紧凑列表 / dash=仪表盘摘要条+行卡（同一份数据，只分渲染层）===== */
-  #subList.stream .task { padding:7px 10px; gap:8px; }
+  /* ===== U6.2 订阅布局三选一：grid=现状行卡 / stream=紧凑列表 / dash=仪表盘摘要条+行卡（同一份数据，只分渲染层）=====
+     11-12 修正：原 stream 与 grid 的 DOM 完全相同，只差 padding 和缩略图，真机上几乎看不出切换；
+     现补左边色条 / 去阴影 / 缩行距 / 缩字号，让三种形态一眼可分。 */
+  #subList.stream .task { padding:6px 11px; gap:8px; margin-bottom:4px; border-radius:var(--r-sm); box-shadow:none; border-left:3px solid var(--acc); }
   #subList.stream .t-thumb { display:none; }
-  #subList.stream .task .meta { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  #subList.stream .task .meta { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; font-size:12px; }
+  #subList.stream .task .x { opacity:.6; }
   .kpi-row { display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:10px; margin:0 2px 12px; }
   .kpi-cell { background:var(--panel); border:1px solid var(--line); border-radius:var(--r-md); padding:10px 12px; box-shadow:var(--shadow-sm); }
   .kpi-cell b { display:block; font-size:20px; font-weight:800; line-height:1.25; }
   .kpi-cell span { font-size:11.5px; color:var(--txt2); }
+  /* ===== U6.3 设置页外观实时预览：不依赖订阅数据，切换下拉当场可见（原本只能去订阅页才看得到）===== */
+  .ui-prev { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px; width:100%; margin:2px 0 10px; }
+  .ui-prev-item { border:1.5px solid var(--line); border-radius:var(--r-md); padding:9px 10px 10px; background:var(--panel); cursor:pointer; transition:.15s; min-width:0; }
+  .ui-prev-item:hover { border-color:var(--acc); }
+  .ui-prev-item.on { border-color:var(--acc); box-shadow:0 0 0 2px var(--accbg); }
+  .pv-cap { font-size:11.5px; font-weight:700; color:var(--txt2); margin-bottom:8px; white-space:nowrap; }
+  .ui-prev-item.on .pv-cap { color:var(--acc2); }
+  .pv-body { display:flex; flex-direction:column; gap:5px; }
+  .pv-row { display:flex; align-items:center; gap:7px; background:var(--panel2); border:1px solid var(--line); border-radius:var(--r-sm); padding:7px 8px; }
+  .pv-thumb { width:22px; height:22px; border-radius:5px; background:linear-gradient(135deg,var(--acc),var(--acc2)); flex-shrink:0; }
+  .pv-lines { display:flex; flex-direction:column; gap:4px; flex:1; min-width:0; }
+  .pv-lines b { display:block; height:6px; border-radius:3px; background:var(--txt2); opacity:.65; }
+  .pv-lines s { display:block; height:5px; border-radius:3px; background:var(--line-strong); width:65%; text-decoration:none; }
+  .pv-row.streamline { padding:3px 7px; border-left:3px solid var(--acc); border-radius:3px; }
+  .pv-row.streamline .pv-lines s { display:none; }
+  .pv-kpi { display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:4px; }
+  .pv-kpi i { display:block; height:20px; border-radius:4px; background:var(--accbg); border:1px solid var(--acc-border); }
+  .pv-row em { font-style:normal; color:var(--txt2); font-size:10px; flex-shrink:0; }
   * { margin:0; padding:0; box-sizing:border-box; }
   body { font-family:"Segoe UI","Microsoft YaHei",system-ui,sans-serif; background:var(--bg); color:var(--txt); height:100dvh; display:flex; overflow:hidden; }
 
@@ -308,7 +329,14 @@
           <option value="dash">仪表盘摘要</option>
         </select>
       </div>
-      <div class="note" style="margin:6px 0 0">即时生效，选择保存在本机设置里。三种布局共用同一份订阅数据，只换呈现方式。</div>
+      <!-- U6.3：设置页内直接预览三种布局，切换下拉/点小图当场可见，不必跑到订阅页找变化 -->
+      <div style="margin:4px 0 2px;font-size:12px;font-weight:700;color:var(--txt2)">实时预览（点小图也能直接切换）</div>
+      <div class="ui-prev" id="uiPrev"></div>
+      <div id="uiStateLine" style="font-size:11.5px;color:var(--txt2);line-height:1.7;margin-bottom:8px"></div>
+      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+        <button class="btn-mini" onclick="switchPage('rss')">去订阅页看实际效果 →</button>
+        <span style="font-size:11.5px;color:var(--txt2)">主题 / 强调色立刻作用于整个界面；三种订阅布局只改订阅页列表的呈现方式，共用同一份订阅数据。</span>
+      </div>
     </div>
     <div class="card">
       <h3>⚙ 下载设置</h3>
@@ -1118,10 +1146,34 @@ function switchPage(p) {
   if (p === 'settings') { loadSettings(); loadCookieInfo(); loadPixivState(); loadAsr().then(initMirrorSelect).catch(() => {}); loadEngines(); }
 }
 
-// ===== U6 外观：主题 + 强调色（即时生效；持久化走 settings:setUi）=====
+// ===== U6 外观：主题 + 强调色 + 订阅布局（即时生效；持久化走 settings:setUi）=====
 let currentUi = { theme: 'light', accent: 'brand' };
 const _sysThemeDark = window.matchMedia('(prefers-color-scheme: dark)');
+const UI_THEME_NAME = { light: '浅色', dark: '深色', auto: '跟随系统' };
+const UI_ACCENT_NAME = { brand: '品牌蓝', purple: '紫', green: '绿' };
+const UI_LAYOUT_NAME = { grid: '卡片行', stream: '紧凑列表', dash: '仪表盘摘要' };
 function resolvedTheme(t) { return t === 'auto' ? (_sysThemeDark.matches ? 'dark' : 'light') : (t === 'dark' ? 'dark' : 'light'); }
+// U6.3（11-12）：三种布局原本只在订阅页呈现，用户在设置页切换时看不到任何反馈。
+// 这里直接把三种形态画在设置页，切换下拉或点小图当场变色变形，并显式说明「跟随系统」当前实际是浅还是深。
+function updateUiPreview() {
+  const box = $('uiPrev'); if (!box) return;
+  const rowCard = '<div class="pv-row"><i class="pv-thumb"></i><div class="pv-lines"><b></b><s></s></div><em>⋯</em></div>';
+  const demo = l => l === 'grid' ? rowCard + rowCard
+    : l === 'stream' ? [1, 2, 3].map(() => '<div class="pv-row streamline"><div class="pv-lines"><b></b></div><em>⋯</em></div>').join('')
+      : '<div class="pv-kpi">' + [1, 2, 3, 4, 5].map(() => '<i></i>').join('') + '</div>' + rowCard;
+  box.innerHTML = ['grid', 'stream', 'dash'].map(l => {
+    const on = currentUi.layout === l;
+    return `<div class="ui-prev-item${on ? ' on' : ''}" onclick="pickUiLayout('${l}')" title="点击切换到${UI_LAYOUT_NAME[l]}">
+      <div class="pv-cap">${UI_LAYOUT_NAME[l]}${on ? ' · 当前' : ''}</div><div class="pv-body">${demo(l)}</div></div>`;
+  }).join('');
+  const line = $('uiStateLine'); if (!line) return;
+  const actual = currentUi.theme === 'auto' ? `（当前实际：${resolvedTheme('auto') === 'dark' ? '深色' : '浅色'}）` : '';
+  line.textContent = `当前：${UI_THEME_NAME[currentUi.theme]}${actual} · ${UI_ACCENT_NAME[currentUi.accent]} · ${UI_LAYOUT_NAME[currentUi.layout]}。设置已保存在本机，重启后仍生效。`;
+}
+function pickUiLayout(l) {
+  const sel = $('uiLayoutSel'); if (!sel) return Promise.resolve();
+  sel.value = l; return saveUiAppearance();
+}
 function applyUiAppearance(ui) {
   const u = ui || {};
   const next = {
@@ -1134,11 +1186,14 @@ function applyUiAppearance(ui) {
   document.documentElement.dataset.theme = resolvedTheme(currentUi.theme);
   document.documentElement.dataset.accent = currentUi.accent;
   if (layoutChanged) try { renderSubs(); } catch (e) {}   // 切布局时若订阅页已渲染，立即重渲染
+  updateUiPreview();
 }
 _sysThemeDark.addEventListener('change', () => { if (currentUi.theme === 'auto') applyUiAppearance(currentUi); });
 async function saveUiAppearance() {
-  const r = await window.keepsake.settingsSetUi({ theme: $('uiThemeSel').value, accent: $('uiAccentSel').value, layout: $('uiLayoutSel').value });
+  const t = $('uiThemeSel').value, a = $('uiAccentSel').value, l = $('uiLayoutSel').value;
+  const r = await window.keepsake.settingsSetUi({ theme: t, accent: a, layout: l });
   applyUiAppearance(r && r.ui);
+  toast(`外观已保存：${UI_THEME_NAME[t]} · ${UI_ACCENT_NAME[a]} · ${UI_LAYOUT_NAME[l]}${l === 'grid' ? '' : '（订阅页看布局）'}`);
 }
 window.keepsake.settingsGet().then(s => applyUiAppearance(s && s.ui)).catch(() => {});   // 启动即套主题，不等进设置页
 
