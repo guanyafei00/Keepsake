@@ -274,6 +274,31 @@
   .setNavItem.on { background:var(--accbg); color:var(--acc2); font-weight:700; }
   .setMain { flex:1; min-width:0; }
 
+  /* ===== U6.5 设置页重新规划：分组导航 + 搜索 + 说明降噪（只追加覆盖，不改上面任何既有定义）=====
+     旧版 12 张卡平铺、导航只认 10 张，「外观 / 本土平台受控浏览」两张一直悬在导航外面 → 页面显得乱。 */
+  #page-settings .setWrap { align-items:flex-start; }
+  #setNav { width:194px; }
+  #setNav .setNavInner { max-height:calc(100vh - 160px); overflow-y:auto; }
+  #setNav .setNavSec { margin-bottom:6px; }
+  #page-settings .setNavGroup { font-size:10.5px; font-weight:700; letter-spacing:.09em; color:var(--txt2); padding:11px 12px 5px; opacity:.85; }
+  #setNav .setNavSec:first-child .setNavGroup { padding-top:3px; }
+  #page-settings .setNavItem { padding:7px 10px 7px 13px; font-size:12px; margin-bottom:1px; }
+  #page-settings .setNavItem .setIco { width:17px; text-align:center; flex-shrink:0; }
+  #page-settings .setNavItem .setHint { margin-left:auto; font-size:10px; color:var(--txt2); opacity:.8; white-space:nowrap; }
+  .setSearch { width:100%; box-sizing:border-box; margin:2px 2px 8px; padding:8px 10px; font:inherit; font-size:12px; background:var(--panel2); border:1px solid var(--line); border-radius:var(--r-md); color:var(--txt); outline:none; }
+  .setSearch:focus { border-color:var(--acc); }
+  .setNavEmpty { font-size:11px; color:var(--txt2); padding:10px 12px; }
+  .setHead { display:flex; align-items:baseline; gap:10px; flex-wrap:wrap; margin:0 2px 12px; padding-bottom:9px; border-bottom:1px solid var(--line); }
+  .setHead b { font-size:14px; }
+  .setHead span { font-size:11.5px; color:var(--txt2); }
+  #page-settings .setCard > .desc { font-size:11.5px; line-height:1.65; color:var(--txt2); margin-bottom:11px; }
+  #page-settings .setCard > .note, #page-settings .setCard .row > .note { font-size:11px; line-height:1.6; color:var(--txt2); }
+  #page-settings .setCard .row { margin-bottom:9px; }
+  /* 公众号登录失效要一眼看见，别藏在淡色提示里 */
+  #wrStateCard { border:1px solid var(--line); border-left:3px solid var(--acc); border-radius:var(--r-md); padding:9px 12px; line-height:1.7; background:var(--panel); }
+  #wrStateCard.wr-bad { border-left-color:var(--red,#dc2626); background:var(--redbg,rgba(220,38,38,.08)); }
+  #wrStateCard.wr-ok { border-left-color:var(--green,#16a34a); }
+
   table.stg { width:100%; border-collapse:collapse; font-size:12px; }
   table.stg th { color:var(--txt2); text-align:left; padding:4px 8px 8px; font-weight:600; }
   table.stg td { border-top:1px solid var(--line); padding:7px 8px; }
@@ -373,6 +398,19 @@
       <button class="btn-dl" onclick="wereadAddFlow()">＋ 添加追更</button>
     </div>
     <div id="wrCandidates" class="hint" style="display:none;margin:-4px 2px 8px"></div>
+    <!-- U6.5 批量补文章：上游列表接口当前只返回最新一篇，历史文章靠用户手上的链接补齐。
+         复用首页已有的多链接入队能力（article 引擎），不新增抓取路径、不碰风控端点。 -->
+    <details id="wrBulk" style="margin:0 2px 12px;border:1px solid var(--line);border-radius:var(--r-md);background:var(--panel);padding:8px 12px">
+      <summary style="cursor:pointer;font-size:12.5px;font-weight:600;color:var(--txt)">📥 批量补文章 <span style="font-weight:400;color:var(--txt2);font-size:11.5px">· 想存历史文章用这个</span></summary>
+      <div style="margin-top:9px">
+        <div class="note" style="font-size:11.5px;line-height:1.7;color:var(--txt2);margin-bottom:8px">自动追更目前只能拿到该号<b>最新一篇</b>，历史列表接口暂不可用。把想保存的文章链接一行一条粘在下面，逐篇归档成可离线阅读的本地文章；已在队列或已下载过的会自动跳过。链接需为 <code>mp.weixin.qq.com/s/</code> 开头的文章页。</div>
+        <textarea id="wrBulkUrls" rows="3" placeholder="https://mp.weixin.qq.com/s/xxxxx&#10;https://mp.weixin.qq.com/s/yyyyy" style="width:100%;box-sizing:border-box;font:inherit;font-size:12.5px;color:var(--txt);background:var(--panel2);border:1px solid var(--line);border-radius:var(--r-md);padding:8px 10px;outline:none;resize:vertical"></textarea>
+        <div style="margin-top:8px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+          <button class="btn-mini" onclick="wereadBulkAdd()">＋ 批量加入下载队列</button>
+          <span class="note" id="wrBulkState" style="font-size:11.5px;color:var(--txt2)"></span>
+        </div>
+      </div>
+    </details>
     <div class="sec-t">📡 我的订阅 <span class="cnt" id="s-cnt2">0</span> <select id="groupFilter" onchange="renderSubs()" style="margin-left:auto;font:inherit;font-size:12px;background:var(--panel2);color:var(--txt);border:1px solid var(--line);border-radius:var(--r-sm);padding:4px 10px;outline:none"><option value="">全部分组</option></select> <span class="act" style="cursor:pointer;font-size:12px" onclick="exportGone()" title="把判定为源头已删除的内容导出成 CSV 表格">📤 删帖清单</span> <span class="act" style="cursor:pointer;font-size:12px" onclick="checkAllSubs()">⟳ 立即检查</span></div>
     <div id="subList"><div class="empty">还没有订阅——支持 B站UP主/合集 / YouTube频道 / X用户 / RSS·Atom feed / Pixiv / 微博 / Reddit / Instagram / Danbooru 等站点主页</div></div>
     <div class="selbar" id="selBar">
@@ -688,6 +726,19 @@
         <button class="btn-mini" style="color:var(--acc2)" onclick="checkEngines()">🔄 立即检查</button>
         <button class="btn-mini" onclick="pickLocalEngine()">📥 从本地文件安装</button>
       </div>
+    </div>
+
+    <!-- U6.5：公众号追更状态收进设置页，不用再跑去订阅页找登录入口 -->
+    <div class="card" id="setCardWeread">
+      <h3>📖 公众号追更 <span class="rec">登录状态</span></h3>
+      <div class="desc">这个来源由第三方阅读服务提供，登录态会定期失效；失效后公众号订阅会暂停检查，其他订阅不受影响。重新扫码即可恢复。</div>
+      <div class="row" style="margin-bottom:0">
+        <label>当前状态</label>
+        <span id="wrSetState" style="flex:1;font-size:12.5px;color:var(--txt2)">查询中…</span>
+        <button class="btn-mini" onclick="wereadLoginFlow()">🔑 扫码登录</button>
+        <button class="btn-mini" onclick="wereadClearExpiredFlow()">⟳ 重试检查</button>
+      </div>
+      <div class="note" style="margin:10px 0 0">自动追更只能拿到该号<b>最新一篇</b>，历史列表接口暂不可用。要存历史文章，请到「订阅」页用 <b>📥 批量补文章</b> 粘贴文章链接；已下载过的会自动跳过。</div>
     </div>
   </div>
 </main>
@@ -2164,27 +2215,63 @@ async function addSub() {
   }
 }
 // ===== M-A5 公众号追更（独立区块；与 RSS 订阅共用 renderSubs 卡片，徽标/频率档区分）=====
-// 登录状态卡刷新：进订阅页 / 登录登出后调用
+// 登录状态卡刷新：进订阅页 / 登录登出后调用；U6.5 同步刷新设置页那张状态卡
 async function loadWereadState() {
-  const card = $('wrStateCard'); if (!card) return;
-  try {
-    const st = await window.keepsake.wereadState();
-    const loginBtn = $('wrLoginBtn'), outBtn = $('wrLogoutBtn');
-    if (st.loggedIn && !st.expired) {
-      card.innerHTML = '当前状态：<b style="color:var(--green)">已登录</b>' + (st.nickname ? '（' + esc(st.nickname) + '）' : '') + ' · 公众号新文章每 ≥30 分钟自动检查并归档';
+  const card = $('wrStateCard');
+  let st = null;
+  try { st = await window.keepsake.wereadState(); } catch (e) { st = null; }
+  if (card) {
+    if (!st) {
+      card.className = 'hint';
+      card.textContent = '公众号追更状态查询失败，可点右侧「扫码登录」重试。';
+    } else if (st.loggedIn && !st.expired) {
+      card.className = 'hint wr-ok';
+      card.innerHTML = '当前状态：<b style="color:var(--green)">已登录</b>' + (st.nickname ? '（' + esc(st.nickname) + '）' : '') + ' · 每 ≥30 分钟自动检查；<b>该来源只提供最新一篇</b>，历史文章请用下方「📥 批量补文章」。';
+      const loginBtn = $('wrLoginBtn'), outBtn = $('wrLogoutBtn');
       if (loginBtn) loginBtn.style.display = 'none';
       if (outBtn) outBtn.style.display = '';
     } else {
+      card.className = 'hint wr-bad';
       card.innerHTML = st.expired
-        ? '当前状态：<b style="color:var(--red)">登录已过期</b> · 公众号订阅检查已暂停（其他订阅不受影响）。<span class="act" style="cursor:pointer;text-decoration:underline" onclick="wereadLoginFlow()">重新扫码登录</span> 或 <span class="act" style="cursor:pointer;text-decoration:underline" onclick="wereadClearExpiredFlow()">我已重新登录，重试检查</span>'
-        : '当前状态：<b style="color:#c88a00">未登录</b> · 先扫码登录才能追更公众号（不影响其他订阅）。';
+        ? '<b style="color:var(--red)">登录已过期 · 追更检查已暂停</b>（其他订阅不受影响）。<span class="act" style="cursor:pointer;text-decoration:underline" onclick="wereadLoginFlow()">重新扫码登录</span> 或 <span class="act" style="cursor:pointer;text-decoration:underline" onclick="wereadClearExpiredFlow()">我已重新登录，重试检查</span>'
+        : '<b style="color:#c88a00">未登录</b> · 先扫码登录才能追更公众号（不影响其他订阅）。';
+      const loginBtn = $('wrLoginBtn'), outBtn = $('wrLogoutBtn');
       if (loginBtn) { loginBtn.style.display = ''; loginBtn.textContent = st.expired ? '🔑 重新扫码登录' : '🔑 扫码登录'; }
       if (outBtn) outBtn.style.display = 'none';
     }
-  } catch (e) {
-    card.textContent = '公众号追更状态查询失败：' + String(e.message || e).slice(0, 60);
   }
   const cnt = $('wr-cnt'); if (cnt) cnt.textContent = subsItems.filter(s => s.kind === 'weread').length;
+  loadWereadSetState(st);
+}
+// 设置页「公众号追更」状态卡：与订阅页共用一次查询结果，不重复发 IPC
+function loadWereadSetState(st) {
+  const el = $('wrSetState'); if (!el) return;
+  if (st === undefined) {
+    window.keepsake.wereadState().then(s => loadWereadSetState(s)).catch(() => { el.textContent = '状态查询失败，点「扫码登录」重试'; });
+    return;
+  }
+  if (!st) { el.textContent = '状态查询失败，点「扫码登录」重试'; return; }
+  el.innerHTML = (st.loggedIn && !st.expired)
+    ? '<b style="color:var(--green)">已登录</b>' + (st.nickname ? '（' + esc(st.nickname) + '）' : '') + ' · 自动追更运行中'
+    : '<b style="color:var(--red)">' + (st.expired ? '登录已过期，检查已暂停' : '未登录') + '</b> · 点右侧「扫码登录」恢复';
+}
+// U6.5 批量补文章：历史列表接口不可用时的可行路径，复用首页多链接入队能力（article 引擎）
+async function wereadBulkAdd() {
+  const box = $('wrBulkUrls'), state = $('wrBulkState');
+  const urls = String((box && box.value) || '').split(/\s+/).map(s => s.trim()).filter(Boolean);
+  if (!urls.length) return toast('先粘贴至少一条公众号文章链接（每行一条）');
+  const ok = urls.filter(u => /^https:\/\/mp\.weixin\.qq\.com\/s\//i.test(u));
+  const bad = urls.length - ok.length;
+  if (!ok.length) return toast('链接需为 https://mp.weixin.qq.com/s/ 开头的文章页');
+  if (state) state.textContent = '正在加入 ' + ok.length + ' 条…';
+  try {
+    await _doAddTasks(ok, {});
+    if (box) box.value = '';
+    if (state) state.textContent = '已提交 ' + ok.length + ' 条' + (bad ? '，跳过 ' + bad + ' 条非公众号文章链接' : '');
+  } catch (e) {
+    if (state) state.textContent = '加入失败：' + String(e.message || e).slice(0, 80);
+    toast('加入失败：' + String(e.message || e).slice(0, 60));
+  }
 }
 // 扫码登录：阻塞至成功/窗口关闭/5 分钟超时；成功后刷新状态卡并触发一轮补检（主进程侧）
 async function wereadLoginFlow() {
@@ -2621,56 +2708,143 @@ window.keepsake.snapshot().then(s => { items = s; render(); refreshInterruptBann
 window.keepsake.subsList().then(list => { subsItems = list || []; refreshNavCounts(); }).catch(() => {});
 loadLibrary(true).catch(() => {});
 
-// ===== 设置页三段式（用户提案：设置分类单独竖列，点击进入具体设置项）=====
-// 左列 = 分类导航；右侧 = 所选分类的设置卡片。运行时按 h3 文本归组现有卡片，零 HTML 结构手术
-// 顺序即导航顺序（用户反馈：Cookie 管理最常用，挪到最上方）
-const SET_SECTIONS = [
-  ['set-cookies', '🔑', 'Cookie 管理'],
-  ['set-downloads', '⚙', '下载设置'],
-  ['set-conc', '🚦', '并发与限速'],
-  ['set-asr', '📝', '本地转写'],
-  ['set-proxy', '🌐', '网络代理'],
-  ['set-notify', '🔔', '通知与常驻'],
-  ['set-data', '💾', '数据安全'],
-  ['set-ai', '✨', 'AI 文稿助理'],
-  ['set-update', '⬆️', '软件更新'],
-  ['set-engines', '🛠', '下载引擎'],
+// ===== U6.5 设置页重新规划：13 张卡全部收编 + 5 组语义分组 + 搜索 =====
+// 旧版只认 10 张卡（漏了「外观」「本土平台受控浏览」），漏网的卡片一直悬在导航外 → 页面显得乱。
+// 现在按 h3 文本归组，认不出的卡片统一归入「其他」，绝不留在导航外面。
+const SET_GROUPS = [
+  { name: '界面与外观', hint: '主题、强调色、整站风格', items: [
+    ['set-appearance', '🎨', '外观', '主题 / 风格'],
+  ]},
+  { name: '下载与传输', hint: '保存位置、速度、引擎、代理', items: [
+    ['set-downloads', '⚙', '下载设置', '保存目录'],
+    ['set-conc', '🚦', '并发与限速', '速度'],
+    ['set-engines', '🛠', '下载引擎', '引擎更新'],
+    ['set-proxy', '🌐', '网络代理', '代理地址'],
+  ]},
+  { name: '账号与登录', hint: '各站点登录态与受控浏览', items: [
+    ['set-cookies', '🔑', 'Cookie 管理', '登录态'],
+    ['set-native', '🌏', '本土平台受控浏览', '受控窗口'],
+    ['set-weread', '📖', '公众号追更', '登录状态'],
+  ]},
+  { name: '本地 AI', hint: '离线转写与自备 Key 的文稿助理', items: [
+    ['set-asr', '📝', '本地转写', 'Whisper'],
+    ['set-ai', '✨', 'AI 文稿助理', 'BYOK'],
+  ]},
+  { name: '系统与维护', hint: '通知、备份、版本', items: [
+    ['set-notify', '🔔', '通知与常驻', '托盘 / 自启'],
+    ['set-data', '💾', '数据安全', '备份迁移'],
+    ['set-update', '⬆️', '软件更新', '版本'],
+  ]},
 ];
+const SET_ALL = SET_GROUPS.flatMap(g => g.items);
+const SET_IDS = new Set(SET_ALL.map(x => x[0]));
 function switchSet(id) {
-  document.querySelectorAll('#setNav .setNavItem').forEach(d => d.classList.toggle('on', d.dataset.set === id));
-  document.querySelectorAll('#page-settings .setCard').forEach(c => c.style.display = (c.id === id ? '' : 'none'));
+  const showAll = id === '__all__';
+  document.querySelectorAll('#setNav .setNavItem').forEach(d => d.classList.toggle('on', showAll ? d.dataset.set === '__all__' : d.dataset.set === id));
+  document.querySelectorAll('#page-settings .setCard').forEach(c => c.style.display = (showAll || c.id === id ? '' : 'none'));
+  const head = $('setHead');
+  if (head) {
+    const g = SET_GROUPS.find(x => x.items.some(m => m[0] === id));
+    head.innerHTML = showAll
+      ? '<b>全部设置</b><span>共 ' + document.querySelectorAll('#page-settings .setCard').length + ' 张卡片，按页面顺序排列</span>'
+      : '<b>' + esc(((SET_ALL.find(x => x[0] === id) || [])[2]) || '设置') + '</b><span>' + esc(g ? g.name + ' · ' + g.hint : '设置项') + '</span>';
+  }
   try { localStorage.setItem('keepsake.setSection', id); } catch (e) {}
+}
+// 搜索：只过滤左列导航项，不改动卡片内容；回车直达第一个匹配
+function filterSetNav(q) {
+  const s = String(q || '').trim().toLowerCase();
+  let hit = 0, first = null;
+  document.querySelectorAll('#setNav .setNavSec').forEach(sec => {
+    let vis = 0;
+    sec.querySelectorAll('.setNavItem').forEach(d => {
+      if (d.dataset.set === '__all__') { d.style.display = ''; return; }
+      const ok = !s || (d.dataset.kw || '').toLowerCase().includes(s);
+      d.style.display = ok ? '' : 'none';
+      if (ok) { vis++; hit++; if (!first) first = d.dataset.set; }
+    });
+    sec.style.display = vis ? '' : 'none';
+  });
+  const empty = $('setNavEmpty'); if (empty) empty.style.display = hit ? 'none' : '';
+  return first;
 }
 function initSettingsNav() {
   const page = document.getElementById('page-settings');
   if (!page || document.getElementById('setNav')) return;   // 已初始化过
   const cards = [...page.querySelectorAll(':scope > .card')];
-  // 按 h3 文本匹配分类；对不上的卡片不动（诚实降级为原布局，别把设置页拆散）
-  const matched = [];
+  const byId = new Map();
+  const orphans = [];
+  // 按 h3 文本认卡（用关键字而非完整标题，标题里带徽标文字也能认出）
   for (const c of cards) {
     const h3 = (c.querySelector('h3') || {}).textContent || '';
-    const meta = SET_SECTIONS.find(x => h3.includes(x[2]));
-    if (meta) matched.push([c, meta]);
+    const meta = SET_ALL.find(x => h3.includes(x[2]));
+    if (meta && !byId.has(meta[0])) byId.set(meta[0], c);
+    else orphans.push(c);
   }
-  if (matched.length < SET_SECTIONS.length) return;   // 卡片没认全 → 不重排
-  // 内容卡片按 SET_SECTIONS 顺序排列（导航顺序 = 内容顺序，Cookie 挪上方后右侧跟着变）
-  matched.sort((a, b) => SET_SECTIONS.findIndex(x => x[0] === a[1][0]) - SET_SECTIONS.findIndex(x => x[0] === b[1][0]));
   const wrap = document.createElement('div'); wrap.className = 'setWrap';
   const nav = document.createElement('div'); nav.className = 'setNav'; nav.id = 'setNav';
   const navInner = document.createElement('div'); navInner.className = 'setNavInner';
   const main = document.createElement('div'); main.className = 'setMain';
-  for (const [c, [id]] of matched) { c.id = id; c.classList.add('setCard'); main.appendChild(c); }
-  for (const [id, icon, name] of SET_SECTIONS) {
-    const d = document.createElement('div');
-    d.className = 'setNavItem'; d.dataset.set = id;
-    d.innerHTML = `<span>${icon}</span>${name}`;
-    d.onclick = () => switchSet(id);
-    navInner.appendChild(d);
+  const head = document.createElement('div'); head.className = 'setHead'; head.id = 'setHead';
+
+  const search = document.createElement('input');
+  search.className = 'setSearch'; search.id = 'setSearch'; search.type = 'text';
+  search.placeholder = '🔍 搜索设置项，如「代理」「转写」';
+  search.oninput = () => filterSetNav(search.value);
+  search.onkeydown = e => { if (e.key === 'Enter') { const f = filterSetNav(search.value); if (f) switchSet(f); } };
+  navInner.appendChild(search);
+
+  const all = document.createElement('div');
+  all.className = 'setNavItem'; all.dataset.set = '__all__';
+  all.innerHTML = '<span class="setIco">▦</span>全部设置';
+  all.onclick = () => switchSet('__all__');
+  navInner.appendChild(all);
+
+  for (const g of SET_GROUPS) {
+    const sec = document.createElement('div'); sec.className = 'setNavSec';
+    const t = document.createElement('div'); t.className = 'setNavGroup'; t.textContent = g.name;
+    sec.appendChild(t);
+    for (const [id, icon, name, key] of g.items) {
+      const c = byId.get(id); if (!c) continue;
+      const d = document.createElement('div');
+      d.className = 'setNavItem'; d.dataset.set = id;
+      d.dataset.kw = name + ' ' + key + ' ' + g.name + ' ' + c.textContent.slice(0, 160);
+      d.innerHTML = `<span class="setIco">${icon}</span>${esc(name)}<span class="setHint">${esc(key)}</span>`;
+      d.onclick = () => switchSet(id);
+      sec.appendChild(d);
+      c.id = id; c.classList.add('setCard'); main.appendChild(c);
+    }
+    navInner.appendChild(sec);
   }
+  if (orphans.length) {
+    const sec = document.createElement('div'); sec.className = 'setNavSec';
+    const t = document.createElement('div'); t.className = 'setNavGroup'; t.textContent = '其他';
+    sec.appendChild(t);
+    orphans.forEach((c, i) => {
+      const h3 = (c.querySelector('h3') || {}).textContent || ('设置 ' + (i + 1));
+      const id = 'set-other-' + i;
+      const d = document.createElement('div');
+      d.className = 'setNavItem'; d.dataset.set = id;
+      d.dataset.kw = h3 + ' ' + c.textContent.slice(0, 160);
+      d.innerHTML = `<span class="setIco">•</span>${esc(h3.trim().slice(0, 18))}`;
+      d.onclick = () => switchSet(id);
+      sec.appendChild(d);
+      c.id = id; c.classList.add('setCard'); main.appendChild(c);
+    });
+    navInner.appendChild(sec);
+  }
+  const empty = document.createElement('div');
+  empty.className = 'setNavEmpty'; empty.id = 'setNavEmpty'; empty.style.display = 'none';
+  empty.textContent = '没有匹配的设置项';
+  navInner.appendChild(empty);
+
   nav.appendChild(navInner);
+  main.insertBefore(head, main.firstChild);
   wrap.appendChild(nav); wrap.appendChild(main); page.appendChild(wrap);
   let last = null; try { last = localStorage.getItem('keepsake.setSection'); } catch (e) {}
-  switchSet(SET_SECTIONS.some(x => x[0] === last) ? last : SET_SECTIONS[0][0]);
+  // 旧版存的是 10 个老 id，仍在新表里就沿用；否则默认落到「界面与外观」
+  switchSet(last === '__all__' || SET_IDS.has(last) ? last : SET_GROUPS[0].items[0][0]);
+  loadWereadSetState();
 }
 initSettingsNav();
 
