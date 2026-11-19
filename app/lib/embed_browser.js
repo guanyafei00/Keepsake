@@ -5,6 +5,7 @@
 // 设计约束：不逆向任何私有协议、不 Hook 外部微信客户端——只在自家 Chromium 里看官方页面，
 // 对外表述为「本地受控浏览器与个人媒体备份」（只做不说红线）。
 const { BrowserWindow, session } = require('electron');
+const { UA: XHS_UA } = require('./xhs');   // 小红书前台窗与隐藏抓取窗用同一正常 Chrome UA（同分区不混两种身份）
 
 const SITES = {
   channels: {
@@ -26,6 +27,7 @@ const SITES = {
     width: 440, height: 780,
     mediaRe: /sns-video|\.mp4(\?|$)/i,
     referer: 'https://www.xiaohongshu.com/',
+    ua: XHS_UA,   // Electron 默认 UA 带 Electron 字样会被小红书风控
     hint: '未取到内容：请先打开笔记页（图文/视频均可），再点【📥 归档】',
   },
 };
@@ -158,6 +160,11 @@ class EmbedBrowserManager {
       return { ok: false, reason: '受控浏览器窗口创建失败: ' + String(e && e.message || e).slice(0, 80) };
     }
     this._wins[siteKey] = win;
+    // 站点 UA 覆盖：session 级同步（下载头 / window 内后续加载一致），webContents 级兜底
+    if (cfg.ua) {
+      try { ses.setUserAgent(cfg.ua); } catch (e) {}
+      win.webContents.setUserAgent(cfg.ua);
+    }
     this._setupInterception(win, siteKey, cfg);
     win.webContents.on('did-finish-load', () => this._injectToolbar(win, siteKey));
     win.on('closed', () => {
@@ -171,8 +178,18 @@ class EmbedBrowserManager {
       ? /^https:\/\/([a-z0-9-]+\.)*(weixin|qq)\.com($|[/?#])/i
       : /^https:\/\/([a-z0-9-]+\.)*(xiaohongshu|xhslink|xhscdn)\.com($|[/?#])/i;
     win.webContents.on('will-navigate', (e, url) => { if (!hostRe.test(url)) e.preventDefault(); });
-    // window.open / _blank 目标页不走 will-navigate，必须显式 deny 防绕过域名白名单开新窗
-    win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
+    // window.open / _blank 目标页：小红书作者头像/昵称/关注列表全是 target="_blank"，
+    // 一刀切 deny 会导致点谁都没反应、进不去主页。改为：站内白名单域的新开标签在当前窗口内
+    // 跳转（loadURL 不触发 will-navigate，白名单须在此自行校验）；站外仍一律 deny 防绕过。
+    win.webContents.setWindowOpenHandler((details) => {
+      const url = String((details && details.url) || '');
+      if (hostRe.test(url)) {
+        setImmediate(() => {
+          try { if (!win.isDestroyed()) win.webContents.loadURL(url).catch(() => {}); } catch (e) {}
+        });
+      }
+      return { action: 'deny' };
+    });
     win.loadURL(initialUrl && /^https?:\/\//i.test(String(initialUrl)) ? String(initialUrl) : cfg.home).catch(() => {});
     win.show();
     return { ok: true };
