@@ -31,6 +31,8 @@ let subs = [];
 // 保持离线可测；签名 fetcher(sub, pages) → Promise<items[{id,type:'feed',text,url}]>）
 let _wereadFetch = null;
 function setWereadFetcher(fn) { _wereadFetch = typeof fn === 'function' ? fn : null; }
+let _xhsFetch = null;
+function setXhsFetcher(fn) { _xhsFetch = typeof fn === 'function' ? fn : null; }
 
 function configure({ binDir, cookiePath, file }) {
   BIN = binDir; COOKIE = cookiePath; FILE = file;
@@ -97,6 +99,10 @@ function classify(url) {
   const x = url.match(/^(?:https?:\/\/)?(?:www\.)?(?:twitter|x)\.com\/@?([A-Za-z0-9_]{1,15})\/?(\?.*)?$/i);
   if (x) return { kind: 'x', handle: x[1], url: 'https://x.com/' + x[1] };
   if (/youtube\.com\/(@|channel\/|c\/)/i.test(url) || /youtube\.com\/.*(\/videos)?$/i.test(url)) return { kind: 'youtube', url };
+  // 小红书用户主页 → 'xhs-user' 订阅（B 落地）：persist:xhs 受控会话隐藏窗口抓 user_posted 清单。
+  // 分享链接带的 xsec_token 时效不明 → 归一化裸 URL（登录态分区裸链可达，探针实测）
+  const xh = url.match(/xiaohongshu\.com\/user\/profile\/([\w-]+)/i);
+  if (xh) return { kind: 'xhs-user', uid: xh[1], url: 'https://www.xiaohongshu.com/user/profile/' + xh[1] };
   // RSS/Atom feed → 'rss' 订阅：HTTP 直拉 XML 追更（公开内容，不需要浏览器窗口/cookie/引擎进程）。
   // 放在平台规则之后：B站/YouTube 等自家 URL 若撞上不会误判；判定在 gdl 通用规则之前（feed 不是图站用户页）
   if (isFeedUrl(url)) return { kind: 'rss', url: url.trim() };
@@ -651,6 +657,13 @@ async function checkSub(sub, onNew) {
     if (!_wereadFetch) throw new Error('微信读书模块未就绪');
     items = await _wereadFetch(sub, 1);   // 增量检查只看首页窗口（~20 条）
   }
+  // B 落地小红书主页：受控会话隐藏窗口抓 user_posted 清单（失效拋 e.xhsExpired 由 main 短路不计 failStreak）
+  else if (sub.kind === 'xhs-user') {
+    if (!_xhsFetch) throw new Error('小红书模块未就绪');
+    const xr = await _xhsFetch(sub);
+    items = xr.items;
+    if (xr.mpName) items.mpName = xr.mpName;   // 作者昵称走 adoptName 通道（同 weread mpName）
+  }
   // 合集订阅：flat-playlist 全量秒回（实测 119 项几秒），必须拉全量——合集按时间正序追加，
   // 只看前 N 条永远看不到新集（新内容在尾部）；known 集合本身有去重，全量不炸
   else if (sub.kind === 'bili-collection') items = await fetchViaYtDlp(sub.url, 0);
@@ -658,6 +671,7 @@ async function checkSub(sub, onNew) {
   // M-A5：fetchForSub 把 cover 拿到的公众号真名挂在 items.mpName 上（数组契约不变）。
   // 只在自动兜底名/占位名时认领，用户手起的名不动（adoptName 内部判 _auto）。
   if (sub.kind === 'weread' && items.mpName) adoptName(sub.id, items.mpName);
+  if (sub.kind === 'xhs-user' && items.mpName) adoptName(sub.id, items.mpName);   // 小红书：主页昵称回填订阅名
   // 浏览器登录态预警：选了浏览器且（未安装/正在运行）→ 本次 gdl/yt-dlp 检查大概率按游客态跑
   // （gallery-dl 静默回落，结果看着正常实则没带登录态）或直接失败。塞进返回值的 warning
   // 字段透传（前端订阅卡片已会显示）；检查频率低（默认 10 分钟一轮），无需做去重
@@ -737,7 +751,12 @@ async function checkSub(sub, onNew) {
       if (!cutIds.has(it.id)) { known.add(it.id); continue; }
       // onNew 返回 false = 调用方判定本条未真正入队（如队列去重命中，而既有任务可能失败/被取消）。
       // 此时不记 known——下轮仍算 fresh 重查，防止增量被永久吞掉
-      if (onNew && onNew(sub, it) === false) continue;
+      if (onNew) {
+        // onNew 可返回 Promise（小红书单条解析入队是异步的）：await 后再判 false，防「解析未完成就记 known」
+        const nr = onNew(sub, it);
+        if (nr && typeof nr.then === 'function') { if (await nr.catch(() => false) === false) continue; }
+        else if (nr === false) continue;
+      }
       known.add(it.id);
       recorded++;
     }
@@ -769,6 +788,11 @@ async function backfill(id, onItem) {
   else if (sub.kind === 'youtube') items = await fetchViaYtDlp(sub.url, 0);
   else if (sub.kind === 'gdl') items = await fetchViaGdl(sub.url, 200);   // gallery-dl 型回溯：最近 200 项清单
   else if (sub.kind === 'rss') items = await fetchFeedItems(sub.url);   // feed 本身只保留最新若干条，「全部内容」= feed 现存全部条目（不猜历史归档，诚实边界）
+  else if (sub.kind === 'xhs-user') {
+    // 小红书回溯：与检查共用一页窗口（~10-20 条，诚实边界）
+    if (!_xhsFetch) throw new Error('小红书模块未就绪');
+    items = (await _xhsFetch(sub)).items;
+  }
   else if (sub.kind === 'weread') {
     // 公众号回溯：限 5 页（~100 条窗口，设计 §3.1）——60s 节流闸下约 5 分钟完成，手动触发可接受
     if (!_wereadFetch) throw new Error('微信读书模块未就绪');
@@ -779,12 +803,13 @@ async function backfill(id, onItem) {
   // #42 回溯上限：从最新往回数 N 条，超出部分跳过（后续追新增量不受该限制影响——
   // 增量走 checkSub 的 fresh 通道与 known 记录，与本截取无关）
   const cut = latestCut(media, sub.maxBackfill, sub.kind === 'bili-collection');
-  for (const it of cut.enqueue) { if (onItem) onItem(sub, it); }
+  for (const it of cut.enqueue) { if (onItem) await onItem(sub, it); }   // 回调可返回 Promise（小红书逐条解析入队），await 后计数才准
   return { total: items.length, media: cut.enqueue.length, skipped: cut.skipped };
 }
 
 function itemUrl(sub, it) {
   if (sub.kind === 'weread') return it.url || null;   // 公众号条目自带 mp.weixin 链接（走 article 引擎）
+  if (sub.kind === 'xhs-user') return it.url || null;   // 小红书条目自带带 xsec_token 的笔记页链接
   if (sub.kind === 'bilibili') return it.type === 'video'
     ? `https://www.bilibili.com/video/${it.id}`
     : `https://www.bilibili.com/opus/${it.id}`;
@@ -795,4 +820,4 @@ function itemUrl(sub, it) {
   return null;
 }
 
-module.exports = { configure, list, get, add, addWeread, remove, update, checkSub, itemUrl, backfill, setProxy, setCookieBrowser, setBiliLine, setWereadFetcher, refreshName, onNameChange, save, classify, resetCookieCache, gdlBaseArgs, pixivAuthorized, latestCut, normMaxBackfill, MAX_BACKFILL_CHOICES, fetchFeed, parseFeed, fetchFeedItems };
+module.exports = { configure, list, get, add, addWeread, remove, update, checkSub, itemUrl, backfill, setProxy, setCookieBrowser, setBiliLine, setWereadFetcher, setXhsFetcher, refreshName, onNameChange, save, classify, resetCookieCache, gdlBaseArgs, pixivAuthorized, latestCut, normMaxBackfill, MAX_BACKFILL_CHOICES, fetchFeed, parseFeed, fetchFeedItems };

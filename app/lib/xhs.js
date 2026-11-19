@@ -1,0 +1,201 @@
+// lib/xhs.js — 小红书受控抓取（B 落地）：订阅主页笔记清单（user_posted）+ 单条笔记媒体解析
+// 机制（MediaCrawler 思路 clean-room 自研，一行未搬）：persist:xhs 分区的隐藏窗口里加载官方页面，
+//   让页面自己滚动自己请求——fetch/XHR hook 只「记录」页面自签名的 user_posted 响应体，
+//   不做任何签名逆向（x-s/x-t 由页面环境自己算，天然有效）；笔记媒体从 __INITIAL_STATE__ 读。
+// 登录态与受控浏览器窗口（embed_browser 的 xhs 分区）共享 persist:xhs，扫码一次长期复用。
+// 失败语义：登录态失效抛 e.xhsExpired（main 短路不计 failStreak，同公众号 wereadExpired 模式）。
+'use strict';
+const { BrowserWindow } = require('electron');
+
+// 固定正常 Chrome UA：Electron 默认 UA 带 Electron 字样，小红书会风控
+const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36';
+const PARTITION = 'persist:xhs';
+const REFERER = 'https://www.xiaohongshu.com/';
+
+function delay(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+// 隐藏窗口公共创建（受控分区 + 域名锁 + 禁开新窗）
+function _hiddenWindow() {
+  const win = new BrowserWindow({
+    show: false, width: 480, height: 900,
+    webPreferences: { partition: PARTITION, contextIsolation: true, nodeIntegration: false, sandbox: true },
+  });
+  win.webContents.setUserAgent(UA);
+  win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
+  return win;
+}
+
+// 被跳到登录页 = 分区登录态失效
+function _assertLoggedIn(wc) {
+  const u = wc.getURL() || '';
+  if (/website-login|\/login/i.test(u)) {
+    const e = new Error('小红书登录态失效（受控会话被跳转登录页）');
+    e.xhsExpired = true;
+    throw e;
+  }
+}
+
+// 页面内 hook（幂等注入）：包裹 fetch/XHR，把 user_posted 响应体记到 window.__ksPosted。
+// 只记录页面自己发起的签名请求，绝不主动构造 API 调用。
+const HOOK_JS = `(function(){
+  if (window.__ksHooked) return; window.__ksHooked = true;
+  window.__ksPosted = [];
+  function RECORD(j){ try { var d = j && j.data; if (d && Array.isArray(d.notes)) window.__ksPosted.push(d); } catch(e){} }
+  try {
+    var of = window.fetch;
+    window.fetch = function(){ var args = arguments;
+      var u = (args[0] && args[0].url) || args[0] || '';
+      return of.apply(this, args).then(function(r){
+        try { if (String(u).indexOf('/api/sns/web/v1/user_posted') >= 0) r.clone().json().then(RECORD).catch(function(){}); } catch(e){}
+        return r;
+      }); };
+    var oo = XMLHttpRequest.prototype.open, os = XMLHttpRequest.prototype.send;
+    XMLHttpRequest.prototype.open = function(m, u){ this.__ksUrl = u; return oo.apply(this, arguments); };
+    XMLHttpRequest.prototype.send = function(){ var xhr = this;
+      xhr.addEventListener('load', function(){
+        try { if (String(xhr.__ksUrl || '').indexOf('/api/sns/web/v1/user_posted') >= 0) RECORD(JSON.parse(xhr.responseText)); } catch(e){}
+      });
+      return os.apply(this, arguments); };
+  } catch(e){}
+})()`;
+
+// 笔记页媒体提取（页面环境执行）：与 embed_browser META_JS.xhs 同族（图组 WB_DFT 无水印 / 视频选最优流）
+const NOTE_META_JS = `(function(){
+  var out = {};
+  try {
+    var st = window.__INITIAL_STATE__;
+    var m = st && st.note && st.note.noteDetailMap;
+    if (m) {
+      var cur = (st.note.currentNoteId && m[st.note.currentNoteId]) ? st.note.currentNoteId : Object.keys(m)[0];
+      var nd = cur && m[cur] && m[cur].note;
+      if (nd) {
+        out.title = nd.title || nd.desc || '';
+        out.uploader = (nd.user && (nd.user.nickname || nd.user.nickName)) || '';
+        out.vid = nd.noteId || cur || '';
+        var vs = nd.video && nd.video.media && nd.video.media.videoStream;
+        if (Array.isArray(vs)) {
+          var best = null;
+          for (var i = 0; i < vs.length; i++) {
+            var s = vs[i];
+            if (!s || !s.masterUrl) continue;
+            if (!best || (/\\.mp4/i.test(s.masterUrl) && !/\\.mp4/i.test(best.masterUrl))
+              || (/\\.mp4/i.test(s.masterUrl) === /\\.mp4/i.test(best.masterUrl) && (s.videoBitrate || 0) > (best.videoBitrate || 0))) best = s;
+          }
+          if (best) out.videoUrl = best.masterUrl;
+        }
+        var urls = [];
+        var il = Array.isArray(nd.imageList) ? nd.imageList : [];
+        for (var j = 0; j < il.length; j++) {
+          var im = il[j], pick = null;
+          if (im) {
+            if (im.urlDefault && !im.livePhoto) pick = im.urlDefault;
+            else if (Array.isArray(im.infoList)) {
+              for (var k = 0; k < im.infoList.length; k++) {
+                if (im.infoList[k] && im.infoList[k].url && im.infoList[k].imageScene === 'WB_DFT') pick = im.infoList[k].url;
+              }
+              for (var k2 = im.infoList.length - 1; k2 >= 0 && !pick; k2--) {
+                if (im.infoList[k2] && im.infoList[k2].url) pick = im.infoList[k2].url;
+              }
+            } else if (im.url) pick = im.url;
+          }
+          if (pick && urls.indexOf(pick) < 0) urls.push(pick);
+        }
+        if (urls.length) out.imageUrls = urls;
+      }
+    }
+  } catch (e) {}
+  return JSON.stringify(out);
+})()`;
+
+/** 抓博主主页笔记清单（订阅检查/回溯共用）。
+ * 返回 { items: [{id,type,text,url}], mpName: 作者昵称|null }——items.mpName 走 checkSub 的 adoptName 通道。
+ * 一页清单（~10-20 条）够增量窗口用；回溯同此窗口（诚实边界：受控翻页深度有限，全量历史不承诺）。 */
+async function fetchPosted(uid, opts = {}) {
+  const win = _hiddenWindow();
+  try {
+    const wc = win.webContents;
+    await wc.loadURL('https://www.xiaohongshu.com/user/profile/' + uid, { timeout: 30000 }).catch(() => {});
+    await delay(2500);
+    _assertLoggedIn(wc);
+    await wc.executeJavaScript(HOOK_JS, true).catch(() => {});
+    // 页面进入时已发第一页 user_posted；滚动触发页面自己翻页（只滚几轮，拿一页窗口即可）
+    let pages = [];
+    for (let i = 0; i < 4; i++) {
+      await wc.executeJavaScript('window.scrollBy(0, 1200)', true).catch(() => {});
+      await delay(1800);
+      const raw = await wc.executeJavaScript('JSON.stringify(window.__ksPosted || [])', true).catch(() => '[]');
+      try { pages = JSON.parse(raw) || []; } catch (e) {}
+      if (pages.length >= 1 && i >= 1) break;   // 至少一页且多滚一轮确认没有更多 → 收
+    }
+    // 作者昵称（页头 state）：首次检查回填订阅名
+    const nickRaw = await wc.executeJavaScript(`(function(){
+      var n = null;
+      try {
+        var st = window.__INITIAL_STATE__, u = st && st.user;
+        n = (u && (u.nickname || (u.userPageData && u.userPageData.nickname) || (u.userData && u.userData.nickname))) || null;
+        if (!n) { var el = document.querySelector('.username, [class*="nickname"]'); n = el ? el.textContent.trim() : null; }
+      } catch(e){}
+      return JSON.stringify({ n: n });
+    })()`, true).catch(() => '{"n":null}');
+    let nickname = null;
+    try { nickname = (JSON.parse(nickRaw) || {}).n || null; } catch (e) {}
+    // 汇总去重
+    const seen = new Set(), items = [];
+    for (const d of pages) {
+      for (const n of (d.notes || [])) {
+        const id = n.note_id || n.id;
+        if (!id || seen.has(id)) continue;
+        seen.add(id);
+        const type = n.type === 'video' ? 'video' : 'normal';
+        items.push({
+          id, type,
+          text: (n.display_title || '小红书笔记 ' + id).slice(0, 80),
+          url: n.xsec_token
+            ? 'https://www.xiaohongshu.com/explore/' + id + '?xsec_token=' + encodeURIComponent(n.xsec_token) + '&xsec_source=pc_user'
+            : null,
+        });
+      }
+    }
+    if (!items.length) {
+      const e = new Error('主页笔记清单为空（可能页面结构变化或被风控）');
+      e.xhsParseEmpty = true;
+      throw e;
+    }
+    return { items, mpName: nickname || null };
+  } finally {
+    try { win.destroy(); } catch (e) {}
+  }
+}
+
+/** 解析单条笔记页 → 媒体直链（图组/视频）。入参须带 xsec_token（主页清单/分享链接自带）。
+ * 返回 { title, uploader, vid, videoUrl?, imageUrls?, headers }——headers 供 direct 引擎带对来源下载。 */
+async function resolveNote(noteUrl) {
+  const win = _hiddenWindow();
+  try {
+    const wc = win.webContents;
+    await wc.loadURL(noteUrl, { timeout: 30000 }).catch(() => {});
+    await delay(2500);
+    _assertLoggedIn(wc);
+    // 等笔记 state 就绪（SPA 渲染 ~1-3s）
+    for (let i = 0; i < 8; i++) {
+      const ready = await wc.executeJavaScript(
+        `(function(){try{var st=window.__INITIAL_STATE__,m=st&&st.note&&st.note.noteDetailMap;
+          var cur=(st.note.currentNoteId&&m[st.note.currentNoteId])?st.note.currentNoteId:Object.keys(m||{})[0];
+          return !!(cur&&m[cur]&&m[cur].note)}catch(e){return false}})()`, true).catch(() => false);
+      if (ready) break;
+      await delay(1200);
+    }
+    const raw = await wc.executeJavaScript(NOTE_META_JS, true).catch(() => '{}');
+    const meta = JSON.parse(raw) || {};
+    if (!meta.videoUrl && !(Array.isArray(meta.imageUrls) && meta.imageUrls.length)) {
+      const e = new Error('笔记媒体解析为空（需登录态或笔记已删除/仅文字）');
+      e.xhsParseEmpty = true;
+      throw e;
+    }
+    return { ...meta, headers: { 'User-Agent': UA, 'Referer': REFERER } };
+  } finally {
+    try { win.destroy(); } catch (e) {}
+  }
+}
+
+module.exports = { fetchPosted, resolveNote, UA, REFERER };

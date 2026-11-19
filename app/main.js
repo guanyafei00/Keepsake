@@ -40,6 +40,7 @@ const autoupdate = require('./lib/autoupdate');
 const store = require('./lib/store');
 const subs = require('./lib/subs');
 const weread = require('./lib/weread');   // M-A5 公众号追更（微信读书接口路线，内部封装不对外宣传）
+const xhs = require('./lib/xhs');   // B 落地小红书主页订阅：受控会话隐藏窗口抓清单/解析笔记媒体
 const { browserState, cookieBrowserWarning } = require('./lib/browsercookies');   // 浏览器登录态预警（Windows 文件锁根因见该文件头注释）
 const library = require('./lib/library');
 const login = require('./lib/login');
@@ -351,6 +352,7 @@ app.whenReady().then(() => {
   autoupdate.configure({ binDir: enginesDir, fallbackBinDir: binDir() });   // 更新写 userData/engines（可写），本地版本探测回退随包目录
   store.configure({ userData });
   subs.configure({ binDir: binDir(), cookiePath, file: path.join(userData, 'subs.json') });
+  subs.setXhsFetcher(sub => xhs.fetchPosted(sub.uid));   // B 落地：小红书主页订阅清单抓取（受控会话隐藏窗口）
   // 浏览器登录态与 CBZ 开关：settings.json 单一来源，引擎参数层即时生效
   const { setCookieBrowser, setAutoCbz } = require('./lib/queue');
   setCookieBrowser(settings.get().cookieBrowser);
@@ -1120,7 +1122,7 @@ app.whenReady().then(() => {
   ipcMain.handle('channels:open', () => embed.open('channels'));
   ipcMain.handle('channels:state', () => embed.state('channels'));
   ipcMain.handle('channels:clearSession', () => embed.clearSession('channels').then(ok => ({ ok })));
-  ipcMain.handle('xhs:open', (e, { url } = {}) => embed.open('xhs', url));
+  ipcMain.handle('xhs:open', (e, { url } = {}) => { _xhsExpiredToasted = false; return embed.open('xhs', url); });   // 打开受控窗即复位登录失效提示（重新扫码后下一轮检查自然恢复）
   ipcMain.handle('xhs:state', () => embed.state('xhs'));
   ipcMain.handle('xhs:clearSession', () => embed.clearSession('xhs').then(ok => ({ ok })));
   // 统一会话清理入口：{ site: 'channels' | 'xhs' }
@@ -1446,6 +1448,22 @@ app.whenReady().then(() => {
   const _goneEverNotified = new Map();   // subId -> Set<goneId>；避免 gone 清空后旧条目再次出现时重复通知
   // M-A5 公众号登录失效提示去重：同批次多公众号订阅失效只弹一次托盘，重新登录成功后复位
   let _wereadExpiredToasted = false;
+  let _xhsExpiredToasted = false;   // 小红书登录失效提示只弹一次（打开受控窗重新扫码后复位）
+  // B 落地小红书：解析单条笔记页 → 媒体直链（图组/视频）→ direct 引擎入队（与受控窗口「📥 归档」同一 payload 形态）。
+  // 解析失败/队列去重命中返回 false（不记 known，下轮重查防吞）；成功 true。
+  async function enqueueXhsNote(noteUrl, title, sub) {
+    let meta = null;
+    try { meta = await xhs.resolveNote(noteUrl); } catch (e) { return false; }
+    const base = { site: 'xiaohongshu', title: meta.title || title, uploader: meta.uploader || null, vid: meta.vid || null, coverUrl: null, headers: meta.headers };
+    const payload = (Array.isArray(meta.imageUrls) && meta.imageUrls.length)
+      ? { ...base, kind: 'images', directUrl: null, directUrls: meta.imageUrls }
+      : meta.videoUrl ? { ...base, kind: 'video', directUrl: meta.videoUrl, directUrls: null } : null;
+    if (!payload) return false;
+    const first = payload.directUrl || payload.directUrls[0];
+    const t = queue.add(first, { engine: 'direct', title, uploader: payload.uploader, _directPayload: payload, _subId: sub.id });
+    if (t && t.duplicate) return false;
+    return true;
+  }
   function checkAllSubs(onlyId = null) {
     const run = _subChain.then(() => doCheckAllSubs(onlyId));
     _subChain = run.then(() => {}, () => []);
@@ -1520,6 +1538,12 @@ app.whenReady().then(() => {
               if (t2 && t2.duplicate) return false;   // 同 URL 已在队列：不记 known，下轮重查防吞
               return true;
             }
+            // B 落地小红书新笔记：先解析笔记页拿媒体直链（图组/视频）再 direct 入队；返回 Promise 由 checkSub await
+            if (s.kind === 'xhs-user') {
+              const url2 = subs.itemUrl(s, it);
+              if (!url2) return false;
+              return enqueueXhsNote(url2, `[订阅] ${s.name} · ${(it.text || '新笔记').slice(0, 40)}`, s);
+            }
             const engine = it.type === 'video' ? 'yt-dlp' : 'gallery-dl';
             // #70④：订阅开启「自动转写」→ 新任务带转写标记（下载完自动出字幕/文稿）
             const t = queue.add(subs.itemUrl(s, it), { engine, title: `[订阅] ${s.name} · ${it.text || it.type}`, _subId: s.id, _transcribe: !!real.autoTranscribe });
@@ -1565,6 +1589,16 @@ app.whenReady().then(() => {
             }
           }
         } catch (e) {
+          // B 落地：小红书登录态失效（fetchPosted 抛 e.xhsExpired）——同公众号 wereadExpired 语义：
+          // 不计 failStreak、不自动暂停，打开受控窗重新扫码后自然恢复
+          if (e && e.xhsExpired) {
+            if (!_xhsExpiredToasted) {
+              notifyTray('小红书订阅 · 需要重新登录', sub.name + ' 的检查已跳过，请打开小红书受控浏览器重新扫码登录');
+              _xhsExpiredToasted = true;
+            }
+            results.push({ id: sub.id, name: sub.name, ok: false, reason: '小红书未登录/已过期，请打开受控浏览器扫码' });
+            continue;
+          }
           // M-A5：公众号登录会话在检查中途失效（fetchForSub 抛 e.wereadExpired）——
           // 与上方预检同语义：不计 failStreak、不自动暂停，等重新扫码后自然恢复
           if (e && e.wereadExpired) {
@@ -1820,10 +1854,16 @@ app.whenReady().then(() => {
       added++;
       subs.refreshName(real.id);
     }
-    const r = await subs.backfill(real.id, (s, it) => {
+    const r = await subs.backfill(real.id, async (s, it) => {
       const url = subs.itemUrl(s, it);
       if (!url) return;
       if (!kwMatch(real, it.text)) return;   // 关键词过滤
+      // B 落地小红书回溯：逐条解析笔记页入队（异步回调已由 subs.backfill await）
+      if (s.kind === 'xhs-user') {
+        const ok = await enqueueXhsNote(url, `[订阅回溯] ${s.name} · ${(it.text || '笔记').slice(0, 30)}`, real);
+        if (ok) added++; else skipped++;
+        return;
+      }
       if ([...queue.items.values()].some(x => x.url === url)) { skipped++; return; }
       // RSS feed 条目回溯：同样按链接分流引擎（与增量检查同一套规则）
       const engine = it.type === 'feed' ? engineForFeedItem(url) : (it.type === 'video' ? 'yt-dlp' : 'gallery-dl');
