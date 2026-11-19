@@ -4,7 +4,7 @@
 // 带 token 时效签名、小红书 sns-video），配合窗口内「📥 归档」浮条一键入队下载。
 // 设计约束：不逆向任何私有协议、不 Hook 外部微信客户端——只在自家 Chromium 里看官方页面，
 // 对外表述为「本地受控浏览器与个人媒体备份」（只做不说红线）。
-const { BrowserWindow, session } = require('electron');
+const { BrowserWindow, session, clipboard } = require('electron');
 const { UA: XHS_UA } = require('./xhs');   // 小红书前台窗与隐藏抓取窗用同一正常 Chrome UA（同分区不混两种身份）
 
 const SITES = {
@@ -116,6 +116,13 @@ const TOOLBAR_JS = `(function(){
       setTimeout(function() { var b = document.getElementById('keepsake-bar-btn'); if (b) b.textContent = '📥 归档当前内容'; }, 2500);
     };
     bar.appendChild(btn);
+    // 「🔗 复制链接」：点击置 window.__ksCopyUrl = 当前页地址，主进程轮询消费后写剪贴板。
+    // 页面主世界无剪贴板权限保障，走标记轮询与归档按钮同一通道最稳。
+    var cp = document.createElement('button');
+    cp.textContent = '🔗 复制链接';
+    cp.style.cssText = 'border:none;background:rgba(255,255,255,.14);color:#fff;font-weight:600;padding:6px 12px;border-radius:8px;cursor:pointer';
+    cp.onclick = function() { window.__ksCopyUrl = location.href; };
+    bar.appendChild(cp);
     var tip = document.createElement('span');
     tip.textContent = '播放后点此一键归档';
     tip.style.cssText = 'font-size:11px;opacity:.75';
@@ -241,6 +248,11 @@ class EmbedBrowserManager {
           await win.webContents.executeJavaScript('window.__ksArchiveReq = false', true);
           this.archiveCurrent(siteKey);
         }
+        const copyUrl = await win.webContents.executeJavaScript('window.__ksCopyUrl || null', true).catch(() => null);
+        if (copyUrl) {
+          await win.webContents.executeJavaScript('window.__ksCopyUrl = null', true).catch(() => {});
+          this.copyCurrent(siteKey, copyUrl);
+        }
       } catch (e) { /* 页面跳转瞬间 executeJavaScript 会失败，忽略等下一轮 */ }
     }, 900);
   }
@@ -280,6 +292,19 @@ class EmbedBrowserManager {
       }, siteKey);
     }
     this._emit({ siteKey, type: 'archive-fail', msg: cfg.hint });
+  }
+
+  /** 复制当前页链接（工具条「🔗 复制链接」）：博主主页链接裁掉 query（uid 裸链即可加订阅），
+   * 其余页（笔记等）原样复制。写剪贴板在主进程做，页面内无权限依赖。 */
+  copyCurrent(siteKey, url) {
+    let out = String(url || '');
+    try {
+      const u = new URL(out);
+      if (/^\/user\/profile\/[\w-]+$/.test(u.pathname)) out = u.origin + u.pathname;
+    } catch (e) {}
+    if (!out) return;
+    try { clipboard.writeText(out); } catch (e) {}
+    this._emit({ siteKey, type: 'copied', msg: '已复制链接：' + out.slice(0, 64) });
   }
 
   _dispatch(payload, siteKey) {
