@@ -98,7 +98,7 @@ contextBridge.exposeInMainWorld('keepsake', {
   loginState: () => ipcRenderer.invoke('login:state'),
   logout: () => ipcRenderer.invoke('login:logout'),
   // ===== #32 本土平台受控浏览器（视频号 / 小红书）=====
-  openChannels: () => ipcRenderer.invoke('channels:open'),            // 打开视频号持久化受控窗口
+  openChannels: (url) => ipcRenderer.invoke('channels:open', { url }),            // 打开视频号持久化受控窗口（可带分享页初始 URL）
   channelsState: () => ipcRenderer.invoke('channels:state'),
   clearChannelsSession: () => ipcRenderer.invoke('channels:clearSession'),
   openXhs: (url) => ipcRenderer.invoke('xhs:open', { url }),          // 打开小红书持久化受控窗口（可带初始页面）

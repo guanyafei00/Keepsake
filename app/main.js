@@ -14,6 +14,9 @@ const { spawn } = require('child_process');   // app:applyUpdate 静默安装用
 
 // GPU 崩溃保护：核显/驱动异常机器上降级为软件渲染（实测 0xC0000005 GPU 进程崩溃）
 app.disableHardwareAcceleration();
+// 禁 QUIC：Electron33 网络栈与 weixin.qq.com QUIC/HTTP3 协商必现 segfault（2026-11-19 探针实测，
+// 禁后短链 301 → finder-preview 公开页加载正常）；全局回退 HTTP/2，下载走 Node http 不受影响
+app.commandLine.appendSwitch('disable-quic');
 
 // autotest 数据隔离：测试绝不读写用户真实数据（曾把测试任务/订阅写进用户 %APPDATA%）
 if (process.env.FETCHIE_AUTOTEST) {
@@ -1119,7 +1122,7 @@ app.whenReady().then(() => {
   });
 
   // ===== #32 本土平台受控浏览器（视频号 / 小红书）=====
-  ipcMain.handle('channels:open', () => embed.open('channels'));
+  ipcMain.handle('channels:open', (e, { url } = {}) => embed.open('channels', url));   // 可带分享页初始 URL（weixin.qq.com/sph 短链 / finder-preview 页）
   ipcMain.handle('channels:state', () => embed.state('channels'));
   ipcMain.handle('channels:clearSession', () => embed.clearSession('channels').then(ok => ({ ok })));
   ipcMain.handle('xhs:open', (e, { url } = {}) => { _xhsExpiredToasted = false; return embed.open('xhs', url); });   // 打开受控窗即复位登录失效提示（重新扫码后下一轮检查自然恢复）

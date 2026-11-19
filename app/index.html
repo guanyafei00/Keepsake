@@ -548,6 +548,13 @@
           <button class="btn-mini" onclick="openXhsWin()">📕 打开小红书</button>
         </div>
       </div>
+      <div class="row">
+        <label>分享链接归档</label>
+        <div style="flex:1;display:flex;gap:8px">
+          <input id="sphShareUrl" placeholder="粘贴视频号分享链接（微信里「复制链接」或 weixin.qq.com/sph/…）" style="flex:1;background:var(--bg2,#f5f5f5);border:1px solid var(--line,#ddd);border-radius:6px;padding:5px 8px;font-size:12px;color:inherit">
+          <button class="btn-mini" onclick="openChannelsWin(document.getElementById('sphShareUrl').value.trim())">🔗 打开</button>
+        </div>
+      </div>
       <div class="row" style="margin-bottom:0">
         <label>登录会话</label>
         <div style="flex:1;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
@@ -1153,10 +1160,10 @@ async function clearFinishedTasks() {
 function esc(s) { return String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
 
 // ===== #32 本土平台受控浏览器入口 =====
-async function openChannelsWin() {
+async function openChannelsWin(url) {
   try {
-    const r = await window.keepsake.openChannels();
-    if (r && r.ok) toast(r.reused ? '视频号受控浏览器已唤起（登录态已保留）' : '视频号受控浏览器已打开：首次使用请在窗口里扫码登录，播放后点【📥 归档】');
+    const r = await window.keepsake.openChannels(url);
+    if (r && r.ok) toast(url ? '已打开分享页：播放后点窗口内【📥 归档】即可保存' : (r.reused ? '视频号受控浏览器已唤起（登录态已保留）' : '视频号受控浏览器已打开：首次使用请在窗口里扫码登录，播放后点【📥 归档】'));
     else toast((r && r.reason) || '打开失败');
   } catch (e) { toast('打开失败：' + (e && e.message || '未知错误')); }
 }

@@ -163,8 +163,20 @@ class EmbedBrowserManager {
   open(siteKey, initialUrl) {
     const cfg = SITES[siteKey];
     if (!cfg) return { ok: false, reason: '未知平台: ' + siteKey };
+    // 导航限制：受控窗口只许访问本站域名（官方页外链跳第三方一律拦下，收住暴露面）。
+    // 尾锚 $|[/?#]：无锚时 weixin.qq.com.evil.com 这类同前缀伪造域也能通过，等于没有域名锁
+    const hostRe = siteKey === 'channels'
+      ? /^https:\/\/([a-z0-9-]+\.)*(weixin|qq)\.com($|[/?#])/i
+      : /^https:\/\/([a-z0-9-]+\.)*(xiaohongshu|xhslink|xhscdn)\.com($|[/?#])/i;
     const w = this._wins[siteKey];
-    if (w && !w.isDestroyed()) { w.show(); w.focus(); return { ok: true, reused: true }; }
+    if (w && !w.isDestroyed()) {
+      w.show(); w.focus();
+      // 唤起已有窗口时若带了初始 URL（如视频号分享链接），导航过去（will-navigate 域名锁对
+      // loadURL 不生效，这里自行校验必须 https 且白名单域）
+      const u = String(initialUrl || '');
+      if (/^https:\/\//i.test(u) && hostRe.test(u)) w.webContents.loadURL(u).catch(() => {});
+      return { ok: true, reused: true };
+    }
     this._captured[siteKey] = null;
     const ses = session.fromPartition(cfg.partition);
     let win;
@@ -189,11 +201,6 @@ class EmbedBrowserManager {
       if (this._pollTimer[siteKey]) { clearInterval(this._pollTimer[siteKey]); this._pollTimer[siteKey] = null; }
       try { ses.webRequest.onBeforeRequest(null); } catch (e) {}   // 注销拦截监听，防后台网络监听泄漏
     });
-    // 导航限制：受控窗口只许访问本站域名（官方页外链跳第三方一律拦下，收住暴露面）。
-    // 尾锚 $|[/?#]：无锚时 weixin.qq.com.evil.com 这类同前缀伪造域也能通过，等于没有域名锁
-    const hostRe = siteKey === 'channels'
-      ? /^https:\/\/([a-z0-9-]+\.)*(weixin|qq)\.com($|[/?#])/i
-      : /^https:\/\/([a-z0-9-]+\.)*(xiaohongshu|xhslink|xhscdn)\.com($|[/?#])/i;
     win.webContents.on('will-navigate', (e, url) => { if (!hostRe.test(url)) e.preventDefault(); });
     // window.open / _blank 目标页：小红书作者头像/昵称/关注列表全是 target="_blank"，
     // 一刀切 deny 会导致点谁都没反应、进不去主页。改为：站内白名单域的新开标签在当前窗口内
