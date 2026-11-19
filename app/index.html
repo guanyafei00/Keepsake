@@ -551,10 +551,11 @@
       <div class="row">
         <label>分享链接归档</label>
         <div style="flex:1;display:flex;gap:8px">
-          <input id="sphShareUrl" placeholder="粘贴视频号分享链接（微信里「复制链接」或 weixin.qq.com/sph/…）" style="flex:1;background:var(--bg2,#f5f5f5);border:1px solid var(--line,#ddd);border-radius:6px;padding:5px 8px;font-size:12px;color:inherit">
+          <input id="sphShareUrl" placeholder="粘贴视频号页面链接（须为窗口内可实际播放的页面）" style="flex:1;background:var(--bg2,#f5f5f5);border:1px solid var(--line,#ddd);border-radius:6px;padding:5px 8px;font-size:12px;color:inherit">
           <button class="btn-mini" onclick="openChannelsWin(document.getElementById('sphShareUrl').value.trim())">🔗 打开</button>
         </div>
       </div>
+      <div class="note">实测结论（2026-11-19）：视频号公开分享短链（weixin.qq.com/sph/…）打开后微信限制网页端播放，只显示「扫码前往微信观看」兜底页——平台有意为之，无法合规绕过。此入口对窗口内<b>可实际播放</b>的页面有效（后台自有作品预览、直播回放页等）；别人视频号内容只能在手机微信里观看，网页端没有公开入口。</div>
       <div class="row" style="margin-bottom:0">
         <label>登录会话</label>
         <div style="flex:1;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
