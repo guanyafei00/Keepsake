@@ -338,7 +338,8 @@
   <div class="nav" data-page="rss" onclick="switchPage('rss')">📡 订阅 <span class="cnt" id="s-cnt">0</span></div>
   <div class="nav" data-page="lib" onclick="switchPage('lib')">📚 媒体库 <span class="cnt" id="l-cnt">0</span></div>
   <div class="nav" data-page="strategy" onclick="switchPage('strategy')">🛡 限流策略</div>
-  <div class="nav" onclick="openChannelsWin()" title="打开微信视频号受控浏览器：官方页面正常登录浏览，播放后点窗口内【📥 归档】一键保存">📹 视频号</div>
+  <!-- 视频号入口暂时下架（2026-11-19 拍板）：受控窗/IPC 保留，恢复时解开本行
+  <div class="nav" onclick="openChannelsWin()" title="打开微信视频号受控浏览器：官方页面正常登录浏览，播放后点窗口内【📥 归档】一键保存">📹 视频号</div> -->
   <div class="nav" onclick="openXhsWin()" title="打开小红书受控浏览器：浏览笔记页后点窗口内【📥 归档】一键保存图文/视频">📕 小红书</div>
   <div class="nav" data-page="settings" onclick="switchPage('settings')">⚙ 设置</div>
   <div class="side-foot">
@@ -389,7 +390,9 @@
     </div>
     <div class="hint">每 10 分钟自动增量检查（轻量单次请求，对站点压力小）· 添加后会询问是否回溯全部历史 · 新内容自动入队 · <b>UP 主删除源视频不会删除你已下载的文件</b></div>
     <div id="subsCapacity" class="hint" style="margin-top:-4px">下载目录容量查询中…</div>
-    <!-- M-A5 公众号追更（独立区块，与 RSS 订阅互不混淆；频率下限 ≥30 分钟）-->
+    <!-- 公众号追更暂时下架（2026-11-19 拍板）：weread 历史列表接口被服务端风控闸封死（-2041 与 Cookie 无关），
+         只能拿最新一篇，追更价值不足；区块整体隐藏（DOM 保留，存量订阅与批量补文章逻辑不受影响，恢复时去掉外层 hidden 即可） -->
+    <div style="display:none">
     <div class="sec-t" style="margin-top:18px">📖 公众号追更 <span class="cnt" id="wr-cnt">0</span> <span class="act" style="cursor:pointer;font-size:12px;margin-left:auto" id="wrLoginBtn" onclick="wereadLoginFlow()">🔑 扫码登录</span> <span class="act" style="cursor:pointer;font-size:12px;display:none" id="wrLogoutBtn" onclick="wereadLogoutFlow()">退出登录</span></div>
     <div id="wrStateCard" class="hint" style="margin:0 2px 8px">公众号追更状态查询中…</div>
     <div class="paste-box" style="margin:0 2px 10px">
@@ -411,6 +414,7 @@
         </div>
       </div>
     </details>
+    </div>
     <div class="sec-t">📡 我的订阅 <span class="cnt" id="s-cnt2">0</span> <select id="groupFilter" onchange="renderSubs()" style="margin-left:auto;font:inherit;font-size:12px;background:var(--panel2);color:var(--txt);border:1px solid var(--line);border-radius:var(--r-sm);padding:4px 10px;outline:none"><option value="">全部分组</option></select> <span class="act" style="cursor:pointer;font-size:12px" onclick="exportGone()" title="把判定为源头已删除的内容导出成 CSV 表格">📤 删帖清单</span> <span class="act" style="cursor:pointer;font-size:12px" onclick="checkAllSubs()">⟳ 立即检查</span></div>
     <div id="subList"><div class="empty">还没有订阅——支持 B站UP主/合集 / YouTube频道 / X用户 / RSS·Atom feed / Pixiv / 微博 / Reddit / Instagram / Danbooru 等站点主页</div></div>
     <div class="selbar" id="selBar">
@@ -539,27 +543,26 @@
     </div>
 
     <div class="card">
-      <h3>🌏 本土平台受控浏览 <span class="rec">视频号 · 小红书</span></h3>
-      <div class="desc">在本地受控浏览器窗口里正常浏览官方页面（登录态仅存本机，长期免重登）。刷到想保存的内容后，点窗口左下角的 <b>📥 归档当前内容</b> 按钮即可加入下载队列——视频号需先播放，小红书图文/视频笔记均可。任务会按「站点 / 作者」归档到下载目录。</div>
+      <h3>🌏 本土平台受控浏览 <span class="rec">小红书</span></h3>
+      <div class="desc">在本地受控浏览器窗口里正常浏览官方页面（登录态仅存本机，长期免重登）。刷到想保存的内容后，点窗口内 <b>📥 归档当前内容</b> 按钮即可加入下载队列——小红书图文/视频笔记均可。任务会按「站点 / 作者」归档到下载目录。</div>
       <div class="row">
         <label>受控浏览器</label>
         <div style="flex:1;display:flex;gap:8px;flex-wrap:wrap">
-          <button class="btn-mini" onclick="openChannelsWin()">📹 打开视频号</button>
           <button class="btn-mini" onclick="openXhsWin()">📕 打开小红书</button>
         </div>
       </div>
-      <div class="row">
-        <label>分享链接归档</label>
-        <div style="flex:1;display:flex;gap:8px">
-          <input id="sphShareUrl" placeholder="粘贴视频号页面链接（须为窗口内可实际播放的页面）" style="flex:1;background:var(--bg2,#f5f5f5);border:1px solid var(--line,#ddd);border-radius:6px;padding:5px 8px;font-size:12px;color:inherit">
-          <button class="btn-mini" onclick="openChannelsWin(document.getElementById('sphShareUrl').value.trim())">🔗 打开</button>
-        </div>
+    <!-- 视频号分享链接归档暂时下架（2026-11-19 拍板）：分享短链网页端不播放是微信设计，入口撤下，IPC 保留 -->
+    <!-- <div class="row">
+      <label>分享链接归档</label>
+      <div style="flex:1;display:flex;gap:8px">
+        <input id="sphShareUrl" placeholder="粘贴视频号页面链接（须为窗口内可实际播放的页面）" style="flex:1;background:var(--bg2,#f5f5f5);border:1px solid var(--line,#ddd);border-radius:6px;padding:5px 8px;font-size:12px;color:inherit">
+        <button class="btn-mini" onclick="openChannelsWin(document.getElementById('sphShareUrl').value.trim())">🔗 打开</button>
       </div>
-      <div class="note">实测结论（2026-11-19）：视频号公开分享短链（weixin.qq.com/sph/…）打开后微信限制网页端播放，只显示「扫码前往微信观看」兜底页——平台有意为之，无法合规绕过。此入口对窗口内<b>可实际播放</b>的页面有效（后台自有作品预览、直播回放页等）；别人视频号内容只能在手机微信里观看，网页端没有公开入口。</div>
+    </div>
+    <div class="note">实测结论（2026-11-19）：视频号公开分享短链（weixin.qq.com/sph/…）打开后微信限制网页端播放，只显示「扫码前往微信观看」兜底页——平台有意为之，无法合规绕过。此入口对窗口内<b>可实际播放</b>的页面有效（后台自有作品预览、直播回放页等）；别人视频号内容只能在手机微信里观看，网页端没有公开入口。</div> -->
       <div class="row" style="margin-bottom:0">
         <label>登录会话</label>
         <div style="flex:1;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
-          <button class="btn-mini" onclick="clearNativeSession('channels')">清理视频号会话</button>
           <button class="btn-mini" onclick="clearNativeSession('xhs')">清理小红书会话</button>
           <span class="note">换号/登出时使用；清理后需重新登录</span>
         </div>
@@ -736,8 +739,8 @@
       </div>
     </div>
 
-    <!-- U6.5：公众号追更状态收进设置页，不用再跑去订阅页找登录入口 -->
-    <div class="card" id="setCardWeread">
+    <!-- 公众号追更状态卡暂时下架（同订阅页追更区块，2026-11-19 拍板） -->
+    <div class="card" id="setCardWeread" style="display:none">
       <h3>📖 公众号追更 <span class="rec">登录状态</span></h3>
       <div class="desc">这个来源由第三方阅读服务提供，登录态会定期失效；失效后公众号订阅会暂停检查，其他订阅不受影响。重新扫码即可恢复。</div>
       <div class="row" style="margin-bottom:0">
