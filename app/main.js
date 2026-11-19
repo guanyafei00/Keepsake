@@ -1449,6 +1449,12 @@ app.whenReady().then(() => {
   // M-A5 公众号登录失效提示去重：同批次多公众号订阅失效只弹一次托盘，重新登录成功后复位
   let _wereadExpiredToasted = false;
   let _xhsExpiredToasted = false;   // 小红书登录失效提示只弹一次（打开受控窗重新扫码后复位）
+  // 小红书标题带发帖日期（文件名/任务列表可按发帖时间对齐）；time 为 unix 秒，无则返回空串
+  const xhsDate = (it) => {
+    if (!it || !it.time) return '';
+    const d = new Date(it.time * 1000), p = (n) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())} `;
+  };
   // B 落地小红书：解析单条笔记页 → 媒体直链（图组/视频）→ direct 引擎入队（与受控窗口「📥 归档」同一 payload 形态）。
   // 解析失败/队列去重命中返回 false（不记 known，下轮重查防吞）；成功 true。
   async function enqueueXhsNote(noteUrl, title, sub) {
@@ -1544,7 +1550,7 @@ app.whenReady().then(() => {
             if (s.kind === 'xhs-user') {
               const url2 = subs.itemUrl(s, it);
               if (!url2) return false;
-              return enqueueXhsNote(url2, `[订阅] ${s.name} · ${(it.text || '新笔记').slice(0, 40)}`, s);
+              return enqueueXhsNote(url2, `[订阅] ${s.name} · ${xhsDate(it)}${(it.text || '新笔记').slice(0, 40)}`, s);
             }
             const engine = it.type === 'video' ? 'yt-dlp' : 'gallery-dl';
             // #70④：订阅开启「自动转写」→ 新任务带转写标记（下载完自动出字幕/文稿）
@@ -1856,14 +1862,14 @@ app.whenReady().then(() => {
       added++;
       subs.refreshName(real.id);
     }
+    const xhsBackfillQueue = [];   // 小红书回溯暂存：统一按发帖时间旧→新入队（下载顺序 = 发帖顺序）
     const r = await subs.backfill(real.id, async (s, it) => {
       const url = subs.itemUrl(s, it);
       if (!url) return;
       if (!kwMatch(real, it.text)) return;   // 关键词过滤
-      // B 落地小红书回溯：逐条解析笔记页入队（异步回调已由 subs.backfill await）
+      // B 落地小红书回溯：暂存到 xhsBackfillQueue，循环结束后按发帖时间升序逐条解析入队
       if (s.kind === 'xhs-user') {
-        const ok = await enqueueXhsNote(url, `[订阅回溯] ${s.name} · ${(it.text || '笔记').slice(0, 30)}`, real);
-        if (ok) added++; else skipped++;
+        xhsBackfillQueue.push({ url, it });
         return;
       }
       if ([...queue.items.values()].some(x => x.url === url)) { skipped++; return; }
@@ -1872,6 +1878,11 @@ app.whenReady().then(() => {
       queue.add(url, { engine, title: `[订阅回溯] ${s.name} · ${(it.text || it.type || '').slice(0, 30)}`, _subId: s.id });
       added++;
     });
+    // 小红书回溯统一入队：cut.enqueue 是最新在前，反转后旧→新逐条解析（标题带发帖日期）
+    for (const { url, it } of xhsBackfillQueue.slice().reverse()) {
+      const ok = await enqueueXhsNote(url, `[订阅回溯] ${real.name} · ${xhsDate(it)}${(it.text || '笔记').slice(0, 30)}`, real);
+      if (ok) added++; else skipped++;
+    }
     if (win && !win.isDestroyed()) win.webContents.send('queue:snapshot', queue.snapshot());
     return { ok: true, added, skipped, total: r.total, media: r.media };
   }

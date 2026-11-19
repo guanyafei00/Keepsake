@@ -62,16 +62,24 @@ const META_JS = {
           out.uploader = (nd.user && (nd.user.nickname || nd.user.nickName)) || '';
           out.vid = nd.noteId || cur || '';
           var vs = nd.video && nd.video.media && nd.video.media.videoStream;
-          if (Array.isArray(vs)) {
-            var best = null;
-            for (var i = 0; i < vs.length; i++) {
-              var s = vs[i];
-              if (!s || !s.masterUrl) continue;
-              if (!best || (/\\.mp4/i.test(s.masterUrl) && !/\\.mp4/i.test(best.masterUrl))
-                || (/\\.mp4/i.test(s.masterUrl) === /\\.mp4/i.test(best.masterUrl) && (s.videoBitrate || 0) > (best.videoBitrate || 0))) best = s;
+          // videoStream 兼容两种结构：数组，或按编码分组的对象 {"h264":[...],"h265":[...]}（网页版实际是后者）
+          var flats = [];
+          if (Array.isArray(vs)) flats = vs;
+          else if (vs && typeof vs === 'object') {
+            for (var kk in vs) {
+              var gr = vs[kk];
+              if (Array.isArray(gr)) flats = flats.concat(gr);
+              else if (gr && gr.masterUrl) flats.push(gr);
             }
-            if (best) out.videoUrl = best.masterUrl;
           }
+          var best = null;
+          for (var i = 0; i < flats.length; i++) {
+            var s = flats[i];
+            if (!s || !s.masterUrl) continue;
+            if (!best || (/\\.mp4/i.test(s.masterUrl) && !/\\.mp4/i.test(best.masterUrl))
+              || (/\\.mp4/i.test(s.masterUrl) === /\\.mp4/i.test(best.masterUrl) && (s.videoBitrate || 0) > (best.videoBitrate || 0))) best = s;
+          }
+          if (best) out.videoUrl = best.masterUrl;
           var urls = [];
           var il = Array.isArray(nd.imageList) ? nd.imageList : [];
           for (var j = 0; j < il.length; j++) {

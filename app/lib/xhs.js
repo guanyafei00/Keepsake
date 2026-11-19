@@ -22,6 +22,8 @@ function _hiddenWindow() {
   });
   win.webContents.setUserAgent(UA);
   win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
+  // dom-ready 尽早注入 hook：挂载时客户端发出的 user_posted 第一页若在注入前发出就永久漏掉
+  win.webContents.on('dom-ready', () => { win.webContents.executeJavaScript(HOOK_JS, true).catch(() => {}); });
   return win;
 }
 
@@ -59,6 +61,34 @@ const HOOK_JS = `(function(){
   } catch(e){}
 })()`;
 
+// 主页 SSR 首屏提取：第一页笔记是服务端渲染进 __INITIAL_STATE__ 的，不走 user_posted 请求，
+// hook 永远抓不到（此前最新一页整体缺失、顺序看似乱）。防御式兼容 snake/camel 与 noteCard 包装；
+// 带 xsec_token 才收（无 token 打不开笔记页）。
+const SSR_NOTES_JS = `(function(){
+  var out = [];
+  try {
+    var st = window.__INITIAL_STATE__;
+    var arr = st && st.user && (st.user.notes || st.user.userNotes);
+    if (!Array.isArray(arr) && st && st.user && st.user.userPageData) arr = st.user.userPageData.notes;
+    if (Array.isArray(arr)) {
+      for (var i = 0; i < arr.length; i++) {
+        var n = arr[i] || {}, nc = n.noteCard || n.note_card || {};
+        var id = n.id || n.noteId || nc.noteId || '';
+        var token = n.xsec_token || n.xsecToken || nc.xsec_token || nc.xsecToken || '';
+        if (!id || !token) continue;
+        out.push({
+          id: id,
+          type: (nc.type === 'video' || n.type === 'video') ? 'video' : 'normal',
+          text: nc.displayTitle || nc.display_title || '',
+          time: n.time || nc.time || n.lastUpdateTime || nc.lastUpdateTime || n.last_update_time || 0,
+          token: token
+        });
+      }
+    }
+  } catch (e) {}
+  return JSON.stringify(out);
+})()`;
+
 // 笔记页媒体提取（页面环境执行）：与 embed_browser META_JS.xhs 同族（图组 WB_DFT 无水印 / 视频选最优流）
 const NOTE_META_JS = `(function(){
   var out = {};
@@ -73,16 +103,24 @@ const NOTE_META_JS = `(function(){
         out.uploader = (nd.user && (nd.user.nickname || nd.user.nickName)) || '';
         out.vid = nd.noteId || cur || '';
         var vs = nd.video && nd.video.media && nd.video.media.videoStream;
-        if (Array.isArray(vs)) {
-          var best = null;
-          for (var i = 0; i < vs.length; i++) {
-            var s = vs[i];
-            if (!s || !s.masterUrl) continue;
-            if (!best || (/\\.mp4/i.test(s.masterUrl) && !/\\.mp4/i.test(best.masterUrl))
-              || (/\\.mp4/i.test(s.masterUrl) === /\\.mp4/i.test(best.masterUrl) && (s.videoBitrate || 0) > (best.videoBitrate || 0))) best = s;
+        // videoStream 兼容两种结构：数组，或按编码分组的对象 {"h264":[...],"h265":[...]}（网页版实际是后者）
+        var flats = [];
+        if (Array.isArray(vs)) flats = vs;
+        else if (vs && typeof vs === 'object') {
+          for (var kk in vs) {
+            var gr = vs[kk];
+            if (Array.isArray(gr)) flats = flats.concat(gr);
+            else if (gr && gr.masterUrl) flats.push(gr);
           }
-          if (best) out.videoUrl = best.masterUrl;
         }
+        var best = null;
+        for (var i = 0; i < flats.length; i++) {
+          var s = flats[i];
+          if (!s || !s.masterUrl) continue;
+          if (!best || (/\\.mp4/i.test(s.masterUrl) && !/\\.mp4/i.test(best.masterUrl))
+            || (/\\.mp4/i.test(s.masterUrl) === /\\.mp4/i.test(best.masterUrl) && (s.videoBitrate || 0) > (best.videoBitrate || 0))) best = s;
+        }
+        if (best) out.videoUrl = best.masterUrl;
         var urls = [];
         var il = Array.isArray(nd.imageList) ? nd.imageList : [];
         for (var j = 0; j < il.length; j++) {
@@ -139,23 +177,29 @@ async function fetchPosted(uid, opts = {}) {
     })()`, true).catch(() => '{"n":null}');
     let nickname = null;
     try { nickname = (JSON.parse(nickRaw) || {}).n || null; } catch (e) {}
-    // 汇总去重
+    // SSR 首屏（最新一页）在前，hook 翻页在后——整体保持最新在前（subs latestCut/lastSeen 窗口语义）
+    const ssrRaw = await wc.executeJavaScript(SSR_NOTES_JS, true).catch(() => '[]');
+    let ssr = [];
+    try { ssr = JSON.parse(ssrRaw) || []; } catch (e) {}
+    // 汇总去重；time（unix 秒）供标题带发帖日期
     const seen = new Set(), items = [];
-    for (const d of pages) {
-      for (const n of (d.notes || [])) {
-        const id = n.note_id || n.id;
-        if (!id || seen.has(id)) continue;
-        seen.add(id);
-        const type = n.type === 'video' ? 'video' : 'normal';
-        items.push({
-          id, type,
-          text: (n.display_title || '小红书笔记 ' + id).slice(0, 80),
-          url: n.xsec_token
-            ? 'https://www.xiaohongshu.com/explore/' + id + '?xsec_token=' + encodeURIComponent(n.xsec_token) + '&xsec_source=pc_user'
-            : null,
-        });
-      }
-    }
+    const pushItem = (n) => {
+      const id = n.id || n.note_id || '';
+      if (!id || seen.has(id)) return;
+      seen.add(id);
+      const token = n.token || n.xsec_token || '';
+      items.push({
+        id,
+        type: n.type === 'video' ? 'video' : 'normal',
+        time: Number(n.time) || 0,
+        text: (n.text || n.display_title || '小红书笔记 ' + id).slice(0, 80),
+        url: token
+          ? 'https://www.xiaohongshu.com/explore/' + id + '?xsec_token=' + encodeURIComponent(token) + '&xsec_source=pc_user'
+          : null,
+      });
+    };
+    for (const n of ssr) pushItem(n);
+    for (const d of pages) for (const n of (d.notes || [])) pushItem(n);
     if (!items.length) {
       const e = new Error('主页笔记清单为空（可能页面结构变化或被风控）');
       e.xhsParseEmpty = true;
