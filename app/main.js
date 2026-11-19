@@ -1455,9 +1455,11 @@ app.whenReady().then(() => {
     let meta = null;
     try { meta = await xhs.resolveNote(noteUrl); } catch (e) { return false; }
     const base = { site: 'xiaohongshu', title: meta.title || title, uploader: meta.uploader || null, vid: meta.vid || null, coverUrl: null, headers: meta.headers };
-    const payload = (Array.isArray(meta.imageUrls) && meta.imageUrls.length)
-      ? { ...base, kind: 'images', directUrl: null, directUrls: meta.imageUrls }
-      : meta.videoUrl ? { ...base, kind: 'video', directUrl: meta.videoUrl, directUrls: null } : null;
+    // 视频优先：视频笔记的 imageList 里也带封面帧，图组先判会把视频笔记误判成图组（只下封面）
+    const payload = meta.videoUrl
+      ? { ...base, kind: 'video', directUrl: meta.videoUrl, directUrls: null }
+      : (Array.isArray(meta.imageUrls) && meta.imageUrls.length)
+        ? { ...base, kind: 'images', directUrl: null, directUrls: meta.imageUrls } : null;
     if (!payload) return false;
     const first = payload.directUrl || payload.directUrls[0];
     const t = queue.add(first, { engine: 'direct', title, uploader: payload.uploader, _directPayload: payload, _subId: sub.id });

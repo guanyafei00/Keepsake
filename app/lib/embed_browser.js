@@ -271,16 +271,16 @@ class EmbedBrowserManager {
     const headers = { 'User-Agent': ua, 'Referer': cfg.referer };
     const cap = this._captured[siteKey];
 
-    // 小红书：图组归档（__INITIAL_STATE__ 无水印图）优先，其次视频直链，最后网络层截获流
-    if (siteKey === 'xhs' && Array.isArray(meta.imageUrls) && meta.imageUrls.length) {
-      return this._dispatch({
-        site: 'xiaohongshu', kind: 'images', directUrl: null, directUrls: meta.imageUrls,
-        title: meta.title || '', uploader: meta.uploader || '', vid: meta.vid || '', coverUrl: null, headers,
-      }, siteKey);
-    }
+    // 小红书：视频直链优先（视频笔记的 imageList 也带封面帧，图组先判会误收封面），其次图组，最后网络层截获流
     if (siteKey === 'xhs' && meta.videoUrl) {
       return this._dispatch({
         site: 'xiaohongshu', kind: 'video', directUrl: meta.videoUrl, directUrls: null,
+        title: meta.title || '', uploader: meta.uploader || '', vid: meta.vid || '', coverUrl: null, headers,
+      }, siteKey);
+    }
+    if (siteKey === 'xhs' && Array.isArray(meta.imageUrls) && meta.imageUrls.length) {
+      return this._dispatch({
+        site: 'xiaohongshu', kind: 'images', directUrl: null, directUrls: meta.imageUrls,
         title: meta.title || '', uploader: meta.uploader || '', vid: meta.vid || '', coverUrl: null, headers,
       }, siteKey);
     }
