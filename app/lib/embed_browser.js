@@ -17,6 +17,7 @@ const SITES = {
     // 媒体流特征：视频号 CDN 域名（带 token= 时效签名）+ mp4 扩展名兜底
     mediaRe: /finder\.video\.qq\.com|\.mp4(\?|$)/i,
     referer: 'https://channels.weixin.qq.com/',
+    ua: XHS_UA,   // 微信系页面拒绝 Electron UA：扫码后登录会话校验过不了（实测），换正常 Chrome UA
     hint: '还没截获到视频流：请先在窗口里播放要归档的视频，再点【📥 归档】',
   },
   xhs: {

@@ -37,6 +37,13 @@ function setXhsFetcher(fn) { _xhsFetch = typeof fn === 'function' ? fn : null; }
 function configure({ binDir, cookiePath, file }) {
   BIN = binDir; COOKIE = cookiePath; FILE = file;
   subs = readJson(FILE, [], Array.isArray);
+  // 小红书订阅检查频率下限迁移（旧数据 intervalMin=0 → 30）：小红书检查走隐藏窗加载页面，
+  // 10 分钟一轮风控风险高（报告评估 2026-11-19），与 weread 读书接口同红线待遇
+  let migrated = false;
+  for (const s of subs) {
+    if (s.kind === 'xhs-user' && (!Number.isFinite(s.intervalMin) || s.intervalMin < 30)) { s.intervalMin = 30; migrated = true; }
+  }
+  if (migrated) save();
   // 生成/刷新 gallery-dl 配置文件（随 subs.json 同目录）
   try {
     GDL_CFG = path.join(path.dirname(FILE), 'gdl-utf8.json');
@@ -238,7 +245,7 @@ function add(url, name, maxBackfill) {
     lastCheck: 0, lastNew: 0, known: [], checked: 0,
     autoBackfill: false,   // 是否回溯历史由添加后的确认弹窗决定（用户拒绝必须生效，不许 10 分钟后偷跑）
     group: '',             // #70②：分组名（空=未分组）
-    intervalMin: 0,        // #70②：检查频率档位（0=跟随全局 10 分钟；可选 10/30/60）
+    intervalMin: c.kind === 'xhs-user' ? 30 : 0,   // #70②：检查频率档位（0=跟随全局 10 分钟；可选 10/30/60）。小红书强制 30 起步：检查走隐藏窗加载页面，高频风控风险高
     userPaused: false,     // #70②：用户手动暂停（与连续失败自动暂停 paused 区分）
     autoTranscribe: false, // #70④：新下载自动转写出字幕
     latestN: 0,            // ★★#7：增量检查只入队最新 N 条（0=不限制；追更连载只留最新话的场景）
@@ -371,8 +378,9 @@ function update(id, patch) {
       if (n !== s.name) { s.name = n; s._auto = false; renamed = n; }   // 用户起名后自动认领永不再覆盖
     }
     else if (k === 'intervalMin') {
-      if (s.kind === 'weread') {
-        // M-A5：weread 频率白名单收紧为 {30,60}，10 分钟档拒绝（读书接口频率红线）
+      if (s.kind === 'weread' || s.kind === 'xhs-user') {
+        // M-A5：weread 频率白名单收紧为 {30,60}，10 分钟档拒绝（读书接口频率红线）；
+        // 小红书同红线待遇（隐藏窗检查风控风险高，2026-11-19 拍板）
         s[k] = [30, 60].includes(Number(patch[k])) ? Number(patch[k]) : s[k];
       } else {
         s[k] = [0, 10, 30, 60].includes(Number(patch[k])) ? Number(patch[k]) : 0;

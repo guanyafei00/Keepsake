@@ -86,7 +86,7 @@ const SSR_NOTES_JS = `(function(){
       }
     }
   } catch (e) {}
-  return JSON.stringify(out);
+  return JSON.stringify({ userFound: !!(st && st.user), notes: out });
 })()`;
 
 // 笔记页媒体提取（页面环境执行）：与 embed_browser META_JS.xhs 同族（图组 WB_DFT 无水印 / 视频选最优流）
@@ -179,9 +179,9 @@ async function fetchPosted(uid, opts = {}) {
     let nickname = null;
     try { nickname = (JSON.parse(nickRaw) || {}).n || null; } catch (e) {}
     // SSR 首屏（最新一页）在前，hook 翻页在后——整体保持最新在前（subs latestCut/lastSeen 窗口语义）
-    const ssrRaw = await wc.executeJavaScript(SSR_NOTES_JS, true).catch(() => '[]');
-    let ssr = [];
-    try { ssr = JSON.parse(ssrRaw) || []; } catch (e) {}
+    const ssrRaw = await wc.executeJavaScript(SSR_NOTES_JS, true).catch(() => '{}');
+    let ssr = [], userFound = false;
+    try { const o = JSON.parse(ssrRaw) || {}; ssr = o.notes || []; userFound = !!o.userFound; } catch (e) {}
     // 汇总去重；time（unix 秒）供标题带发帖日期
     const seen = new Set(), items = [];
     const pushItem = (n) => {
@@ -204,6 +204,12 @@ async function fetchPosted(uid, opts = {}) {
     for (const n of ssr) pushItem(n);
     for (const d of pages) for (const n of (d.notes || [])) pushItem(n);
     if (!items.length) {
+      if (userFound) {
+        // 用户态存在但 0 条笔记：真·空主页（新注册/没发过），合法返回空清单，不算失败
+        return { items: [], mpName: nickname || null };
+      }
+      // 用户态都解析不到：页面结构变化或被风控，显式失败（UI 可见）而非静默空转
+      console.warn('[xhs] fetchPosted 0 items 且 __INITIAL_STATE__.user 缺失 — 可能站点改版');
       const e = new Error('主页笔记清单为空（可能页面结构变化或被风控）');
       e.xhsParseEmpty = true;
       throw e;
