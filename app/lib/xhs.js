@@ -102,8 +102,9 @@ const NOTE_META_JS = `(function(){
         out.title = nd.title || nd.desc || '';
         out.uploader = (nd.user && (nd.user.nickname || nd.user.nickName)) || '';
         out.vid = nd.noteId || cur || '';
-        var vs = nd.video && nd.video.media && nd.video.media.videoStream;
-        // videoStream 兼容两种结构：数组，或按编码分组的对象 {"h264":[...],"h265":[...]}（网页版实际是后者）
+        var vs = (nd.video && nd.video.media && (nd.video.media.stream || nd.video.media.videoStream)) || null;
+        // 真实结构（2026-11-19 探针实证）：nd.video.media.stream 是按流组号分的对象（EF4/EF5/EF6/EF7，
+        // 多数为空数组，非空数组内才有 masterUrl/videoBitrate）；兼容数组形旧结构
         var flats = [];
         if (Array.isArray(vs)) flats = vs;
         else if (vs && typeof vs === 'object') {
@@ -188,10 +189,12 @@ async function fetchPosted(uid, opts = {}) {
       if (!id || seen.has(id)) return;
       seen.add(id);
       const token = n.token || n.xsec_token || '';
+      // time 归一成秒（SSR noteCard.time / user_posted time 可能是毫秒）：xhsDate 按秒处理
+      const rawT = Number(n.time) || 0;
       items.push({
         id,
         type: n.type === 'video' ? 'video' : 'normal',
-        time: Number(n.time) || 0,
+        time: rawT > 1e12 ? Math.floor(rawT / 1000) : rawT,
         text: (n.text || n.display_title || '小红书笔记 ' + id).slice(0, 80),
         url: token
           ? 'https://www.xiaohongshu.com/explore/' + id + '?xsec_token=' + encodeURIComponent(token) + '&xsec_source=pc_user'

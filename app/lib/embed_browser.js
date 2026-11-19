@@ -61,8 +61,9 @@ const META_JS = {
           out.title = nd.title || nd.desc || '';
           out.uploader = (nd.user && (nd.user.nickname || nd.user.nickName)) || '';
           out.vid = nd.noteId || cur || '';
-          var vs = nd.video && nd.video.media && nd.video.media.videoStream;
-          // videoStream 兼容两种结构：数组，或按编码分组的对象 {"h264":[...],"h265":[...]}（网页版实际是后者）
+          var vs = (nd.video && nd.video.media && (nd.video.media.stream || nd.video.media.videoStream)) || null;
+          // 真实结构（2026-11-19 探针实证）：nd.video.media.stream 按流组号分的对象（EF4/EF5/EF6/EF7），
+          // 非空数组内才有 masterUrl/videoBitrate；兼容数组形旧结构
           var flats = [];
           if (Array.isArray(vs)) flats = vs;
           else if (vs && typeof vs === 'object') {
