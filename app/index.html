@@ -1543,10 +1543,10 @@ function renderSkinBar() {
 // ===== UI 期2（11-21）：真实顶栏 + KPI 卡组（数据全部来自现有全局量/计数，不造假） =====
 // 复用 mountSkinLayer 的动态注入模式：只往 .main 顶部加容器，不动任何既有 DOM id。
 const P2_META = {
-  tasks:    { t:'任务队列', c:'贴入链接自动识别并加入下载队列', act:'＋ 加入队列', fn:'p2FocusUrls', pri:true },
-  rss:      { t:'订阅归档', c:'按主页整份留住，源头删帖可对照本地留存文件', act:'＋ 新增订阅', fn:'p2FocusSub', pri:true },
+  tasks:    { t:'任务队列', c:'贴入链接自动识别并加入下载队列', act:'＋ 加入队列', fn:'p2FocusUrls()', pri:true },
+  rss:      { t:'订阅归档', c:'按主页整份留住，源头删帖可对照本地留存文件', act:'＋ 新增订阅', fn:'p2FocusSub()', pri:true },
   lib:      { t:'媒体库', c:'只读本地索引 · 任何情况下都不会自动删除你的文件', act:'↻ 重新扫描', fn:'loadLibrary(true)' },
-  strategy: { t:'风控策略', c:'失败自动退避重试，节奏参数可远程调整', act:'↻ 刷新规则', fn:'refreshRules()' },
+  strategy: { t:'风控策略', c:'失败自动退避重试，节奏参数可远程调整', act:'↻ 刷新规则', fn:'refreshRules(); loadStrategySoon()' },
   settings: { t:'设置', c:'下载、转写、凭据与引擎，全部只在本机生效', act:'', fn:'' }
 };
 function p2FocusUrls() { const el = $('urls'); if (el) { el.focus(); el.scrollIntoView({block:'center',behavior:'smooth'}); } }
@@ -1584,8 +1584,10 @@ function renderP2() {
   const top = $('p2Top'); if (!top) return;
   const page = (document.querySelector('.page.on') && document.querySelector('.page.on').id.replace('page-','')) || 'tasks';
   const m = P2_META[page] || P2_META.tasks;
-  top.innerHTML = `<div><div class="tb-t">${m.t}</div><div class="tb-c">${m.c}</div></div><div class="tb-sp"></div>` +
+  const topHTML = `<div><div class="tb-t">${m.t}</div><div class="tb-c">${m.c}</div></div><div class="tb-sp"></div>` +
     (m.act ? `<div class="tb-act ${m.pri ? 'pri' : ''}" onclick="${m.fn}">${m.act}</div>` : '');
+  // 15s 定时器会反复调本函数：内容没变就不重建 DOM，避免吞掉用户正在点的按钮/hover
+  if (top.dataset.p2html !== topHTML) { top.innerHTML = topHTML; top.dataset.p2html = topHTML; }
   const host = $('kpiHost'); if (!host) return;
   const num = id => { const n = $(id); return n ? parseInt((n.textContent||'0').replace(/[^\d-]/g,''),10) || 0 : 0; };
   let html = '';
@@ -1610,6 +1612,8 @@ function renderP2() {
   } else if (page === 'lib') {
     let g = [], tf = 0, ts = '';
     try { g = Array.isArray(libData && libData.groups) ? libData.groups : []; tf = libData && libData.totalFiles || 0; ts = libData && libData.totalSize || ''; } catch (e) {}
+    // totalSize 真机是字节数（library.js:171），需格式化；已是字符串（如验证 mock）则原样用
+    if (typeof ts === 'number' && ts > 0) { try { ts = fmtBytes(ts); } catch (e) { ts = ''; } }
     const vids = g.reduce((a,x)=>a+(parseInt(x.videoCount,10)||0),0), imgs = g.reduce((a,x)=>a+(parseInt(x.imageCount,10)||0),0);
     html = '<div class="kpi2">' +
       p2Kpi('folder','已收藏媒体', tf || g.length, '个文件', ts ? '共 ' + ts : '本机索引') +
