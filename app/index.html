@@ -409,6 +409,91 @@
     background-size:24px 2px, 18px 2px, 20px 2px;
     background-position:10px 9px, 10px 17px, 10px 25px;
     background-repeat:no-repeat; }
+
+  /* ===== UI 期2 结构重做（2026-11-21）：真实顶栏 + KPI 卡组 + 列表表格化 =====
+     只加容器与 CSS，不重写任何 render 函数的 innerHTML / onclick；旧 .page::before 标题
+     保留 content（无头断言依赖）但视觉隐藏，避免与新顶栏重复。 */
+  /* --- 真实顶栏：标题 + 面包屑 + 动作按钮 --- */
+  .topbar { display:flex; align-items:center; gap:14px; flex:0 0 auto; padding:20px 32px 0; }
+  .topbar .tb-t { font-size:24px; font-weight:800; letter-spacing:.01em; color:var(--txt); line-height:1.2; }
+  .topbar .tb-c { font-size:12.5px; color:var(--txt2); margin-top:4px; }
+  .topbar .tb-sp { flex:1; }
+  .topbar .tb-act { display:inline-flex; align-items:center; gap:7px; background:var(--panel); border:1px solid var(--line-strong);
+    color:var(--txt); font-size:12.5px; font-weight:600; padding:9px 15px; border-radius:var(--r-md); cursor:pointer; box-shadow:var(--shadow-sm); white-space:nowrap; }
+  .topbar .tb-act:hover { border-color:var(--acc); color:var(--acc2); }
+  .topbar .tb-act.pri { background:linear-gradient(135deg,var(--acc),var(--acc2)); border-color:transparent; color:#fff; }
+  .topbar .tb-act.pri:hover { color:#fff; filter:brightness(.96); }
+  .topbar .tb-act svg { width:16px; height:16px; flex:none; }
+  /* 旧伪元素标题视觉隐藏但保留 content（断言读 content，不受影响） */
+  .kv2-on .page::before { display:none; }
+  /* --- KPI 卡组：4 张真实数据卡 --- */
+  #kpiHost { padding:14px 32px 0; flex:0 0 auto; }
+  #kpiHost:empty { display:none; }
+  .kpi2 { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:14px; }
+  @media (max-width:1180px){ .kpi2 { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+  .kpi2 .kc { background:var(--panel); border:1px solid var(--line); border-radius:var(--r); padding:14px 17px; box-shadow:var(--shadow-sm); min-width:0; }
+  .kpi2 .kc .k { font-size:12.5px; color:var(--txt2); display:flex; align-items:center; gap:8px; }
+  .kpi2 .kc .k svg { width:15px; height:15px; flex:none; color:var(--acc); }
+  .kpi2 .kc .v { font-size:27px; font-weight:800; line-height:1.2; margin-top:5px; color:var(--txt); font-variant-numeric:tabular-nums; display:flex; align-items:baseline; gap:6px; }
+  .kpi2 .kc .v em { font-size:13px; font-weight:400; color:var(--txt2); font-style:normal; }
+  .kpi2 .kc .foot { font-size:12px; color:var(--txt2); margin-top:7px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .kpi2 .kc.warn .v, .kpi2 .kc.warn .k svg { color:var(--yellow); }
+  .kpi2 .kc.err .v, .kpi2 .kc.err .k svg { color:var(--red); }
+  .kpi2 .kc.ok .v, .kpi2 .kc.ok .k svg { color:var(--green); }
+  /* --- toolbar：chip 筛选 + 搜索框（视觉统一，绑定现有逻辑） --- */
+  .tb2 { display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin:16px 2px 12px; }
+  .tb2 .chip { display:inline-flex; align-items:center; gap:7px; background:var(--panel); border:1px solid var(--line);
+    color:var(--txt2); font-size:12.5px; padding:7px 14px; border-radius:999px; cursor:pointer; user-select:none; transition:.15s; }
+  .tb2 .chip:hover { border-color:var(--acc-border); color:var(--txt); }
+  .tb2 .chip.on { background:var(--accbg); border-color:var(--acc-border); color:var(--acc2); font-weight:700; }
+  .tb2 .chip .num { font-variant-numeric:tabular-nums; opacity:.8; }
+  .tb2 .sp { flex:1; }
+  .tb2 .srch { display:flex; align-items:center; gap:8px; background:var(--panel); border:1px solid var(--line);
+    border-radius:var(--r-md); padding:7px 12px; min-width:220px; }
+  .tb2 .srch:focus-within { border-color:var(--acc); }
+  .tb2 .srch svg { width:16px; height:16px; color:var(--txt2); flex:none; }
+  .tb2 .srch input { flex:1; border:none; outline:none; background:transparent; color:var(--txt); font:inherit; font-size:12.5px; min-width:0; }
+  /* --- 面板标题条（表格化列表上方的 panel header） --- */
+  .phead { display:flex; align-items:center; gap:10px; padding:14px 18px; border-bottom:1px solid var(--line); }
+  .phead b { font-size:13.5px; color:var(--txt); }
+  .phead .meta { font-size:11.5px; color:var(--txt2); margin-left:auto; }
+  .ptable { background:var(--panel); border:1px solid var(--line); border-radius:var(--r); box-shadow:var(--shadow-sm); overflow:hidden; }
+  /* --- 任务列表表格化：把 .task 卡片排成表格行（grid），不碰 DOM/onclick --- */
+  #queue.tblify, #doneList.tblify { display:block; }
+  #queue.tblify .task, #doneList.tblify .task { border:0; border-bottom:1px solid var(--line); border-radius:0;
+    box-shadow:none; margin:0; padding:11px 18px; background:transparent; }
+  #queue.tblify .task:hover, #doneList.tblify .task:hover { background:rgba(183,122,22,.045); }
+  #queue.tblify .task:last-child, #doneList.tblify .task:last-child { border-bottom:0; }
+  /* 分组头：整行浅底，与任务行区分 */
+  #queue.tblify .task:has(> .st.flat) { background:var(--panel2); }
+  .tbl-head { display:grid; grid-template-columns:minmax(0,1fr) 96px 84px; gap:14px; padding:10px 18px;
+    font-size:11.5px; color:var(--txt2); background:var(--panel2); border-bottom:1px solid var(--line); font-weight:600; }
+  /* 筛选隐藏（任务状态 chip） */
+  .task.f-dim { display:none !important; }
+  /* --- 四态：加载骨架 + 异常块（接现有状态，不造假按钮） --- */
+  .skel-line { height:14px; border-radius:6px; background:linear-gradient(90deg,var(--panel2) 25%,var(--line) 50%,var(--panel2) 75%);
+    background-size:200% 100%; animation:skel mv 1.3s infinite linear; margin:10px 0; }
+  @keyframes skel { to { background-position:-200% 0; } }
+  .loadbox { padding:18px; }
+  /* --- 订阅卡片网格：2 列卡片（原型风格），onclick/pickbox 全保留 --- */
+  #subList.subgrid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:14px; align-items:start; }
+  @media (max-width:1180px){ #subList.subgrid { grid-template-columns:1fr; } }
+  #subList.subgrid .task { flex-wrap:wrap; margin:0; padding:15px 16px; }
+  #subList.subgrid .t-info { flex:1 1 calc(100% - 90px); }
+  #subList.subgrid .t-info .meta { display:flex; flex-wrap:wrap; gap:6px; }
+  #subList.subgrid > .empty { grid-column:1/-1; }
+  /* --- 媒体库组卡：轻量表格化（斑马纹 + 行对齐，保留可展开树形） --- */
+  #libList.listify > .task { border-radius:var(--r-md); }
+  #libList.listify > .task:nth-child(odd) { background:var(--panel); }
+  #libList.listify > .task .t-info .name { font-weight:700; }
+  /* --- 风控表格套原型样式 --- */
+  #strategyList table.stg { font-size:12.5px; }
+  #strategyList table.stg th { background:var(--panel2); padding:11px 14px; height:auto; }
+  #strategyList table.stg td { padding:11px 14px; }
+  #strategyList table.stg tbody tr:hover, #learnedList .task:hover { background:rgba(183,122,22,.045); }
+  /* --- 设置页卡片套原型分组卡样式 --- */
+  #page-settings .setCard { border:1px solid var(--line); border-radius:var(--r); box-shadow:var(--shadow-sm); }
+  #page-settings .setCard > h3 { padding-bottom:10px; border-bottom:1px solid var(--line); margin-bottom:12px; }
 </style>
 </head>
 <body>
@@ -1205,6 +1290,7 @@ function render() {
   const doneAll = done.concat(failed);
   $('doneList').innerHTML = doneAll.length ? groupTasks(doneAll).map(e => groupBlock(e, 'done')).join('')
     : `<div class="empty">下载完成的媒体会出现在这里</div>`;
+  try { if (typeof renderP2 === 'function') renderP2(); } catch (e) {}   // 期2：数据变了即时刷 KPI
 }
 
 // 展开的分组（key = 区分 active/done 前缀 + 组名），点箭头切换
@@ -1454,6 +1540,130 @@ function renderSkinBar() {
   const dr = $('skinDrawer');
   if (dr) dr.innerHTML = `<span>▸</span><b>任务队列 ${st.queue}</b><span>· 已完成 ${st.done}</span><span class="skin-go" onclick="switchPage('tasks')">查看队列 →</span>`;
 }
+// ===== UI 期2（11-21）：真实顶栏 + KPI 卡组（数据全部来自现有全局量/计数，不造假） =====
+// 复用 mountSkinLayer 的动态注入模式：只往 .main 顶部加容器，不动任何既有 DOM id。
+const P2_META = {
+  tasks:    { t:'任务队列', c:'贴入链接自动识别并加入下载队列', act:'＋ 加入队列', fn:'p2FocusUrls', pri:true },
+  rss:      { t:'订阅归档', c:'按主页整份留住，源头删帖可对照本地留存文件', act:'＋ 新增订阅', fn:'p2FocusSub', pri:true },
+  lib:      { t:'媒体库', c:'只读本地索引 · 任何情况下都不会自动删除你的文件', act:'↻ 重新扫描', fn:'loadLibrary(true)' },
+  strategy: { t:'风控策略', c:'失败自动退避重试，节奏参数可远程调整', act:'↻ 刷新规则', fn:'refreshRules()' },
+  settings: { t:'设置', c:'下载、转写、凭据与引擎，全部只在本机生效', act:'', fn:'' }
+};
+function p2FocusUrls() { const el = $('urls'); if (el) { el.focus(); el.scrollIntoView({block:'center',behavior:'smooth'}); } }
+function p2FocusSub()  { const el = $('subUrl'); if (el) { el.focus(); el.scrollIntoView({block:'center',behavior:'smooth'}); } }
+// 顶栏与 KPI 图标（内联 SVG，沿用 Phosphor 线性风格）
+const P2_ICO = {
+  down:'<svg viewBox="0 0 256 256" fill="currentColor"><path d="M208,160v40a8,8,0,0,1-8,8H56a8,8,0,0,1-8-8V160a8,8,0,0,1,16,0v32H192V160a8,8,0,0,1,16,0ZM120,168a8,8,0,0,0,11.32,0l40-40a8,8,0,0,0-11.32-11.32L136,140.69V32a8,8,0,0,0-16,0v108.69L96.34,116.34A8,8,0,0,0,85,127.66Z"/></svg>',
+  queue:'<svg viewBox="0 0 256 256" fill="currentColor"><path d="M32,64a8,8,0,0,1,8-8H216a8,8,0,0,1,0,16H40A8,8,0,0,1,32,64Zm0,64a8,8,0,0,1,8-8H216a8,8,0,0,1,0,16H40A8,8,0,0,1,32,128Zm0,64a8,8,0,0,1,8-8H216a8,8,0,0,1,0,16H40A8,8,0,0,1,32,192Z"/></svg>',
+  check:'<svg viewBox="0 0 256 256" fill="currentColor"><path d="M173.66,98.34a8,8,0,0,1,0,11.32l-56,56a8,8,0,0,1-11.32,0l-24-24a8,8,0,0,1,11.32-11.32L112,148.69l50.34-50.35A8,8,0,0,1,173.66,98.34ZM224,128a96,96,0,1,1-96-96A96,96,0,0,1,224,128Zm-16,0a80,80,0,1,0-80,80A80,80,0,0,0,208,128Z"/></svg>',
+  warn:'<svg viewBox="0 0 256 256" fill="currentColor"><path d="M236.8,188.09,149.35,36.22h0a24.76,24.76,0,0,0-42.7,0L19.2,188.09a23.51,23.51,0,0,0,0,23.72A24.35,24.35,0,0,0,40.55,224h174.9a24.35,24.35,0,0,0,21.33-12.19A23.51,23.51,0,0,0,236.8,188.09ZM120,144V104a8,8,0,0,1,16,0v40a8,8,0,0,1-16,0Zm20,36a12,12,0,1,1-12-12A12,12,0,0,1,140,180Z"/></svg>',
+  link:'<svg viewBox="0 0 256 256" fill="currentColor"><path d="M240,88.23a54.43,54.43,0,0,1-16,37L189.25,160a54.27,54.27,0,0,1-38.63,16h-.05A54.63,54.63,0,0,1,96,119.84a8,8,0,0,1,16,.45A38.62,38.62,0,0,0,150.58,160h0a38.39,38.39,0,0,0,27.31-11.31l34.75-34.75a38.63,38.63,0,0,0-54.63-54.63l-11,11A8,8,0,0,1,135.7,59l11-11A54.65,54.65,0,0,1,224,48,54.86,54.86,0,0,1,240,88.23ZM109,185.66l-11,11A38.41,38.41,0,0,1,70.6,208h0a38.63,38.63,0,0,1-27.29-65.94L78,107.31A38.63,38.63,0,0,1,144,135.71a8,8,0,0,0,16,.45A54.86,54.86,0,0,0,144,96a54.65,54.65,0,0,0-77.27,0L32,130.75A54.62,54.62,0,0,0,70.56,224h0a54.28,54.28,0,0,0,38.64-16l11-11A8,8,0,0,0,109,185.66Z"/></svg>',
+  folder:'<svg viewBox="0 0 256 256" fill="currentColor"><path d="M216,72H131.31L104,44.69A15.86,15.86,0,0,0,92.69,40H40A16,16,0,0,0,24,56V200.62A15.4,15.4,0,0,0,39.38,216H216.89A15.13,15.13,0,0,0,232,200.89V88A16,16,0,0,0,216,72ZM40,56H92.69l16,16H40ZM216,200H40V88H216Z"/></svg>',
+  image:'<svg viewBox="0 0 256 256" fill="currentColor"><path d="M224,56H32A16,16,0,0,0,16,72V184a16,16,0,0,0,16,16H224a16,16,0,0,0,16-16V72A16,16,0,0,0,224,56Zm0,128H32V72H224ZM80,116a12,12,0,1,1,12-12A12,12,0,0,1,80,116Zm101.66,25.66a8,8,0,0,1-11.32,0l-28-28a8,8,0,0,0-11.32,0L96,149.66l-12-12a8,8,0,0,0-11.32,11.32l16,16a8,8,0,0,0,11.32,0l36-36,22.34,22.34a8,8,0,0,0,11.32,0l28-28a8,8,0,0,0,0-11.32Z"/></svg>',
+  video:'<svg viewBox="0 0 256 256" fill="currentColor"><path d="M224,48H32A16,16,0,0,0,16,64V192a16,16,0,0,0,16,16H224a16,16,0,0,0,16-16V64A16,16,0,0,0,224,48Zm0,144H32V64H224ZM112,88v80a8,8,0,0,0,12.24,6.78l64-40a8,8,0,0,0,0-13.56l-64-40A8,8,0,0,0,112,88Zm16,36.43v27.14L135.09,136Z"/></svg>',
+  subs:'<svg viewBox="0 0 256 256" fill="currentColor"><path d="M224,48H32A16,16,0,0,0,16,64V192a16,16,0,0,0,16,16H224a16,16,0,0,0,16-16V64A16,16,0,0,0,224,48Zm0,144H32V64H224ZM72,124h56v16H72Zm0,32h96v16H72Zm112-32h8v16h-8Z"/></svg>'
+};
+function mountP2Layer() {
+  const main = document.querySelector('.main'); if (!main) return;
+  document.documentElement.classList.add('kv2-on');   // 隐藏旧伪元素标题
+  if (!$('p2Top')) {
+    const h = document.createElement('div'); h.id = 'p2Top'; h.className = 'topbar';
+    main.insertBefore(h, main.firstChild);
+  }
+  if (!$('kpiHost')) {
+    const k = document.createElement('div'); k.id = 'kpiHost';
+    main.insertBefore(k, $('p2Top').nextSibling);
+  }
+  renderP2();
+}
+function p2Kpi(icon, label, val, unit, foot, cls) {
+  return `<div class="kc ${cls || ''}"><div class="k">${P2_ICO[icon] || ''}${label}</div>` +
+    `<div class="v">${val}<em>${unit || ''}</em></div><div class="foot">${foot || ''}</div></div>`;
+}
+function renderP2() {
+  const top = $('p2Top'); if (!top) return;
+  const page = (document.querySelector('.page.on') && document.querySelector('.page.on').id.replace('page-','')) || 'tasks';
+  const m = P2_META[page] || P2_META.tasks;
+  top.innerHTML = `<div><div class="tb-t">${m.t}</div><div class="tb-c">${m.c}</div></div><div class="tb-sp"></div>` +
+    (m.act ? `<div class="tb-act ${m.pri ? 'pri' : ''}" onclick="${m.fn}">${m.act}</div>` : '');
+  const host = $('kpiHost'); if (!host) return;
+  const num = id => { const n = $(id); return n ? parseInt((n.textContent||'0').replace(/[^\d-]/g,''),10) || 0 : 0; };
+  let html = '';
+  if (page === 'tasks') {
+    let act = [], done = [], fail = [];
+    try { act = items.filter(i => ['queued','downloading','held'].includes(i.status));
+          done = items.filter(i => i.status === 'done');
+          fail = items.filter(i => ['error','canceled','interrupted'].includes(i.status)); } catch (e) {}
+    html = '<div class="kpi2">' +
+      p2Kpi('down','下载中', act.filter(i=>i.status==='downloading').length, '个任务', '实时并发下载') +
+      p2Kpi('queue','排队等待', act.filter(i=>i.status==='queued').length, '条', '完成后自动进媒体库') +
+      p2Kpi('check','已完成', done.length, '个任务', '源头删帖不影响留存', 'ok') +
+      p2Kpi('warn','失败待重试', fail.length, '条', '退避后自动恢复', fail.length ? 'err' : '') + '</div>';
+  } else if (page === 'rss') {
+    let ss = []; try { ss = Array.isArray(subsItems) ? subsItems : []; } catch (e) {}
+    const gone = ss.filter(s => s.gone || s.sourceDeleted).length;
+    html = '<div class="kpi2">' +
+      p2Kpi('link','活跃订阅', ss.filter(s=>!s.paused).length, '个主页', '每 10 分钟增量检查') +
+      p2Kpi('folder','已归档帖子', ss.reduce((a,s)=>a+(parseInt(s.knownCount,10)||0),0), '条', '本机留存') +
+      p2Kpi('down','最近失败', ss.filter(s=>s.lastError && (!s.lastCheck || (s.lastFailAt||0)>(s.lastCheck||0))).length, '条', '退避后自动重试') +
+      p2Kpi('warn','删帖预警', gone, '条', '本地文件仍在', gone ? 'err' : '') + '</div>';
+  } else if (page === 'lib') {
+    let g = [], tf = 0, ts = '';
+    try { g = Array.isArray(libData && libData.groups) ? libData.groups : []; tf = libData && libData.totalFiles || 0; ts = libData && libData.totalSize || ''; } catch (e) {}
+    const vids = g.reduce((a,x)=>a+(parseInt(x.videoCount,10)||0),0), imgs = g.reduce((a,x)=>a+(parseInt(x.imageCount,10)||0),0);
+    html = '<div class="kpi2">' +
+      p2Kpi('folder','已收藏媒体', tf || g.length, '个文件', ts ? '共 ' + ts : '本机索引') +
+      p2Kpi('image','图片', imgs, '张', '来自 ' + g.length + ' 个主页') +
+      p2Kpi('video','视频', vids, '段', '可离线播放') +
+      p2Kpi('subs','字幕文稿', (function(){ let n=0; try{ g.forEach(x=>(x.files||[]).forEach(f=>{ if(f.hasText) n++; })); }catch(e){} return n; })(), '份', '本地离线生成') + '</div>';
+  }
+  host.innerHTML = html;
+  // 列表表格化：给任务页两个列表加容器 class（纯 CSS 生效，不改内部 DOM）
+  ['queue','doneList'].forEach(id => { const el = $(id); if (el) el.classList.add('tblify'); });
+  // 订阅卡片网格（CSS 2 列，onclick 全保留）
+  const sl = $('subList'); if (sl) sl.classList.add('subgrid');
+  // 媒体库轻量表格化（斑马纹，保留展开逻辑）
+  const ll = $('libList'); if (ll) ll.classList.add('listify');
+  // 任务页 toolbar（chip 视图切换 + 表头）：一次性注入，不改任何既有 DOM
+  if (page === 'tasks') {
+    const pg = $('page-tasks');
+    if (pg && !$('p2TaskBar')) {
+      const bar = document.createElement('div'); bar.id = 'p2TaskBar'; bar.className = 'tb2';
+      bar.innerHTML = `<div class="chip on" data-v="all" onclick="p2TaskView('all',this)">全部</div>` +
+        `<div class="chip" data-v="active" onclick="p2TaskView('active',this)">进行中</div>` +
+        `<div class="chip" data-v="done" onclick="p2TaskView('done',this)">已完成 / 失败</div>` +
+        `<div class="sp"></div><span style="font-size:11.5px;color:var(--txt2)">失败自动退避重试</span>`;
+      const anchor = $('probeStrip') || pg.querySelector('.paste-box');
+      if (anchor) anchor.parentNode.insertBefore(bar, anchor);
+    }
+    // 表头行（纯展示，对齐 CSS grid 列）
+    ['queue','doneList'].forEach(id => {
+      const el = $(id);
+      if (el && !el.dataset.p2head) {
+        const h = document.createElement('div'); h.className = 'tbl-head';
+        h.innerHTML = `<span>内容</span><span>状态 / 文件</span><span>操作</span>`;
+        el.parentNode.insertBefore(h, el); el.dataset.p2head = '1';
+      }
+    });
+  }
+}
+// 任务视图切换：只切两个既有容器的显示，不动任何任务行/数据
+let p2TaskViewMode = 'all';
+function p2TaskView(v, chipEl) {
+  p2TaskViewMode = v;
+  document.querySelectorAll('#p2TaskBar .chip').forEach(c => c.classList.toggle('on', c === chipEl));
+  const q = $('queue'), d = $('doneList');
+  const qHead = q && q.previousElementSibling && q.previousElementSibling.classList.contains('tbl-head') ? q.previousElementSibling : null;
+  const dHead = d && d.previousElementSibling && d.previousElementSibling.classList.contains('tbl-head') ? d.previousElementSibling : null;
+  const showQ = (v === 'all' || v === 'active'), showD = (v === 'all' || v === 'done');
+  if (q) q.style.display = showQ ? '' : 'none';
+  if (qHead) qHead.style.display = showQ ? '' : 'none';
+  if (d) d.style.display = showD ? '' : 'none';
+  if (dHead) dHead.style.display = showD ? '' : 'none';
+  // 隐藏对应的 sec-t 小标题
+  const secs = document.querySelectorAll('#page-tasks .sec-t');
+  if (secs.length >= 2) { secs[0].style.display = showQ ? '' : 'none'; secs[1].style.display = showD ? '' : 'none'; }
+}
 // U6.3（11-12）：三种布局原本只在订阅页呈现，用户在设置页切换时看不到任何反馈。
 // 这里直接把三种形态画在设置页，切换下拉或点小图当场变色变形，并显式说明「跟随系统」当前实际是浅还是深。
 function updateUiPreview() {
@@ -1494,6 +1704,7 @@ function applyUiAppearance(ui) {
   document.documentElement.dataset.accent = currentUi.accent;
   document.documentElement.dataset.skin = currentUi.layout;   // U6.4：整站骨架切换，切完当场可见
   mountSkinLayer();                                          // 顶部状态条 / 四 KPI + 底部队列条
+  try { mountP2Layer(); } catch (e) {}                        // 期2：真实顶栏 + KPI 卡组（只加容器）
   if (layoutChanged) try { renderSubs(); } catch (e) {}   // 切布局时若订阅页已渲染，立即重渲染
   updateUiPreview();
 }
@@ -1507,8 +1718,8 @@ async function saveUiAppearance() {
 window.keepsake.settingsGet().then(s => applyUiAppearance(s && s.ui)).catch(() => {});   // 启动即套主题，不等进设置页
 // 切页或数据更新后刷新整站概览；纯读现有 DOM 计数，不额外发 IPC
 const _origSwitchPage = switchPage;
-window.switchPage = function (p) { const r = _origSwitchPage(p); try { renderSkinBar(); } catch (e) {} return r; };
-setInterval(() => { try { renderSkinBar(); } catch (e) {} }, 15000);
+window.switchPage = function (p) { const r = _origSwitchPage(p); try { renderSkinBar(); } catch (e) {} try { renderP2(); } catch (e) {} return r; };
+setInterval(() => { try { renderSkinBar(); } catch (e) {} try { renderP2(); } catch (e) {} }, 15000);
 
 // ===== 设置：下载目录 =====
 async function loadSettings() {
@@ -2570,6 +2781,7 @@ function renderLibrary() {
         <div class="x" onclick="event.stopPropagation();trashFile('${escAttr(f.path)}')" title="删除（移入回收站，可恢复）" style="color:var(--red)">🗑</div>
       </div>`).join('') : ''}`;
   }).join('');
+  try { if (typeof renderP2 === 'function') renderP2(); } catch (e) {}   // 期2：媒体库数据到位后刷 KPI
 }
 
 // ===== 阶段一：双语字幕 / 烧字幕状态 =====
