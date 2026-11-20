@@ -101,7 +101,12 @@ function killTree(child) {
   try { if (child.exitCode !== null) return; } catch (e) {}
   if (process.platform === 'win32' && child.pid) {
     try {
-      spawn('taskkill', ['/pid', String(child.pid), '/T', '/F'], { windowsHide: true, stdio: 'ignore' }).unref();
+      const tkAbs = path.join(process.env.SystemRoot || process.env.WINDIR || 'C:\\Windows', 'System32', 'taskkill.exe');
+      const tk = fs.existsSync(tkAbs) ? tkAbs : 'taskkill';
+      const p = spawn(tk, ['/pid', String(child.pid), '/T', '/F'], { windowsHide: true, stdio: 'ignore' });
+      // ENOENT 走异步 error 事件，同步 try/catch 捕不到；挂监听后回落下面的 child.kill
+      p.on('error', () => { try { child.kill('SIGKILL'); } catch (e) {} });
+      p.unref();
       return;
     } catch (e) {}
   }

@@ -1430,12 +1430,18 @@ app.whenReady().then(() => {
   // 退出双保险（#19）：清掉可能残留的引擎子进程（队列 killRunning 之外再兜底一层，防退出后进程树孤儿）
   function killEngineSubprocesses() {
     const cp = require('child_process');
+    // taskkill 绝对路径优先（PATH 被精简/继承异常时裸名会 ENOENT），找不到再回落裸名让系统 PATH 找
+    const tkAbs = path.join(process.env.SystemRoot || process.env.WINDIR || 'C:\\Windows', 'System32', 'taskkill.exe');
+    const tk = fs.existsSync(tkAbs) ? tkAbs : 'taskkill';
     if (process.platform === 'win32') {
       // Windows 侧按镜像名匹配：asr.js 实际 spawn 的是 whisper-cli.exe（L152），故同时匹配 whisper.exe（老命名兼容）
-      cp.spawn('taskkill', ['/F', '/T', '/IM', 'yt-dlp.exe', '/IM', 'gallery-dl.exe', '/IM', 'ffmpeg.exe', '/IM', 'whisper.exe', '/IM', 'whisper-cli.exe'],
+      const p = cp.spawn(tk, ['/F', '/T', '/IM', 'yt-dlp.exe', '/IM', 'gallery-dl.exe', '/IM', 'ffmpeg.exe', '/IM', 'whisper.exe', '/IM', 'whisper-cli.exe'],
         { windowsHide: true, stdio: 'ignore' });
+      // 关键：spawn 的 ENOENT 走异步 error 事件，不挂监听会冒成主进程未捕获异常→Electron 崩溃弹框
+      p.on('error', () => {});
     } else {
-      cp.spawn('pkill', ['-f', 'yt-dlp|gallery-dl|ffmpeg|whisper'], { stdio: 'ignore' });
+      const p = cp.spawn('pkill', ['-f', 'yt-dlp|gallery-dl|ffmpeg|whisper'], { stdio: 'ignore' });
+      p.on('error', () => {});
     }
   }
   // 改名迁移通用函数（#27）：把 legacyName 目录下的 files（逐文件拷贝，断点续迁）/ dirs（同盘改名）搬入 userData。
