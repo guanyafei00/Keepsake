@@ -7,31 +7,34 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; object-src 'none'; frame-src 'none'; base-uri 'self'; form-action 'none'; frame-ancestors 'none'">
 <title>Keepsake — 媒体下载与订阅</title>
 <style>
+  /* ===== UI 期1 换肤（2026-11-20）：暖纸档案底 + 墨色三级 + 琥珀强调（源自归档台原型视觉规范）。
+     只覆盖变量值，组件规则/函数/id/IPC 一律不动；明暗主题与强调色切换逻辑原样保留。 ===== */
   :root {
-    --bg:#f5f6f8; --panel:#ffffff; --panel2:#f0f2f5; --line:#e4e7ec; --line-strong:#c3c9d4;
-    --txt:#1c2027; --txt2:#5c6470; --acc:#0369a1; --acc2:#075985; --accbg:#f0f9ff;
-    --acc-bright:#0ea5e9; --acc-soft:#38bdf8; --acc-border:#bae6fd;
-    --green:#15803d; --greenbg:#ecfdf3; --red:#dc2626; --red-strong:#b91c1c; --redbg:#fee2e2;
-    --yellow:#a16207; --yellowbg:#fef9c3; --info:#1d4ed8; --infobg:#eff6ff;
-    --r:14px; --r-md:10px; --r-sm:6px; --r-xs:5px;
-    --shadow-sm:0 1px 2px rgba(16,24,40,.05);
-    --shadow:0 1px 3px rgba(16,24,40,.06), 0 8px 24px rgba(16,24,40,.05);
-    --shadow-lg:0 18px 50px rgba(16,24,40,.25);
+    --bg:#F0ECE5; --panel:#FBF9F5; --panel2:#F3EEE5; --line:rgba(59,53,45,.11); --line-strong:rgba(59,53,45,.20);
+    --txt:#29241E; --txt2:#6B6151; --acc:#B77A16; --acc2:#9A6410; --accbg:rgba(183,122,22,.12);
+    --acc-bright:#C88F2E; --acc-soft:#D6A345; --acc-border:rgba(183,122,22,.32);
+    --green:#2F7A55; --greenbg:rgba(47,122,85,.12); --red:#C0453C; --red-strong:#8C2C25; --redbg:rgba(192,69,60,.12);
+    --yellow:#B77A16; --yellowbg:rgba(183,122,22,.13); --info:#8C6A2E; --infobg:rgba(183,122,22,.10);
+    --r:14px; --r-md:10px; --r-sm:7px; --r-xs:6px;
+    --shadow-sm:0 1px 2px rgba(59,53,45,.06);
+    --shadow:0 1px 2px rgba(59,53,45,.06), 0 8px 20px -8px rgba(59,53,45,.12);
+    --shadow-lg:0 2px 6px rgba(59,53,45,.10), 0 24px 50px -18px rgba(59,53,45,.28);
   }
-  /* ===== U6.1 主题系统（浅色为默认基线；强调色与深色均为纯变量覆盖，不改组件规则）===== */
-  html[data-accent="purple"] { --acc:#6d28d9; --acc2:#5b21b6; --accbg:#f3eeff; --acc-bright:#8b5cf6; --acc-soft:#a78bfa; --acc-border:#ddd6fe; }
-  html[data-accent="green"]  { --acc:#047857; --acc2:#065f46; --accbg:#ecfdf5; --acc-bright:#10b981; --acc-soft:#34d399; --acc-border:#a7f3d0; }
+  /* U6.1 主题系统：浅色为暖纸基线；强调色与深色均为纯变量覆盖，不改组件规则 */
+  html[data-accent="purple"] { --acc:#7C5BB8; --acc2:#634A96; --accbg:rgba(124,91,184,.12); --acc-bright:#9B7ED6; --acc-soft:#B49BE0; --acc-border:rgba(124,91,184,.32); }
+  html[data-accent="green"]  { --acc:#2F7A55; --acc2:#245F42; --accbg:rgba(47,122,85,.12); --acc-bright:#469A72; --acc-soft:#6FB791; --acc-border:rgba(47,122,85,.32); }
+  /* 暗色：暖褐而非冷灰蓝，保持档案氛围 */
   html[data-theme="dark"] {
-    --bg:#101418; --panel:#171c22; --panel2:#1f262e; --line:#2a323c; --line-strong:#3d4753;
-    --txt:#e6eaf0; --txt2:#9aa4b2;
-    --accbg:rgba(14,165,233,.13); --acc-border:rgba(14,165,233,.38);
-    --greenbg:rgba(34,197,94,.13); --redbg:rgba(220,38,38,.16); --yellowbg:rgba(217,164,65,.14); --infobg:rgba(59,130,246,.14);
-    --shadow-sm:0 1px 2px rgba(0,0,0,.45);
-    --shadow:0 1px 3px rgba(0,0,0,.5), 0 8px 24px rgba(0,0,0,.35);
-    --shadow-lg:0 18px 50px rgba(0,0,0,.65);
+    --bg:#1E1A15; --panel:#28231C; --panel2:#312B22; --line:rgba(240,236,229,.10); --line-strong:rgba(240,236,229,.19);
+    --txt:#F0ECE5; --txt2:#B4AA9A;
+    --accbg:rgba(199,143,46,.15); --acc-border:rgba(199,143,46,.40);
+    --greenbg:rgba(47,122,85,.18); --redbg:rgba(192,69,60,.18); --yellowbg:rgba(183,122,22,.18); --infobg:rgba(199,143,46,.14);
+    --shadow-sm:0 1px 2px rgba(0,0,0,.35);
+    --shadow:0 1px 3px rgba(0,0,0,.42), 0 8px 24px rgba(0,0,0,.28);
+    --shadow-lg:0 18px 50px rgba(0,0,0,.6);
   }
-  html[data-theme="dark"][data-accent="purple"] { --acc:#8b5cf6; --acc2:#7c3aed; --accbg:rgba(139,92,246,.14); --acc-border:rgba(139,92,246,.4); }
-  html[data-theme="dark"][data-accent="green"]  { --acc:#10b981; --acc2:#059669; --accbg:rgba(16,185,129,.13); --acc-border:rgba(16,185,129,.4); }
+  html[data-theme="dark"][data-accent="purple"] { --acc:#A78BDA; --acc2:#8B6BC4; --accbg:rgba(167,139,218,.15); --acc-border:rgba(167,139,218,.4); }
+  html[data-theme="dark"][data-accent="green"]  { --acc:#5BBE8E; --acc2:#3E9C70; --accbg:rgba(91,190,142,.14); --acc-border:rgba(91,190,142,.4); }
   /* ===== U6.2 订阅布局三选一：grid=现状行卡 / stream=紧凑列表 / dash=仪表盘摘要条+行卡（同一份数据，只分渲染层）=====
      11-12 修正：原 stream 与 grid 的 DOM 完全相同，只差 padding 和缩略图，真机上几乎看不出切换；
      现补左边色条 / 去阴影 / 缩行距 / 缩字号，让三种形态一眼可分。 */
@@ -165,7 +168,7 @@
   .ui-prev-item[data-l="dash"] .pv-r { height:100%; min-height:16px; flex-direction:column; align-items:flex-start; justify-content:center; }
 
   * { margin:0; padding:0; box-sizing:border-box; }
-  body { font-family:"Segoe UI","Microsoft YaHei",system-ui,sans-serif; background:var(--bg); color:var(--txt); height:100dvh; display:flex; overflow:hidden; }
+  body { font-family:"PingFang SC","Microsoft YaHei","Source Han Sans SC",system-ui,-apple-system,sans-serif; background:var(--bg); color:var(--txt); height:100dvh; display:flex; overflow:hidden; -webkit-font-smoothing:antialiased; }
 
   /* ===== 侧边栏（原型 v0.6 布局）===== */
   .sidebar { width:200px; background:var(--panel); border-right:1px solid var(--line); padding:14px 10px; display:flex; flex-direction:column; gap:3px; flex-shrink:0; }
@@ -184,12 +187,39 @@
   .nav.on { background:var(--accbg); color:var(--acc2); font-weight:700; }
   .nav .cnt { margin-left:auto; background:var(--panel2); color:var(--txt2); font-size:11px; font-weight:600; border-radius:var(--r-sm); padding:1px 7px; }
   .nav.on .cnt { background:var(--panel); color:var(--acc2); }
-  .side-foot { margin-top:auto; font-size:11.5px; color:var(--txt2); padding:11px 13px; border-top:1px solid var(--line); line-height:2.1; }
+  /* 期1换肤：侧栏品牌 / 分组标签 / 线性图标（源归档台原型视觉规范） */
+  .sidebar { width:224px; padding:16px 12px; gap:2px; }
+  .logo { padding:2px 8px 16px; gap:10px; }
+  .logo .gem { width:30px; height:30px; border-radius:9px; background:var(--ink-mark,#29241E); font-size:15px; }
+  html[data-theme="dark"] .logo .gem { background:var(--acc); color:#1E1A15; }
+  .logo-txt { display:flex; flex-direction:column; line-height:1.3; }
+  .logo-name { font-weight:700; font-size:15px; color:var(--txt); letter-spacing:.01em; }
+  .logo-sub { font-size:10.5px; color:var(--txt2); }
+  .nav-grp { font-size:10.5px; color:var(--txt2); letter-spacing:.1em; padding:14px 10px 5px; font-weight:600; }
+  .nav { gap:11px; padding:9px 10px; font-size:13px; }
+  .nav svg { width:18px; height:18px; flex:none; color:var(--txt2); }
+  .nav.on svg { color:var(--acc); }
+  .nav .cnt { border-radius:999px; padding:1px 8px; }
+  .side-foot { margin-top:auto; font-size:11.5px; color:var(--txt2); padding:11px 8px 4px; border-top:1px solid var(--line); line-height:2.0; }
+  .side-foot .frow { display:flex; align-items:center; gap:9px; }
+  .side-foot .frow svg { width:15px; height:15px; flex:none; color:var(--txt2); }
+  .side-foot .frow .act { min-width:0; }
+  .privacy { display:flex; align-items:center; gap:7px; font-size:11px; color:var(--txt2); padding:7px 8px; border-radius:var(--r-sm); background:var(--panel2); margin-top:6px; }
+  .privacy .dot { width:7px; height:7px; border-radius:50%; background:var(--green); flex:none; }
   .side-foot b { color:var(--green); font-size:11px; font-weight:600; }
   .side-foot .act { cursor:pointer; }
   .side-foot .act:hover { color:var(--acc2); }
   #loginBadge { cursor:pointer; }
   #updBadge { display:none; color:var(--acc2); cursor:pointer; font-weight:700; }
+
+  /* 期1换肤：统一顶部标题条（纯 CSS 伪元素，绑定既有 page id，不碰 switchPage/JS） */
+  .page::before { content:""; display:block; }
+  #page-tasks::before { content:"任务队列"; }
+  #page-rss::before   { content:"订阅归档"; }
+  #page-lib::before   { content:"媒体库"; }
+  #page-strategy::before { content:"风控策略"; }
+  #page-settings::before { content:"设置"; }
+  .page::before { font-size:19px; font-weight:700; color:var(--txt); letter-spacing:.01em; padding-bottom:12px; margin-bottom:16px; border-bottom:1px solid var(--line); }
 
   .main { flex:1; display:flex; flex-direction:column; min-width:0; }
   .page { display:none; flex:1; overflow-y:auto; padding:20px 26px 26px; min-height:0; }
@@ -197,10 +227,10 @@
 
   /* ===== 粘贴框 + pick 选项 ===== */
   .paste-box { display:flex; gap:10px; align-items:center; background:var(--panel); border:1.5px solid var(--line); border-radius:var(--r); padding:13px 15px; box-shadow:var(--shadow); transition:.2s; }
-  .paste-box:focus-within { border-color:var(--acc); box-shadow:0 0 0 3px rgba(3,105,161,.12); }
+  .paste-box:focus-within { border-color:var(--acc); box-shadow:0 0 0 3px rgba(183,122,22,.14); }
   .paste-box span { font-size:20px; }
   textarea { flex:1; border:none; outline:none; resize:none; font:inherit; font-size:13.5px; min-height:44px; color:var(--txt); background:transparent; }
-  .btn-dl { background:linear-gradient(135deg,var(--acc),var(--acc2)); border:none; color:#fff; font-weight:700; font-size:13px; padding:10px 20px; border-radius:var(--r-md); cursor:pointer; white-space:nowrap; box-shadow:0 4px 12px rgba(3,105,161,.25); }
+  .btn-dl { background:linear-gradient(135deg,var(--acc),var(--acc2)); border:none; color:#fff; font-weight:700; font-size:13px; padding:10px 20px; border-radius:var(--r-md); cursor:pointer; white-space:nowrap; box-shadow:0 4px 12px rgba(183,122,22,.28); }
   .btn-dl:hover { filter:brightness(.96); }
   .btn-dl:disabled { opacity:.55; cursor:not-allowed; filter:none; }
   .hint { font-size:11.5px; color:var(--txt2); margin:8px 2px 0; line-height:1.8; }
@@ -313,7 +343,7 @@
   .t-info .meta, .nav .cnt, .sec-t .cnt, .st, table.stg, .dl-state, .chip2 { font-variant-numeric:tabular-nums; }
 
   /* ===== 首启引导浮层（#28）===== */
-  .ob-mask { position:fixed; inset:0; background:rgba(16,24,40,.45); z-index:300; display:flex; align-items:center; justify-content:center; padding:24px; }
+  .ob-mask { position:fixed; inset:0; background:rgba(41,36,30,.5); z-index:300; display:flex; align-items:center; justify-content:center; padding:24px; }
   .ob-card { width:520px; max-width:100%; max-height:90vh; overflow-y:auto; background:var(--panel); border-radius:18px; box-shadow:var(--shadow-lg); padding:24px 26px; }
   .ob-card h2 { font-size:18px; margin-bottom:4px; display:flex; align-items:center; gap:8px; }
   .ob-sub { font-size:12.5px; color:var(--txt2); margin-bottom:16px; }
@@ -333,20 +363,22 @@
 <body>
 
 <aside class="sidebar">
-  <div class="logo"><span class="gem">K</span>Keepsake</div>
-  <div class="nav on" data-page="tasks" onclick="switchPage('tasks')">⬇ 任务队列 <span class="cnt" id="q-cnt">0</span></div>
-  <div class="nav" data-page="rss" onclick="switchPage('rss')">📡 订阅 <span class="cnt" id="s-cnt">0</span></div>
-  <div class="nav" data-page="lib" onclick="switchPage('lib')">📚 媒体库 <span class="cnt" id="l-cnt">0</span></div>
-  <div class="nav" data-page="strategy" onclick="switchPage('strategy')">🛡 限流策略</div>
+  <div class="logo"><span class="gem">K</span><span class="logo-txt"><span class="logo-name">Keepsake</span><span class="logo-sub">个人媒体归档台</span></span></div>
+  <div class="nav-grp">工作台</div>
+  <div class="nav on" data-page="tasks" onclick="switchPage('tasks')"><svg viewBox="0 0 256 256" fill="currentColor"><path d="M32,64a8,8,0,0,1,8-8H216a8,8,0,0,1,0,16H40A8,8,0,0,1,32,64Zm104,56H40a8,8,0,0,0,0,16h96a8,8,0,0,0,0-16Zm0,64H40a8,8,0,0,0,0,16h96a8,8,0,0,0,0-16Zm112-24a8,8,0,0,1-3.76,6.78l-64,40A8,8,0,0,1,168,200V120a8,8,0,0,1,12.24-6.78l64,40A8,8,0,0,1,248,160Zm-23.09,0L184,134.43v51.14Z"/></svg>任务队列 <span class="cnt" id="q-cnt">0</span></div>
+  <div class="nav" data-page="rss" onclick="switchPage('rss')"><svg viewBox="0 0 256 256" fill="currentColor"><path d="M240,88.23a54.43,54.43,0,0,1-16,37L189.25,160a54.27,54.27,0,0,1-38.63,16h-.05A54.63,54.63,0,0,1,96,119.84a8,8,0,0,1,16,.45A38.62,38.62,0,0,0,150.58,160h0a38.39,38.39,0,0,0,27.31-11.31l34.75-34.75a38.63,38.63,0,0,0-54.63-54.63l-11,11A8,8,0,0,1,135.7,59l11-11A54.65,54.65,0,0,1,224,48,54.86,54.86,0,0,1,240,88.23ZM109,185.66l-11,11A38.41,38.41,0,0,1,70.6,208h0a38.63,38.63,0,0,1-27.29-65.94L78,107.31A38.63,38.63,0,0,1,144,135.71a8,8,0,0,0,16,.45A54.86,54.86,0,0,0,144,96a54.65,54.65,0,0,0-77.27,0L32,130.75A54.62,54.62,0,0,0,70.56,224h0a54.28,54.28,0,0,0,38.64-16l11-11A8,8,0,0,0,109,185.66Z"/></svg>订阅归档 <span class="cnt" id="s-cnt">0</span></div>
+  <div class="nav" data-page="lib" onclick="switchPage('lib')"><svg viewBox="0 0 256 256" fill="currentColor"><path d="M216,72H131.31L104,44.69A15.86,15.86,0,0,0,92.69,40H40A16,16,0,0,0,24,56V200.62A15.4,15.4,0,0,0,39.38,216H216.89A15.13,15.13,0,0,0,232,200.89V88A16,16,0,0,0,216,72ZM40,56H92.69l16,16H40ZM216,200H40V88H216Z"/></svg>媒体库 <span class="cnt" id="l-cnt">0</span></div>
+  <div class="nav-grp">系统</div>
+  <div class="nav" data-page="strategy" onclick="switchPage('strategy')"><svg viewBox="0 0 256 256" fill="currentColor"><path d="M208,40H48A16,16,0,0,0,32,56v56c0,52.72,25.52,84.67,46.93,102.19,23.06,18.86,46,25.27,47,25.53a8,8,0,0,0,4.2,0c1-.26,23.91-6.67,47-25.53C198.48,196.67,224,164.72,224,112V56A16,16,0,0,0,208,40Zm0,72c0,37.07-13.66,67.16-40.6,89.42A129.3,129.3,0,0,1,128,223.62a128.25,128.25,0,0,1-38.92-21.81C61.82,179.51,48,149.3,48,112l0-56,160,0Z"/></svg>限流策略</div>
   <!-- 视频号入口暂时下架（2026-11-19 拍板）：受控窗/IPC 保留，恢复时解开本行
   <div class="nav" onclick="openChannelsWin()" title="打开微信视频号受控浏览器：官方页面正常登录浏览，播放后点窗口内【📥 归档】一键保存">📹 视频号</div> -->
-  <div class="nav" onclick="openXhsWin()" title="打开小红书受控浏览器：浏览笔记页后点窗口内【📥 归档】一键保存图文/视频">📕 小红书</div>
-  <div class="nav" data-page="settings" onclick="switchPage('settings')">⚙ 设置</div>
+  <div class="nav" onclick="openXhsWin()" title="打开小红书受控浏览器：浏览笔记页后点窗口内【📥 归档】一键保存图文/视频"><svg viewBox="0 0 256 256" fill="currentColor"><path d="M208,40H48A16,16,0,0,0,32,56v144a16,16,0,0,0,16,16h160a16,16,0,0,0,16-16V56A16,16,0,0,0,208,40ZM48,200V56H208V200ZM80,88h64v16H80ZM80,120h96v16H80Z"/></svg>小红书</div>
+  <div class="nav" data-page="settings" onclick="switchPage('settings')"><svg viewBox="0 0 256 256" fill="currentColor"><path d="M128,80a48,48,0,1,0,48,48A48.05,48.05,0,0,0,128,80Zm0,80a32,32,0,1,1,32-32A32,32,0,0,1,128,160Zm88-29.84q.06-2.16,0-4.32l14.92-18.64a8,8,0,0,0,1.48-7.06,107.21,107.21,0,0,0-10.88-26.25,8,8,0,0,0-6-3.93l-23.72-2.64q-1.48-1.56-3-3L186,40.54a8,8,0,0,0-3.94-6,107.71,107.71,0,0,0-26.25-10.87,8,8,0,0,0-7.06,1.49L130.16,40Q128,40,125.84,40L107.2,25.11a8,8,0,0,0-7.06-1.48A107.6,107.6,0,0,0,73.89,34.51a8,8,0,0,0-3.93,6L67.32,64.27q-1.56,1.49-3,3L40.54,70a8,8,0,0,0-6,3.94,107.71,107.71,0,0,0-10.87,26.25,8,8,0,0,0,1.49,7.06L40,125.84Q40,128,40,130.16L25.11,148.8a8,8,0,0,0-1.48,7.06,107.21,107.21,0,0,0,10.88,26.25,8,8,0,0,0,6,3.93l23.72,2.64q1.49,1.56,3,3L70,215.46a8,8,0,0,0,3.94,6,107.71,107.71,0,0,0,26.25,10.87,8,8,0,0,0,7.06-1.49L125.84,216q2.16.06,4.32,0l18.64,14.92a8,8,0,0,0,7.06,1.48,107.21,107.21,0,0,0,26.25-10.88,8,8,0,0,0,3.93-6l2.64-23.72q1.56-1.48,3-3L215.46,186a8,8,0,0,0,6-3.94,107.71,107.71,0,0,0,10.87-26.25,8,8,0,0,0-1.49-7.06Zm-16.1-6.5a73.93,73.93,0,0,1,0,8.68,8,8,0,0,0,1.74,5.48l14.19,17.73a91.57,91.57,0,0,1-6.23,15L187,173.11a8,8,0,0,0-5.1,2.64,74.11,74.11,0,0,1-6.14,6.14,8,8,0,0,0-2.64,5.1l-2.51,22.58a91.32,91.32,0,0,1-15,6.23l-17.74-14.19a8,8,0,0,0-5-1.75h-.48a73.93,73.93,0,0,1-8.68,0,8,8,0,0,0-5.48,1.74L100.45,215.8a91.57,91.57,0,0,1-15-6.23L82.89,187a8,8,0,0,0-2.64-5.1,74.11,74.11,0,0,1-6.14-6.14,8,8,0,0,0-5.1-2.64L46.43,170.6a91.32,91.32,0,0,1-6.23-15l14.19-17.74a8,8,0,0,0,1.74-5.48,73.93,73.93,0,0,1,0-8.68,8,8,0,0,0-1.74-5.48L40.2,100.45a91.57,91.57,0,0,1,6.23-15L69,82.89a8,8,0,0,0,5.1-2.64,74.11,74.11,0,0,1,6.14-6.14A8,8,0,0,0,82.89,69L85.4,46.43a91.32,91.32,0,0,1,15-6.23l17.74,14.19a8,8,0,0,0,5.48,1.74,73.93,73.93,0,0,1,8.68,0,8,8,0,0,0,5.48-1.74L155.55,40.2a91.57,91.57,0,0,1,15,6.23L173.11,69a8,8,0,0,0,2.64,5.1,74.11,74.11,0,0,1,6.14,6.14,8,8,0,0,0,5.1,2.64l22.58,2.51a91.32,91.32,0,0,1,6.23,15l-14.19,17.74A8,8,0,0,0,199.87,123.66Z"/></svg>设置</div>
   <div class="side-foot">
-    <div id="loginBadge" class="act" onclick="openLogin()">🔑 登录 B 站</div>
-    <div>🛡 限流规则 <span class="act" onclick="refreshRules()" id="rulesVer">自动更新</span></div>
-    <div>⟳ <span class="act" onclick="checkUpd()">检查引擎更新</span> <span id="updBadge" onclick="doUpdate()">可更新!</span></div>
-    <div><b>本地运行 · 隐私安全</b></div>
+    <div class="frow"><svg viewBox="0 0 256 256" fill="currentColor"><path d="M224,144v64a8,8,0,0,1-8,8H40a8,8,0,0,1-8-8V144a8,8,0,0,1,16,0v56H208V144a8,8,0,0,1,16,0Zm-101.66,5.66a8,8,0,0,0,11.32,0l40-40a8,8,0,0,0-11.32-11.32L136,124.69V32a8,8,0,0,0-16,0v92.69L93.66,98.34a8,8,0,0,0-11.32,11.32Z"/></svg><span id="loginBadge" class="act" onclick="openLogin()">登录 B 站</span></div>
+    <div class="frow"><svg viewBox="0 0 256 256" fill="currentColor"><path d="M208,40H48A16,16,0,0,0,32,56v56c0,52.72,25.52,84.67,46.93,102.19,23.06,18.86,46,25.27,47,25.53a8,8,0,0,0,4.2,0c1-.26,23.91-6.67,47-25.53C198.48,196.67,224,164.72,224,112V56A16,16,0,0,0,208,40Zm0,72c0,37.07-13.66,67.16-40.6,89.42A129.3,129.3,0,0,1,128,223.62a128.25,128.25,0,0,1-38.92-21.81C61.82,179.51,48,149.3,48,112l0-56,160,0Z"/></svg>限流规则 <span class="act" onclick="refreshRules()" id="rulesVer">自动更新</span></div>
+    <div class="frow"><svg viewBox="0 0 256 256" fill="currentColor"><path d="M224,48V96a8,8,0,0,1-8,8H168a8,8,0,0,1,0-16h28.69L182.06,73.37a79.56,79.56,0,0,0-56.13-23.43h-.45A79.52,79.52,0,0,0,69.59,72.71,8,8,0,0,1,58.41,61.27a96,96,0,0,1,135,.79L208,76.69V48a8,8,0,0,1,16,0ZM186.41,183.29a80,80,0,0,1-112.47-.66L59.31,168H88a8,8,0,0,0,0-16H40a8,8,0,0,0-8,8v48a8,8,0,0,1,16,0V179.31l14.63,14.63A95.43,95.43,0,0,0,130,222.06h.53a95.36,95.36,0,0,0,67.07-27.33,8,8,0,0,0-11.18-11.44Z"/></svg><span class="act" onclick="checkUpd()">检查引擎更新</span> <span id="updBadge" onclick="doUpdate()">可更新!</span></div>
+    <div class="privacy"><span class="dot"></span><span>本地运行 · 隐私安全</span></div>
   </div>
 </aside>
 
