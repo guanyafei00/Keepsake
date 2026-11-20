@@ -247,7 +247,8 @@ function add(url, name, maxBackfill) {
     group: '',             // #70②：分组名（空=未分组）
     intervalMin: c.kind === 'xhs-user' ? 30 : 0,   // #70②：检查频率档位（0=跟随全局 10 分钟；可选 10/30/60）。小红书强制 30 起步：检查走隐藏窗加载页面，高频风控风险高
     userPaused: false,     // #70②：用户手动暂停（与连续失败自动暂停 paused 区分）
-    autoTranscribe: false, // #70④：新下载自动转写出字幕
+    autoTranscribe: false, // #70④：新下载自动转写出字幕（本地 whisper）
+    autoSubs: false,       // U1b：新下载抓平台官方字幕（yt-dlp --write-subs，B站/YouTube 有字幕源才有效）
     latestN: 0,            // ★★#7：增量检查只入队最新 N 条（0=不限制；追更连载只留最新话的场景）
     maxBackfill: normMaxBackfill(maxBackfill),   // #42：回溯条数上限（0=不限；从最新往回数，超出部分跳过）
   };
@@ -361,7 +362,7 @@ function remove(id) {
 }
 
 // #70② 订阅属性更新（白名单字段，防注入未知键）
-const UPDATABLE = ['name', 'userPaused', 'group', 'intervalMin', 'autoTranscribe', 'latestN', 'maxBackfill'];
+const UPDATABLE = ['name', 'userPaused', 'group', 'intervalMin', 'autoTranscribe', 'autoSubs', 'latestN', 'maxBackfill'];
 function update(id, patch) {
   const s = get(id);
   if (!s) return { ok: false, reason: '订阅不存在' };
@@ -369,7 +370,7 @@ function update(id, patch) {
   let renamed = null;
   for (const k of UPDATABLE) {
     if (patch[k] === undefined) continue;
-    if (k === 'userPaused' || k === 'autoTranscribe') s[k] = !!patch[k];
+    if (k === 'userPaused' || k === 'autoTranscribe' || k === 'autoSubs') s[k] = !!patch[k];
     else if (k === 'group') s[k] = String(patch[k] || '').trim().slice(0, 20);
     else if (k === 'name') {
       // 手动改名（用户反馈：订阅 N 挂着难看还没法改）。空名/全空白拒绝，不静默吞

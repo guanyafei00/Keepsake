@@ -78,6 +78,9 @@ async function walk(dir, base, out, ctx) {
   if (ctx.files >= ctx.maxFiles || ctx.depth >= ctx.maxDepth) return;
   let entries;
   try { entries = await fsp.readdir(dir, { withFileTypes: true }); } catch { return; }
+  // U2：同目录文本源清单（note.md / 同名 .txt/.srt/.md），零额外 IO——复用这次 readdir 结果。
+  // 渲染层据此给小红书笔记的图片条目也挂 ✨（否则 AI 按钮只挂视频，笔记图组没入口）。
+  const textNames = new Set(entries.filter(e => e.isFile() && /\.(md|txt|srt)$/i.test(e.name)).map(e => e.name.toLowerCase()));
   for (const ent of entries) {
     if (ctx.files >= ctx.maxFiles) return;
     const full = path.join(dir, ent.name);
@@ -105,7 +108,12 @@ async function walk(dir, base, out, ctx) {
         rel,
         size: st.size,
         mtime: st.mtimeMs,
-        kind: fileKind(path.extname(ent.name))
+        kind: fileKind(path.extname(ent.name)),
+        // U2：该媒体是否有可总结的文本源（同名 .txt/.srt/.md 或目录内 note.md）——给渲染层挂 ✨ 用
+        hasText: (() => {
+          const stem = ent.name.replace(/\.[^.]+$/, '').toLowerCase();
+          return textNames.has('note.md') || textNames.has(stem + '.txt') || textNames.has(stem + '.srt') || textNames.has(stem + '.md');
+        })()
       });
     }
   }
@@ -148,7 +156,7 @@ async function scan() {
       // yt-dlp 加 --mtime 后用 HTTP Last-Modified（≈视频上传时间）→ 降序 = 最新帖子在前（用户需求）
       files: g.files.sort((a, b) => b.mtime - a.mtime).map(f => ({
         name: f.name, path: f.path, size: f.size, sizeText: fmtSize(f.size),
-        mtime: f.mtime, kind: f.kind,
+        mtime: f.mtime, kind: f.kind, hasText: !!f.hasText,
         // 文章条目状态（QA Bug 修复：map 重建对象时曾把 article 字段丢掉，
         // UI 的「源头已删除/内容有编辑」徽标因此永不显示）
         article: f.article || null,

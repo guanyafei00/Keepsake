@@ -991,20 +991,44 @@ app.whenReady().then(() => {
     const lim = Math.min(100, Math.max(1, Number(limit) || 30));   // limit 钳制，防渲染层传大值放大 snippet 读盘
     return { ok: true, results: textindex.search(q, lim), stats: textindex.stats() };
   });
-  // #70④ 组级 AI 摘要：收集组内转写文稿（cap 20 篇 × 8k 字）→ AI 结构化总结 → 存组目录 AI摘要-日期.md
+  // AI 文本源统一查找（U1）：覆盖三种落盘形态——
+  //   ① 视频/音频转写稿：同名 .txt / .srt（whisper 产物）
+  //   ② 小红书视频 note.md：同名 .md；图组 note.md：所在目录内 note.md
+  //   ③ 图文文章存档：f.path 是目录，正文在目录内 article.md
+  // 单篇 ai:run 与分组 lib:summarize 共用，避免两条路径规则分叉。
+  // 注意 insideOutDir 由调用方做——本函数只挑候选路径；.ai.md 刻意排除（防对旧摘要再摘要）。
+  function aiTextSource(mediaPath) {
+    const p = String(mediaPath || '');
+    const isFile = f => { try { return fs.statSync(f).isFile(); } catch (e) { return false; } };
+    // 文章条目：path 本身是目录（目录名可能含点，不能套去扩展名逻辑），正文只在目录内
+    if (isFile(path.join(p, 'article.md'))) return path.join(p, 'article.md');
+    if (isFile(path.join(p, 'note.md'))) return path.join(p, 'note.md');
+    let isDir = false;
+    try { isDir = fs.statSync(p).isDirectory(); } catch (e) {}
+    if (isDir) return null;
+    const base = p.replace(/\.[^.\\/]+$/, '');
+    const dir = path.dirname(p);
+    const cands = [
+      base + '.txt', base + '.srt', base + '.md',   // 转写稿 / 视频同名 note.md
+      path.join(dir, 'note.md'),                      // 图组 note.md（图片所在目录）
+    ];
+    return cands.find(isFile) || null;
+  }
   ipcMain.handle('lib:summarize', async (e, { key, paths }) => {
     if (!ai.ready()) return { ok: false, reason: '请先在设置页配置 AI 接口（地址 / Key / 模型）' };
     // 不再全量重扫媒体库——文件清单由渲染层传入，逐个过 insideOutDir 校验防路径注入
     const list = (Array.isArray(paths) ? paths : []).map(p => insideOutDir(p)).filter(Boolean);
     if (!list.length) return { ok: false, reason: '分组不存在或没有有效文件' };
     const txts = [];
+    const seenSrc = new Set();   // 图组多张图共用目录 note.md，去重防同一篇喂 N 次
     for (const p of list) {
-      const t = p.replace(/\.[^.\\/]+$/, '') + '.txt';
-      if (!fs.existsSync(t)) continue;
-      try { txts.push({ name: path.basename(p), text: fs.readFileSync(t, 'utf-8').slice(0, 8000) }); } catch (e2) {}
+      const src = aiTextSource(p);
+      if (!src || seenSrc.has(src)) continue;
+      seenSrc.add(src);
+      try { txts.push({ name: path.basename(src), text: fs.readFileSync(src, 'utf-8').slice(0, 8000) }); } catch (e2) {}
       if (txts.length >= 20) break;   // 防超长+费用失控
     }
-    if (!txts.length) return { ok: false, reason: '该组还没有转写文稿——先点「📝 全组转写」' };
+    if (!txts.length) return { ok: false, reason: '该组还没有可总结的文本——先点「📝 全组转写」，或确认笔记/文章正文已归档（.md）' };
     const content = txts.map(t => `## ${t.name.replace(/\.[^.]+$/, '')}\n${t.text}`).join('\n\n');
     const md = await ai.run('groupSummary', content);
     // 组目录取第一个有效 path 的 dirname
@@ -1414,14 +1438,14 @@ app.whenReady().then(() => {
     const s = settings.get();
     return ai.fetchModels(s.aiUrl, secure.decryptSecret(s.aiKey));
   });
-  // 对已转写的媒体文件跑 AI：读同名 .txt（或 .srt），结果存同名 .ai.md
+  // 对有文本源的条目跑 AI：读转写稿 / note.md / article.md（U1 统一走 aiTextSource），结果存同名 .ai.md
   // 补 insideOutDir 校验（同文件其他文件操作都有，唯独这里漏了 → 越界读写）
   ipcMain.handle('ai:run', async (e, { p, task }) => {
     try {
       const base = String(p || '').replace(/\.[^.]+$/, '');
       if (!insideOutDir(base)) return { ok: false, reason: '路径不在下载目录内' };
-      const src = [base + '.txt', base + '.srt'].find(f => fs.existsSync(f));
-      if (!src) return { ok: false, reason: '先转写出文字稿（📝）再跑 AI' };
+      const src = aiTextSource(p);
+      if (!src) return { ok: false, reason: '该内容还没有文本源——视频先点 📝 转写，笔记/文章需归档时保存正文（.md）' };
       const text = fs.readFileSync(src, 'utf-8');
       const out = await ai.run(task, text);
       const outFile = base + '.ai.md';
@@ -1562,7 +1586,7 @@ app.whenReady().then(() => {
             if (it.type === 'feed') {
               const url2 = subs.itemUrl(s, it);
               if (!url2) return;
-              const t2 = queue.add(url2, { engine: engineForFeedItem(url2), title: `[订阅] ${s.name} · ${(it.text || '新文章').slice(0, 40)}`, _subId: s.id, _transcribe: !!real.autoTranscribe });
+              const t2 = queue.add(url2, { engine: engineForFeedItem(url2), title: `[订阅] ${s.name} · ${(it.text || '新文章').slice(0, 40)}`, _subId: s.id, _transcribe: !!real.autoTranscribe, _subs: !!real.autoSubs });
               if (t2 && t2.duplicate) return false;   // 同 URL 已在队列：不记 known，下轮重查防吞
               return true;
             }
@@ -1573,8 +1597,8 @@ app.whenReady().then(() => {
               return enqueueXhsNote(url2, `[订阅] ${s.name} · ${xhsDate(it)}${(it.text || '新笔记').slice(0, 40)}`, s);
             }
             const engine = it.type === 'video' ? 'yt-dlp' : 'gallery-dl';
-            // #70④：订阅开启「自动转写」→ 新任务带转写标记（下载完自动出字幕/文稿）
-            const t = queue.add(subs.itemUrl(s, it), { engine, title: `[订阅] ${s.name} · ${it.text || it.type}`, _subId: s.id, _transcribe: !!real.autoTranscribe });
+            // #70④ 自动转写 / U1b 抓官方字幕：订阅开关透传到队列标记（下载完自动转写；yt-dlp 抓平台字幕）
+            const t = queue.add(subs.itemUrl(s, it), { engine, title: `[订阅] ${s.name} · ${it.text || it.type}`, _subId: s.id, _transcribe: !!real.autoTranscribe, _subs: !!real.autoSubs });
             if (t && t.duplicate) return false;   // 同 URL 任务已在队列（可能失败/被取消）→ 不记 known，下轮仍算 fresh 重查，防增量被永久吞掉
             return true;
           });

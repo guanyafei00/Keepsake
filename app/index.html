@@ -2021,6 +2021,7 @@ function editSubOpts(id) {
       </div>
       <label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" id="soPaused" ${s.userPaused ? 'checked' : ''}> ⏸ 暂停此订阅（不自动检查、不自动下载，已下载文件保留）</label>
       <label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" id="soTranscribe" ${s.autoTranscribe ? 'checked' : ''}> 📝 新下载自动转写（下载完成即后台转写出字幕和文稿）</label>
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" id="soSubs" ${s.autoSubs ? 'checked' : ''}> ⬇ 新下载抓官方字幕（B站/YouTube 等有字幕源才有效；拿不到不阻塞下载）</label>
       <div>
         <div style="font-size:12.5px;color:var(--txt2);margin-bottom:5px">分组（留空 = 未分组，最多 20 字）</div>
         <input id="soGroup" value="${escAttr(s.group || '')}" placeholder="如：追更 / 学习 / 保存" style="width:100%;box-sizing:border-box;padding:8px 11px;border:1px solid var(--line);border-radius:var(--r-md);font:inherit;background:var(--panel2);color:var(--txt)">
@@ -2064,6 +2065,7 @@ async function saveSubOpts(id) {
     name: $('soName').value,
     userPaused: $('soPaused').checked,
     autoTranscribe: $('soTranscribe').checked,
+    autoSubs: $('soSubs').checked,
     group: $('soGroup').value,
     intervalMin: Number($('soInterval').value),
     latestN: Number($('soLatestN').value),
@@ -2183,8 +2185,8 @@ async function fetchAiModels() {
 let _aiBusy = false;
 function aiPanel(p) {
   const fname = p.split(/[\\/]/).pop();
-  openModal('✨ AI 文稿助理 · ' + esc(fname), `
-    <div style="font-size:12.5px;color:var(--txt2);margin-bottom:10px">对该文件的文字稿（TXT）运行 AI，结果保存为同名 <code>.ai.md</code> 并可复制。长文稿约需一两分钟。</div>
+  openModal('✨ AI 内容助理 · ' + esc(fname), `
+    <div style="font-size:12.5px;color:var(--txt2);margin-bottom:10px">对该内容的文本（视频转写稿 / 笔记正文 / 文章正文）运行 AI，结果保存为同名 <code>.ai.md</code> 并可复制。较长内容约需一两分钟。</div>
     <div style="display:flex;gap:8px;margin-bottom:10px">
       <button class="btn-mini" style="color:var(--acc2)" onclick="aiRun('${escAttr(p)}','summary')">📋 摘要要点</button>
       <button class="btn-mini" style="color:var(--acc2)" onclick="aiRun('${escAttr(p)}','translate')">🌐 翻译成中文</button>
@@ -2457,7 +2459,7 @@ function renderLibrary() {
       </div>
       <div class="x" onclick="event.stopPropagation();openPath('${escAttr(g.files[0] ? g.files[0].path : g.key)}')" title="打开文件夹">📁</div>
       <div class="st flat">${open ? '收起 ▲' : '展开 ▼'}</div>
-    </div>${open ? (g.files.length > 200 ? `<div class="hint" style="margin:0 0 6px 44px">该组共 ${g.files.length} 个文件，仅展示最近的 200 个（按发布时间排序）</div>` : '') + `<div style="margin:0 0 6px 44px;display:flex;gap:8px">${g.files.some(f => /\.(mp4|mkv|webm|mov|avi|flv|m4a|mp3|wav)$/i.test(f.name)) ? `<button type="button" class="btn-mini" style="color:var(--acc2)" onclick="transcribeGroup('${escAttr(g.key)}')" title="把组内还没有字幕的音视频全部排队转写（串行处理）">📝 全组转写</button>` : ''}<button type="button" class="btn-mini" style="color:var(--acc2)" onclick="summarizeGroup('${escAttr(g.key)}')" title="把组内转写文稿交给 AI 做结构化总结（需设置页配置 AI）">✨ AI 摘要</button></div>` + g.files.slice(0, 200).map(f => `
+    </div>${open ? (g.files.length > 200 ? `<div class="hint" style="margin:0 0 6px 44px">该组共 ${g.files.length} 个文件，仅展示最近的 200 个（按发布时间排序）</div>` : '') + `<div style="margin:0 0 6px 44px;display:flex;gap:8px">${g.files.some(f => /\.(mp4|mkv|webm|mov|avi|flv|m4a|mp3|wav)$/i.test(f.name)) ? `<button type="button" class="btn-mini" style="color:var(--acc2)" onclick="transcribeGroup('${escAttr(g.key)}')" title="把组内还没有字幕的音视频全部排队转写（串行处理）">📝 全组转写</button>` : ''}<button type="button" class="btn-mini" style="color:var(--acc2)" onclick="summarizeGroup('${escAttr(g.key)}')" title="把组内可总结文本（转写稿/笔记/文章正文）交给 AI 做专题综述（需设置页配置 AI）">✨ 专题总结</button></div>` + g.files.slice(0, 200).map(f => `
       <div class="task" style="margin:0 0 6px 44px;padding:8px 12px">
         <div class="t-thumb" style="width:36px;height:28px;font-size:14px">${kindIcon(f.kind)}</div>
         <div class="t-info">
@@ -2465,9 +2467,10 @@ function renderLibrary() {
           <div class="meta">${f.kind === 'article' ? '文章存档 · ' + f.sizeText + ' · ' : f.sizeText + ' · '}${timeAgo(f.mtime)}${articleBadge(f)}${txtHit(f) ? ' · 📄 <span title="' + escAttr(txtHit(f).snippet || '') + '" style="color:var(--acc2)">文稿匹配</span>' : ''}${asrStates[f.path] ? ' · 📝 ' + (asrStates[f.path].state === 'preparing' ? '准备中…' : asrStates[f.path].state === 'running' ? '转写中 ' + (asrStates[f.path].pct != null ? asrStates[f.path].pct + '%' : '…') : asrStates[f.path].state === 'done' ? '已转写' : '转写失败') : ''}${jobStatus(f)}${srcBadge(f)}</div>
           ${asrStates[f.path] && asrStates[f.path].state === 'running' && asrStates[f.path].pct != null ? `<div class="bar"><i style="width:${asrStates[f.path].pct}%"></i></div>` : (asrStates[f.path] && asrStates[f.path].state === 'preparing' ? `<div class="bar indet"><i></i></div>` : '')}
         </div>
-        ${f.kind === 'article' ? `<div class="x" onclick="event.stopPropagation();openArticle('${escAttr(f.path)}')" title="阅读（浏览器打开本地存档，离线可看）">📖</div><div class="x" onclick="event.stopPropagation();recheckArticle('${escAttr(f.path)}')" title="重新检查原文：是否被删除或编辑">⟳</div>` : ''}
+        ${f.kind === 'article' ? `<div class="x" onclick="event.stopPropagation();openArticle('${escAttr(f.path)}')" title="阅读（浏览器打开本地存档，离线可看）">📖</div><div class="x" onclick="event.stopPropagation();recheckArticle('${escAttr(f.path)}')" title="重新检查原文：是否被删除或编辑">⟳</div><div class="x" onclick="event.stopPropagation();aiPanel('${escAttr(f.path)}')" title="AI 摘要（对归档正文 article.md）">✨</div>` : ''}
         ${/\.(mp4|mkv|webm|mov|avi|flv|m4a|mp3|wav)$/i.test(f.name) ? `<div class="x" onclick="event.stopPropagation();transcribeFile('${escAttr(f.path)}')" title="本地转写出 SRT 字幕">📝</div><div class="x" onclick="event.stopPropagation();translateFile('${escAttr(f.path)}')" title="生成中英双语字幕（无字幕会先自动转写；需在设置页配置 AI）">🌐</div><div class="x" onclick="event.stopPropagation();burnFile('${escAttr(f.path)}')" title="把字幕硬烧进视频（生成新视频文件）">🎬</div><div class="x" onclick="event.stopPropagation();aiPanel('${escAttr(f.path)}')" title="AI 文稿助理（摘要/翻译）">✨</div>` : ''}
         ${f.kind === 'image' ? `<div class="x" onclick="event.stopPropagation();makeCbz('${escAttr(f.path)}')" title="把该图片所在目录的散图打包成 .cbz 漫画册（含 ComicInfo 元数据）">📖</div>` : ''}
+        ${f.kind === 'image' && f.hasText ? `<div class="x" onclick="event.stopPropagation();aiPanel('${escAttr(f.path)}')" title="AI 摘要（对笔记正文 note.md）">✨</div>` : ''}
         <div class="x" onclick="event.stopPropagation();openLibSource('${escAttr(f.path)}')" title="打开来源链接（浏览器）">🔗</div>
         <div class="x" onclick="openPath('${escAttr(f.path)}')" title="打开所在文件夹">📁</div>
         <div class="x" onclick="event.stopPropagation();trashFile('${escAttr(f.path)}')" title="删除（移入回收站，可恢复）" style="color:var(--red)">🗑</div>
@@ -2515,8 +2518,8 @@ async function makeCbz(p) {
 async function summarizeGroup(key) {
   const g = (libData.groups || []).find(x => x.key === key);
   if (!g) return;
-  openModal('✨ AI 摘要 · ' + esc(g.uploader), `
-    <div style="font-size:12.5px;color:var(--txt2);margin-bottom:10px">正在把组内转写文稿（最多 20 篇）交给 AI 做结构化总结，长内容约需一两分钟…</div>
+  openModal('✨ 专题总结 · ' + esc(g.uploader), `
+    <div style="font-size:12.5px;color:var(--txt2);margin-bottom:10px">正在把组内可总结文本（转写稿 / 笔记正文 / 文章正文，最多 20 篇）交给 AI 做专题综述，长内容约需一两分钟…</div>
     <div id="gsumOut" style="white-space:pre-wrap;font-size:13px;line-height:1.7;background:rgba(127,127,127,.08);border-radius:9px;padding:12px;max-height:46vh;overflow:auto">⏳ 生成中…</div>`);
   try {
     // 文件清单由前端 libData 提供，主进程不再全量重扫媒体库
