@@ -405,6 +405,10 @@ class DownloadQueue {
       it.status = status;
       if (status === 'done') it._watchdogRetries = 0;   // 成功即清零看门狗重试计数（避免历史失败拖累后续重试额度）
       Object.assign(it, extra);
+      if (status === 'done') {
+        // 归档文本化 S2：X 推文 metadata json → note.md（在 onDone/来源索引前写，失败不阻塞）
+        try { this._writeXNoteMd(it); } catch (e) { console.warn('[queue] X note hook fail:', e.message); }
+      }
       if (status === 'done' && this.onDone) {
         try { this.onDone(it); } catch (e) { console.warn('[queue] onDone hook fail:', e.message); }   // 来源索引（媒体库溯源用）
       }
@@ -558,6 +562,9 @@ class DownloadQueue {
     if (it.engine === 'gallery-dl') {
       const st = strategy.forUrl(it.url);
       const args = [...gdlBaseArgs(), '-d', OUTDIR, '--windows-filenames'];
+      // 归档文本化 S2：X(twitter/x.com) 任务额外写 metadata json（含 content 正文），
+      // done 后由 _writeXNoteMd 汇总成目录级 note.md 接入全文索引/AI。其他站点不开，避免 json 噪音。
+      if (/twitter\.com|x\.com/i.test(it.url)) args.push('--write-metadata');
       if (st.sleep > 0) args.push('--sleep', String(st.sleep));
       if (it._range) args.push('--range', it._range);
       if (PROXY) args.push('--proxy', PROXY);
@@ -657,6 +664,58 @@ class DownloadQueue {
       return mdPath;
     } catch (e) {
       console.warn('[queue] note.md 落盘失败（不影响媒体下载）:', e.message);
+      return null;
+    }
+  }
+
+  // 归档文本化 S2：X(twitter/x.com) 推文正文落 note.md。
+  // gallery-dl 的 --write-metadata 给每个媒体写同名 .json（含 content/author/date/tweet_id）。
+  // 这里在 done 后扫本次产出目录下的 *.json，按 tweet_id/content 去重，汇总成目录级 note.md。
+  // 一条推文多图=多份重复 json，只写一条 note.md；json 保留（是 gallery-dl 标准元数据，不进媒体库）。
+  // 失败/无正文不阻塞归档；只在 X 任务上跑（由调用点按 URL 判定）。
+  _writeXNoteMd(it) {
+    try {
+      if (it.engine !== 'gallery-dl' || !/twitter\.com|x\.com/i.test(it.url || '')) return null;
+      const files = Array.isArray(it._files) ? it._files : [];
+      if (!files.length) return null;
+      // 本次产出的目录集合（json 与媒体同目录；一条推文多图在同一目录）
+      const dirs = new Set();
+      for (const f of files) {
+        try { if (fs.statSync(f).isFile()) dirs.add(path.dirname(f)); } catch (e) {}
+      }
+      let written = 0;
+      for (const dir of dirs) {
+        const jsons = fs.readdirSync(dir).filter(n => /\.json$/i.test(n));
+        if (!jsons.length) continue;
+        const seen = new Set();
+        const notes = [];
+        for (const jf of jsons) {
+          let meta = null;
+          try { meta = JSON.parse(fs.readFileSync(path.join(dir, jf), 'utf-8')); } catch (e) { continue; }
+          const content = String(meta.content || '').trim();
+          if (!content) continue;
+          // 去重键：tweet_id 优先，退化用 content 前 200 字（多图同推文 content 一致）
+          const key = meta.tweet_id ? ('id:' + meta.tweet_id) : ('txt:' + content.slice(0, 200));
+          if (seen.has(key)) continue;
+          seen.add(key);
+          const author = meta.author && typeof meta.author === 'object'
+            ? (meta.author.name || meta.author.nick || '') : String(meta.author || '');
+          notes.push({ content, author, date: meta.date || '', url: meta.tweet_id ? ('https://x.com/i/status/' + meta.tweet_id) : '' });
+        }
+        if (!notes.length) continue;
+        const esc = s => String(s == null ? '' : s).replace(/"/g, '\\"').replace(/[\r\n]+/g, ' ').trim();
+        const lines = ['---', 'source: twitter', `count: ${notes.length}`, '---', ''];
+        for (const n of notes) {
+          lines.push(`## ${n.author ? '@' + n.author : '推文'}${n.date ? ' · ' + esc(String(n.date).slice(0, 10)) : ''}`);
+          if (n.url) lines.push(`> ${n.url}`);
+          lines.push('', n.content, '');
+        }
+        fs.writeFileSync(path.join(dir, 'note.md'), lines.join('\n'), 'utf-8');
+        written++;
+      }
+      return written ? written : null;
+    } catch (e) {
+      console.warn('[queue] X note.md 落盘失败（不影响媒体下载）:', e.message);
       return null;
     }
   }

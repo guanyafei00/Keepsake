@@ -47,19 +47,30 @@ function reindex(entries) {
     const src = e.src || (e.path.replace(/\.[^.\\/]+$/, '') + '.txt');
     const key = e.key || src;
     want.add(key);
-    let st = null;
-    try { st = fs.statSync(src); } catch { continue; }   // 无文稿的媒体跳过
+    // 正文优先：同名 .txt/.srt/... 存在就用正文。都不存在时，S1 文件名语料兜底。
+    let st = null, text = '', isName = false;
+    try { st = fs.statSync(src); } catch (e2) {
+      if (e.nameCorpus) { isName = true; text = e.nameCorpus; st = { mtimeMs: 0, size: 0 }; }
+      else continue;   // 无正文、无文件名候选的媒体跳过
+    }
     const doc = data.docs[key];
     if (doc && doc.mtime === st.mtimeMs) { skipped++; continue; }
-    let text = '';
-    try { text = fs.readFileSync(src, 'utf-8'); } catch { continue; }
+    if (!isName) {
+      try { text = fs.readFileSync(src, 'utf-8'); } catch (e2) {
+        // 正文读取失败也允许文件名兜底（读取竞态/权限），但不用正文的 mtime
+        if (e.nameCorpus) { isName = true; text = e.nameCorpus; st = { mtimeMs: 0, size: 0 }; }
+        else continue;
+      }
+    }
     removeDoc(key);   // 先摘除旧 token
     const tokens = tokenize(text);
     for (const tk of tokens) {
       const arr = data.index[tk] || (data.index[tk] = []);
       if (!arr.includes(key)) arr.push(key);
     }
-    data.docs[key] = { mtime: st.mtimeMs, title: e.title || path.basename(key), up: e.up || '', size: st.size, tokens: tokens.length, src: key === src ? undefined : src };
+    const rec = { mtime: st.mtimeMs, title: e.title || path.basename(key), up: e.up || '', size: st.size, tokens: tokens.length, src: (key === src || isName) ? undefined : src };
+    if (isName) rec.kind = 'filename';   // UI 标"仅文件名"，避免误以为命中正文
+    data.docs[key] = rec;
     indexed++;
   }
   // 媒体已删除/移动的文稿：从索引摘除
@@ -116,10 +127,11 @@ function search(q, limit = 30) {
   const qlower = query.toLowerCase();
   const results = [...candidates].map(p => {
     const d = data.docs[p] || {};
-    return { path: p, title: d.title || path.basename(p), up: d.up || '', hits: tokens.length, snippet: '' };
+    return { path: p, title: d.title || path.basename(p), up: d.up || '', hits: tokens.length, snippet: '', kind: d.kind || 'text' };
   });
-  // snippet：读文件找首个命中位置（cap 30 篇，防大结果集读盘）
+  // snippet：文件名 doc 直接回显文件名；正文读文件找首个命中位置（cap 30 篇，防大结果集读盘）
   for (const r of results.slice(0, limit)) {
+    if (r.kind === 'filename') { r.snippet = '仅文件名匹配：' + r.title; continue; }
     try {
       const d = data.docs[r.path] || {};
       const srcFile = d.src || r.path;   // 文章条目：key 是目录路径，正文实际在 article.md（docs.src 指路）

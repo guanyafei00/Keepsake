@@ -604,6 +604,11 @@
         <span class="note">图站（Pixiv/微博/Booru 等）任务完成后，把图片目录自动打包成 .cbz 漫画册（媒体库/阅读器可直接看）</span>
       </div>
       <div class="row" style="margin:12px 0 0">
+        <label>自动字幕</label>
+        <input type="checkbox" id="autoSubtitleChk" onchange="saveAutoSubtitle(this.checked)">
+        <span class="note">开启后，新下载的视频自动抓平台官方字幕；若没有字幕则本地转写出 .srt 兜底（whisper 串行、较吃 CPU，默认关闭）。媒体库点 📝 随时可单独转写</span>
+      </div>
+      <div class="row" style="margin:12px 0 0">
         <label>剪贴板监听</label>
         <input type="checkbox" id="clipChk" onchange="saveClipboardWatch(this.checked)">
         <span class="note">复制链接后自动填入任务输入框（只填框，加入队列仍需手动点按钮确认；默认开启）</span>
@@ -1442,6 +1447,7 @@ async function loadSettings() {
   $('biliLineSel').value = s.biliLine || '';
   $('backfillParallelSel').value = String(Math.min(6, Math.max(1, s.backfillParallel || 3)));
   $('autoCbzChk').checked = !!s.autoCbz;
+  $('autoSubtitleChk').checked = !!s.autoSubtitle;
   $('clipChk').checked = !!s.clipboardWatch;
   loadAiConfig();
   $('engineAutoChk').checked = s.engineAutoUpdate !== false;
@@ -1679,6 +1685,11 @@ async function saveCookieBrowser() {
 async function saveAutoCbz(on) {
   await window.keepsake.settingsSetCbz(on);
   toast(on ? '已开启：图站下载完成自动打包 .cbz 漫画册 ✓' : '已关闭漫画册自动打包');
+}
+// 自动字幕总开关：抓官方字幕 + 无字幕兜底本地转写
+async function saveAutoSubtitle(on) {
+  await window.keepsake.settingsSetAutoSubtitle(on);
+  toast(on ? '已开启：新视频自动抓字幕，无字幕则本地转写 ✓' : '已关闭自动字幕');
 }
 // 剪贴板监听（复制链接自动填输入框，不自动入队）
 async function saveClipboardWatch(on) {
@@ -2464,7 +2475,7 @@ function renderLibrary() {
         <div class="t-thumb" style="width:36px;height:28px;font-size:14px">${kindIcon(f.kind)}</div>
         <div class="t-info">
           <div class="name" title="${esc(f.path)}">${esc(f.name)}</div>
-          <div class="meta">${f.kind === 'article' ? '文章存档 · ' + f.sizeText + ' · ' : f.sizeText + ' · '}${timeAgo(f.mtime)}${articleBadge(f)}${txtHit(f) ? ' · 📄 <span title="' + escAttr(txtHit(f).snippet || '') + '" style="color:var(--acc2)">文稿匹配</span>' : ''}${asrStates[f.path] ? ' · 📝 ' + (asrStates[f.path].state === 'preparing' ? '准备中…' : asrStates[f.path].state === 'running' ? '转写中 ' + (asrStates[f.path].pct != null ? asrStates[f.path].pct + '%' : '…') : asrStates[f.path].state === 'done' ? '已转写' : '转写失败') : ''}${jobStatus(f)}${srcBadge(f)}</div>
+          <div class="meta">${f.kind === 'article' ? '文章存档 · ' + f.sizeText + ' · ' : f.sizeText + ' · '}${timeAgo(f.mtime)}${articleBadge(f)}${txtHit(f) ? (txtHit(f).kind === 'filename' ? ' · 📛 <span title="' + escAttr(txtHit(f).snippet || '') + '" style="color:var(--acc2)">仅文件名</span>' : ' · 📄 <span title="' + escAttr(txtHit(f).snippet || '') + '" style="color:var(--acc2)">文稿匹配</span>') : ''}${asrStates[f.path] ? ' · 📝 ' + (asrStates[f.path].state === 'preparing' ? '准备中…' : asrStates[f.path].state === 'running' ? '转写中 ' + (asrStates[f.path].pct != null ? asrStates[f.path].pct + '%' : '…') : asrStates[f.path].state === 'done' ? '已转写' : '转写失败') : ''}${jobStatus(f)}${srcBadge(f)}</div>
           ${asrStates[f.path] && asrStates[f.path].state === 'running' && asrStates[f.path].pct != null ? `<div class="bar"><i style="width:${asrStates[f.path].pct}%"></i></div>` : (asrStates[f.path] && asrStates[f.path].state === 'preparing' ? `<div class="bar indet"><i></i></div>` : '')}
         </div>
         ${f.kind === 'article' ? `<div class="x" onclick="event.stopPropagation();openArticle('${escAttr(f.path)}')" title="阅读（浏览器打开本地存档，离线可看）">📖</div><div class="x" onclick="event.stopPropagation();recheckArticle('${escAttr(f.path)}')" title="重新检查原文：是否被删除或编辑">⟳</div><div class="x" onclick="event.stopPropagation();aiPanel('${escAttr(f.path)}')" title="AI 摘要（对归档正文 article.md）">✨</div>` : ''}

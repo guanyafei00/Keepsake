@@ -37,6 +37,9 @@ function configure({ file, defaultOutDir }) {
   }
   // 图站（gallery-dl）任务完成后自动把图片目录打包成 CBZ（漫画归档友好；0 依赖，用系统自带 bsdtar）
   if (data.autoCbz === undefined) data.autoCbz = false; else data.autoCbz = !!data.autoCbz;
+  // 自动字幕总开关（S2 附加）：开→新下载默认抓官方字幕，下载后无字幕则本地 whisper 兜底转写；
+  // 默认关——whisper 串行吃 CPU，交给用户显式开启。与订阅各自的 autoSubs/autoTranscribe 独立叠加。
+  if (data.autoSubtitle === undefined) data.autoSubtitle = false; else data.autoSubtitle = !!data.autoSubtitle;
   // 剪贴板监听（复制链接自动填入输入框；#40 起默认开——主进程已带引擎过滤+24h 去重+焦点门控，
   // 且只填输入框绝不自动入队，打扰风险已收敛）
   if (data.clipboardWatch === undefined) data.clipboardWatch = true; else data.clipboardWatch = !!data.clipboardWatch;
@@ -65,6 +68,7 @@ function set(patch) {
     p.backfillParallel = Math.min(6, Math.max(1, Number.isFinite(n) ? Math.floor(n) : 3));
   }
   if (p.autoCbz !== undefined) p.autoCbz = !!p.autoCbz;
+  if (p.autoSubtitle !== undefined) p.autoSubtitle = !!p.autoSubtitle;
   if (p.clipboardWatch !== undefined) p.clipboardWatch = !!p.clipboardWatch;
   if (p.wereadEnabled !== undefined) p.wereadEnabled = !!p.wereadEnabled;
   // U6 外观：写路径与 configure 同规则（局部 merge，坏值归一化）

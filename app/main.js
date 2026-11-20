@@ -60,6 +60,20 @@ const source = require('./lib/source');
 const srtLib = require('./lib/srt');
 const backup = require('./lib/backup');
 const textindex = require('./lib/textindex');
+// 元数据语料回填 S1：这些站点的媒体文件名常含真实标题（B站/YouTube/小红书），无正文时退用文件名建索引。
+// twitter/X 不在列——文件名是纯数字推文 ID，无语料价值（其正文走 S2 的 note.md）。
+const NAME_CORPUS_SITES = new Set(['bilibili', 'youtube', 'xiaohongshu']);
+// 文件名清洗：去扩展名 → 剥平台 ID 尾巴（[BVxxx]/[avid]/(编号)）→ 去末尾分P序号 → 压缩空白。
+// 纯数字/ID/过短者返回 ''（表示无语料价值，不建索引）。
+function cleanNameCorpus(name) {
+  let s = String(name || '').replace(/\.[^.\\/]+$/, '');   // 去扩展名
+  s = s.replace(/\s*[\[(【][^\])】]*?(BV[0-9A-Za-z]+|av\d+|[0-9]{6,})[^\])】]*[\])】]\s*$/i, ''); // 尾部 ID 括号
+  s = s.replace(/\s*[_=\-–]\s*\d{1,4}$/, '');   // 末尾 _1 / -2 分P
+  s = s.replace(/^\s*\d{6,}[_\-]?\d*\s*$/, ''); // 纯数字 ID 文件名（twitter 风格）
+  s = s.replace(/\s+/g, ' ').trim();
+  if (s.length < 4 || /^\d+$/.test(s)) return '';
+  return s;
+}
 const cbzLib = require('./lib/cbz');   // #37 CBZ 漫画册打包（媒体库一键成册 library:makeCbz 用）
 const { TolerantDecoder } = require('./lib/dec');   // #46⑤ 引擎输出 UTF-8 优先、GBK 回退容错解码
 const articleLib = require('./lib/article');   // 文章引擎（M-A2/A3）：公众号/知乎/B站专栏等网页文章归档 + 删帖复查
@@ -566,8 +580,17 @@ app.whenReady().then(() => {
           n.show();
         }
       // 勾了「转写」的任务：下载完成自动转写产物（视频/音频都可，whisper 吃 ffmpeg 提的音轨）
+      // 自动字幕总开关（S2）：全局开着时，视频下载完若没有 .srt 字幕则自动兜底本地转写。
+      // 只处理视频/音频文件；已有 .srt（官方字幕或转写产物）跳过，避免重复吃 CPU。
+      const autoSubFallback = !!settings.get().autoSubtitle;
       for (const t of snapshot) {
-        if (t.status === 'done' && t._transcribe && t.filePath && !t._transcribed) {
+        if (t.status !== 'done' || !t.filePath || t._transcribed) continue;
+        let needTranscribe = !!t._transcribe;
+        if (autoSubFallback && /\.(mp4|mkv|webm|mov|avi|flv|m4a|mp3|wav)$/i.test(t.filePath)) {
+          const srt = t.filePath.replace(/\.[^.]+$/, '') + '.srt';
+          if (!fs.existsSync(srt)) needTranscribe = true;   // 无字幕 → 兜底转写
+        }
+        if (needTranscribe) {
           t._transcribed = true;   // 防重复
           enqueueTranscribe(t.filePath, 'task');
         }
@@ -876,6 +899,11 @@ app.whenReady().then(() => {
     setAutoCbz(r.autoCbz);
     return { ok: true, autoCbz: r.autoCbz };
   });
+  // 自动字幕总开关（S2）：开→新下载默认抓官方字幕，下载后无字幕则本地转写兜底
+  ipcMain.handle('settings:setAutoSubtitle', (e, { on }) => {
+    const r = settings.set({ autoSubtitle: !!on });
+    return { ok: true, autoSubtitle: r.autoSubtitle };
+  });
   // U6 外观设置（theme/accent；layout 留给 U6.2）。渲染层负责即时生效，主进程只持久化
   ipcMain.handle('settings:setUi', (e, ui) => {
     const r = settings.set({ ui: ui || {} });
@@ -1111,7 +1139,9 @@ app.whenReady().then(() => {
         invalid.push({ url: url.trim(), reason: '这是 RSS 订阅源：到「📡 订阅」页粘贴添加，更新即自动下载' });
         continue;
       }
-      const item = queue.add(url.trim(), { ...meta, _subs: !!(opts && opts.subs), _audio: !!(opts && opts.audio), _transcribe: !!(opts && opts.trans) });
+      // 自动字幕总开关：全局开着时，手动下载默认也抓官方字幕（用户可再手动取消胶囊）
+      const autoSubOn = !!settings.get().autoSubtitle;
+      const item = queue.add(url.trim(), { ...meta, _subs: !!(opts && opts.subs) || autoSubOn, _audio: !!(opts && opts.audio), _transcribe: !!(opts && opts.trans) });
       if (!item) continue;
       if (item.duplicate) duplicates.push(url.trim());
       else added.push(item.id);
@@ -1310,10 +1340,10 @@ app.whenReady().then(() => {
       const entries = [];
       for (const g of r.groups) for (const f of g.files) {
         if (f.kind === 'article') { entries.push({ path: f.path, src: path.join(f.path, 'article.md'), key: f.path, title: f.name, up: g.uploader }); continue; }
-        // 归档文本化 T1/T3：小红书媒体（视频 .mp4 / 图组图片）同级有 note.md 时纳入全文索引。
-        // 视频：note.md 与 mp4 同目录、扩展名换 .md，key=mp4 path；
-        // 图组：note.md 在图片所在目录（=笔记目录），key=笔记目录（与 article 目录 key 同构，
-        //   一张笔记只建一条 doc，搜索结果不按图片数刷屏；渲染层按目录前缀给每张图显示徽标）。
+        // 归档文本化 T1/T3/S2：小红书 / X(twitter) 媒体所在目录有 note.md 时纳入全文索引。
+        // 视频（小红书）：note.md 与 mp4 同目录、扩展名换 .md，key=mp4 path；
+        // 图组/推文图：note.md 在目录内，key=笔记目录（一条笔记/一次推文归档只建一条 doc，
+        //   不按图片数刷屏；渲染层按目录前缀给每张图显示徽标）。
         let noteMd = null, noteKey = f.path;
         if (g.site === 'xiaohongshu') {
           if (f.kind === 'video') {
@@ -1324,9 +1354,21 @@ app.whenReady().then(() => {
             const candidate = path.join(dir, 'note.md');
             try { if (fs.statSync(candidate).isFile()) { noteMd = candidate; noteKey = dir; } } catch (e) {}
           }
+        } else if (g.site === 'twitter' || g.site === 'x') {
+          const candidate = path.join(path.dirname(f.path), 'note.md');
+          try { if (fs.statSync(candidate).isFile()) { noteMd = candidate; noteKey = path.dirname(f.path); } } catch (e) {}
         }
-        if (noteMd) entries.push({ path: f.path, src: noteMd, key: noteKey, title: f.name, up: g.uploader });
-        else entries.push({ path: f.path, title: f.name, up: g.uploader });
+        if (noteMd) {
+          entries.push({ path: f.path, src: noteMd, key: noteKey, title: f.name, up: g.uploader });
+          continue;
+        }
+        // 元数据语料回填 S1：白名单站点带 nameCorpus 候选。textindex 仅在同名 .txt/.srt 等
+        // 正文都不存在时才退用文件名建 doc——有正文的绝不退化；纯数字 ID 文件名清洗后为空，自动跳过。
+        // key 统一用媒体真实路径（与 article/小红书同构，UI 的 txtHit 按媒体路径命中；
+        //   reindex 清理循环按 key 判 existsSync，文件名 doc 不会被误摘）。
+        const e = { path: f.path, key: f.path, title: f.name, up: g.uploader };
+        if (NAME_CORPUS_SITES.has(g.site)) e.nameCorpus = cleanNameCorpus(f.name);
+        entries.push(e);
       }
       const s = textindex.reindex(entries);
       if (s.indexed) log.info('textindex', `文稿索引更新 ${s.indexed} 篇（共 ${textindex.stats().docs} 篇）`);
@@ -1586,7 +1628,7 @@ app.whenReady().then(() => {
             if (it.type === 'feed') {
               const url2 = subs.itemUrl(s, it);
               if (!url2) return;
-              const t2 = queue.add(url2, { engine: engineForFeedItem(url2), title: `[订阅] ${s.name} · ${(it.text || '新文章').slice(0, 40)}`, _subId: s.id, _transcribe: !!real.autoTranscribe, _subs: !!real.autoSubs });
+              const t2 = queue.add(url2, { engine: engineForFeedItem(url2), title: `[订阅] ${s.name} · ${(it.text || '新文章').slice(0, 40)}`, _subId: s.id, _transcribe: !!real.autoTranscribe, _subs: !!real.autoSubs || !!settings.get().autoSubtitle });
               if (t2 && t2.duplicate) return false;   // 同 URL 已在队列：不记 known，下轮重查防吞
               return true;
             }
@@ -1598,7 +1640,7 @@ app.whenReady().then(() => {
             }
             const engine = it.type === 'video' ? 'yt-dlp' : 'gallery-dl';
             // #70④ 自动转写 / U1b 抓官方字幕：订阅开关透传到队列标记（下载完自动转写；yt-dlp 抓平台字幕）
-            const t = queue.add(subs.itemUrl(s, it), { engine, title: `[订阅] ${s.name} · ${it.text || it.type}`, _subId: s.id, _transcribe: !!real.autoTranscribe, _subs: !!real.autoSubs });
+            const t = queue.add(subs.itemUrl(s, it), { engine, title: `[订阅] ${s.name} · ${it.text || it.type}`, _subId: s.id, _transcribe: !!real.autoTranscribe, _subs: !!real.autoSubs || !!settings.get().autoSubtitle });
             if (t && t.duplicate) return false;   // 同 URL 任务已在队列（可能失败/被取消）→ 不记 known，下轮仍算 fresh 重查，防增量被永久吞掉
             return true;
           });

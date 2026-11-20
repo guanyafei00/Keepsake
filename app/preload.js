@@ -59,6 +59,7 @@ contextBridge.exposeInMainWorld('keepsake', {
   settingsSetCookieBrowser: (b) => ipcRenderer.invoke('settings:setCookieBrowser', { b }),
   settingsSetBiliLine: (l) => ipcRenderer.invoke('settings:setBiliLine', { line: l }),
   settingsSetCbz: (on) => ipcRenderer.invoke('settings:setCbz', { on }),
+  settingsSetAutoSubtitle: (on) => ipcRenderer.invoke('settings:setAutoSubtitle', { on }),   // 自动字幕总开关（S2）
   settingsSetUi: (ui) => ipcRenderer.invoke('settings:setUi', ui),   // U6 外观（theme/accent/layout）
   appVersion: () => ipcRenderer.invoke('app:version'),
   appCheckUpdate: () => ipcRenderer.invoke('app:checkUpdate'),
