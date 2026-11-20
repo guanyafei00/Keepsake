@@ -1285,7 +1285,23 @@ app.whenReady().then(() => {
     try {
       const entries = [];
       for (const g of r.groups) for (const f of g.files) {
-        if (f.kind === 'article') entries.push({ path: f.path, src: path.join(f.path, 'article.md'), key: f.path, title: f.name, up: g.uploader });
+        if (f.kind === 'article') { entries.push({ path: f.path, src: path.join(f.path, 'article.md'), key: f.path, title: f.name, up: g.uploader }); continue; }
+        // 归档文本化 T1/T3：小红书媒体（视频 .mp4 / 图组图片）同级有 note.md 时纳入全文索引。
+        // 视频：note.md 与 mp4 同目录、扩展名换 .md，key=mp4 path；
+        // 图组：note.md 在图片所在目录（=笔记目录），key=笔记目录（与 article 目录 key 同构，
+        //   一张笔记只建一条 doc，搜索结果不按图片数刷屏；渲染层按目录前缀给每张图显示徽标）。
+        let noteMd = null, noteKey = f.path;
+        if (g.site === 'xiaohongshu') {
+          if (f.kind === 'video') {
+            const candidate = f.path.replace(/\.mp4$/i, '.md');
+            try { if (fs.statSync(candidate).isFile()) { noteMd = candidate; noteKey = f.path; } } catch (e) {}
+          } else {
+            const dir = path.dirname(f.path);
+            const candidate = path.join(dir, 'note.md');
+            try { if (fs.statSync(candidate).isFile()) { noteMd = candidate; noteKey = dir; } } catch (e) {}
+          }
+        }
+        if (noteMd) entries.push({ path: f.path, src: noteMd, key: noteKey, title: f.name, up: g.uploader });
         else entries.push({ path: f.path, title: f.name, up: g.uploader });
       }
       const s = textindex.reindex(entries);
@@ -1463,7 +1479,8 @@ app.whenReady().then(() => {
   async function enqueueXhsNote(noteUrl, title, sub) {
     let meta = null;
     try { meta = await xhs.resolveNote(noteUrl); } catch (e) { return false; }
-    const base = { site: 'xiaohongshu', title: meta.title || title, uploader: meta.uploader || null, vid: meta.vid || null, coverUrl: null, headers: meta.headers };
+    // 归档文本化 T1：正文全文/时间/原文链接随 payload 落到 note.md（订阅路径 meta 来自 resolveNote）
+    const base = { site: 'xiaohongshu', title: meta.title || title, uploader: meta.uploader || null, vid: meta.vid || null, coverUrl: null, headers: meta.headers, noteText: meta.noteText || '', noteTime: meta.noteTime || null, noteUrl: noteUrl };
     // 视频优先：视频笔记的 imageList 里也带封面帧，图组先判会把视频笔记误判成图组（只下封面）
     const payload = meta.videoUrl
       ? { ...base, kind: 'video', directUrl: meta.videoUrl, directUrls: null }

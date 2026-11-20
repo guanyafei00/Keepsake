@@ -60,6 +60,8 @@ const META_JS = {
         var nd = cur && map[cur] && map[cur].note;
         if (nd) {
           out.title = nd.title || nd.desc || '';
+          out.noteText = nd.desc || '';   // 归档文本化 T1：笔记正文全文
+          out.noteTime = nd.time || null; // 毫秒时间戳
           out.uploader = (nd.user && (nd.user.nickname || nd.user.nickName)) || '';
           out.vid = nd.noteId || cur || '';
           var vs = (nd.video && nd.video.media && (nd.video.media.stream || nd.video.media.videoStream)) || null;
@@ -293,12 +295,14 @@ class EmbedBrowserManager {
       return this._dispatch({
         site: 'xiaohongshu', kind: 'video', directUrl: meta.videoUrl, directUrls: null,
         title: meta.title || '', uploader: meta.uploader || '', vid: meta.vid || '', coverUrl: null, headers,
+        noteText: meta.noteText || '', noteTime: meta.noteTime || null, noteUrl: win.webContents.getURL(),
       }, siteKey);
     }
     if (siteKey === 'xhs' && Array.isArray(meta.imageUrls) && meta.imageUrls.length) {
       return this._dispatch({
         site: 'xiaohongshu', kind: 'images', directUrl: null, directUrls: meta.imageUrls,
         title: meta.title || '', uploader: meta.uploader || '', vid: meta.vid || '', coverUrl: null, headers,
+        noteText: meta.noteText || '', noteTime: meta.noteTime || null, noteUrl: win.webContents.getURL(),
       }, siteKey);
     }
     if (cap && cap.mediaUrl) {

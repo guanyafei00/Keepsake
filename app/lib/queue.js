@@ -627,6 +627,40 @@ class DownloadQueue {
     }).catch(e => fail(e && e.message || e));
   }
 
+  // 归档文本化 T1：小红书笔记写 note.md（Obsidian 友好 YAML frontmatter）。
+  // 仅 xiaohongshu 站点 + payload 带 noteText 时写；文案缺失不阻塞归档主流程（只写标题/链接/时间）。
+  // 视频：dest 是 .mp4 文件 → 同级同名 .md；图组：dest 是目录 → 目录内 note.md（同作者多帖不冲突）。
+  _writeNoteMd(it, dest, r, p) {
+    if (r.site !== 'xiaohongshu' || !p || !p.noteText) return null;
+    try {
+      const mdPath = r.kind === 'images'
+        ? path.join(dest, 'note.md')
+        : dest.replace(/\.mp4$/i, '.md');
+      const esc = s => String(s == null ? '' : s).replace(/"/g, '\\"').replace(/[\r\n]+/g, ' ').trim();
+      let when = p.noteTime;
+      if (when && typeof when === 'number') when = new Date(when > 1e12 ? when : when * 1000).toISOString();
+      const lines = [
+        '---',
+        `title: "${esc(r.title || p.title || '')}"`,
+        `author: "${esc(r.uploader || it.uploader || '')}"`,
+        `url: "${esc(p.noteUrl || it.url || '')}"`,
+        `date: "${esc(when || '')}"`,
+        'source: xiaohongshu',
+        '---',
+        '',
+        `# ${r.title || p.title || '小红书笔记'}`,
+        '',
+        String(p.noteText),
+      ];
+      fs.mkdirSync(path.dirname(mdPath), { recursive: true });
+      fs.writeFileSync(mdPath, lines.join('\n'), 'utf-8');
+      return mdPath;
+    } catch (e) {
+      console.warn('[queue] note.md 落盘失败（不影响媒体下载）:', e.message);
+      return null;
+    }
+  }
+
   // 直连下载公共段：站点归名 / vid / 目录拼装，按 kind 分流到单文件流式或图组批量下载
   _runDirectDownload(it, done, seq, r, dp, fail, clearDiskTimer) {
     const site = r.site || dp.siteOf(it.url) || 'other';
@@ -637,6 +671,8 @@ class DownloadQueue {
     if (r.uploader) it.uploader = r.uploader;
     if (site) it._site = site;              // 站点名（任务卡平台徽标展示用，随快照外发）
     const dest = dp.directOutPath({ outDir: OUTDIR, site, uploader: r.uploader, title, vid, kind: r.kind });
+    // 归档文本化 T1：小红书文案落 note.md（在媒体下载前写，文案现成无需网络；失败不影响下载）
+    this._writeNoteMd(it, dest, r, it._directPayload);
     // 请求头：默认与探测窗口同环境（CDN 防盗链对齐），载荷/探测结果显式带的 headers 优先
     const headers = Object.assign({
       'User-Agent': dp.UA_MOBILE,

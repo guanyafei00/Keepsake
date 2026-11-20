@@ -100,6 +100,8 @@ const NOTE_META_JS = `(function(){
       var nd = cur && m[cur] && m[cur].note;
       if (nd) {
         out.title = nd.title || nd.desc || '';
+        out.noteText = nd.desc || '';   // 归档文本化 T1：笔记正文全文（title 可能只是短标题，desc 才是全文）
+        out.noteTime = nd.time || null; // 毫秒时间戳（落盘 note.md 用）
         out.uploader = (nd.user && (nd.user.nickname || nd.user.nickName)) || '';
         out.vid = nd.noteId || cur || '';
         var vs = (nd.video && nd.video.media && (nd.video.media.stream || nd.video.media.videoStream)) || null;

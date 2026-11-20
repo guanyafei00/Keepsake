@@ -2397,6 +2397,12 @@ async function loadLibrary(force) {
 let libKw = '';
 let _txtHits = {};   // #70③ 文稿全文检索结果：path → {snippet}（随搜索词防抖更新）
 let _txtSearchTimer = null;
+// 文稿命中：精确 path（文章目录/视频 .mp4）或图组目录前缀（小红书图组按笔记目录建一条 doc）
+function txtHit(f) {
+  if (_txtHits[f.path]) return _txtHits[f.path];
+  const dir = f.path.replace(/[\\/][^\\/]+$/, '');
+  return dir && dir !== f.path ? _txtHits[dir] : null;
+}
 function setLibKw(v) {
   libKw = String(v || '').trim();
   $('libKwClear').style.display = libKw ? 'inline' : 'none';
@@ -2423,7 +2429,7 @@ function renderLibrary() {
   // 关键词过滤：UP主 / 站点 / 任一文件名命中 / 文稿内容命中（#70③）即保留该组
   const groups = kw ? libData.groups.filter(g =>
     g.uploader.toLowerCase().includes(kw) || g.site.toLowerCase().includes(kw) ||
-    g.files.some(f => f.name.toLowerCase().includes(kw)) || g.files.some(f => _txtHits[f.path])) : libData.groups;
+    g.files.some(f => f.name.toLowerCase().includes(kw)) || g.files.some(f => txtHit(f))) : libData.groups;
   $('l-cnt').textContent = kw ? `${groups.length}/${libData.groups.length}` : libData.groups.length;
   $('l-sum').textContent = `${libData.totalFiles} 个文件 · ${fmtBytes(libData.totalSize)}`;
   if (!libData.groups.length) {
@@ -2440,7 +2446,7 @@ function renderLibrary() {
   el.innerHTML = bigNote + groups.map(g => {
     const open = g.key === expandedKey;
     const matched = kw ? g.files.filter(f => f.name.toLowerCase().includes(kw)).length : 0;
-    const txtMatched = kw ? g.files.filter(f => _txtHits[f.path]).length : 0;
+    const txtMatched = kw ? g.files.filter(f => txtHit(f)).length : 0;
     const kwNote = (kw && (matched || txtMatched)) ? ` · <span style="color:var(--acc2)">命中 ${matched ? matched + ' 个文件' : ''}${matched && txtMatched ? ' + ' : ''}${txtMatched ? txtMatched + ' 篇文稿' : ''}</span>` : '';
     return `
     <div class="task" style="cursor:pointer;${open ? 'border-color:var(--acc);background:var(--accbg)' : ''}" onclick="toggleGroup('${escAttr(g.key)}')">
@@ -2456,7 +2462,7 @@ function renderLibrary() {
         <div class="t-thumb" style="width:36px;height:28px;font-size:14px">${kindIcon(f.kind)}</div>
         <div class="t-info">
           <div class="name" title="${esc(f.path)}">${esc(f.name)}</div>
-          <div class="meta">${f.kind === 'article' ? '文章存档 · ' + f.sizeText + ' · ' : f.sizeText + ' · '}${timeAgo(f.mtime)}${articleBadge(f)}${_txtHits[f.path] ? ' · 📄 <span title="' + escAttr(_txtHits[f.path].snippet || '') + '" style="color:var(--acc2)">文稿匹配</span>' : ''}${asrStates[f.path] ? ' · 📝 ' + (asrStates[f.path].state === 'preparing' ? '准备中…' : asrStates[f.path].state === 'running' ? '转写中 ' + (asrStates[f.path].pct != null ? asrStates[f.path].pct + '%' : '…') : asrStates[f.path].state === 'done' ? '已转写' : '转写失败') : ''}${jobStatus(f)}${srcBadge(f)}</div>
+          <div class="meta">${f.kind === 'article' ? '文章存档 · ' + f.sizeText + ' · ' : f.sizeText + ' · '}${timeAgo(f.mtime)}${articleBadge(f)}${txtHit(f) ? ' · 📄 <span title="' + escAttr(txtHit(f).snippet || '') + '" style="color:var(--acc2)">文稿匹配</span>' : ''}${asrStates[f.path] ? ' · 📝 ' + (asrStates[f.path].state === 'preparing' ? '准备中…' : asrStates[f.path].state === 'running' ? '转写中 ' + (asrStates[f.path].pct != null ? asrStates[f.path].pct + '%' : '…') : asrStates[f.path].state === 'done' ? '已转写' : '转写失败') : ''}${jobStatus(f)}${srcBadge(f)}</div>
           ${asrStates[f.path] && asrStates[f.path].state === 'running' && asrStates[f.path].pct != null ? `<div class="bar"><i style="width:${asrStates[f.path].pct}%"></i></div>` : (asrStates[f.path] && asrStates[f.path].state === 'preparing' ? `<div class="bar indet"><i></i></div>` : '')}
         </div>
         ${f.kind === 'article' ? `<div class="x" onclick="event.stopPropagation();openArticle('${escAttr(f.path)}')" title="阅读（浏览器打开本地存档，离线可看）">📖</div><div class="x" onclick="event.stopPropagation();recheckArticle('${escAttr(f.path)}')" title="重新检查原文：是否被删除或编辑">⟳</div>` : ''}
