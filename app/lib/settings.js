@@ -45,11 +45,13 @@ function configure({ file, defaultOutDir }) {
   if (data.clipboardWatch === undefined) data.clipboardWatch = true; else data.clipboardWatch = !!data.clipboardWatch;
   // 公众号追更总开关（M-A5；默认开——仅控制 weread 相关 IPC 与订阅检查入口，不影响其他订阅）
   if (data.wereadEnabled === undefined) data.wereadEnabled = true; else data.wereadEnabled = !!data.wereadEnabled;
-  // U6 外观设置（主题 light/dark/auto；强调色 brand/purple/green；layout 留给 U6.2 三视图，先归一化防脏值）
+  // U6 外观设置（主题 light/dark/auto；强调色 brand/purple/green）
+  // 2026-11-21 主人拍板：界面风格只保留默认 grid，方案 X(stream)/Y(dash) 已移除；
+  // 老用户 settings.json 里若存了 stream/dash，这里统一洗回 grid，避免卡在无法切回的风格。
   if (!data.ui || typeof data.ui !== 'object' || Array.isArray(data.ui)) data.ui = {};
   if (!['light', 'dark', 'auto'].includes(data.ui.theme)) data.ui.theme = 'light';
   if (!['brand', 'purple', 'green'].includes(data.ui.accent)) data.ui.accent = 'brand';
-  if (!['grid', 'stream', 'dash'].includes(data.ui.layout)) data.ui.layout = 'grid';
+  data.ui.layout = 'grid';
 }
 
 function get() { return { ...data }; }
@@ -78,7 +80,7 @@ function set(patch) {
     p.ui = { ...cur, ...inc };
     if (!['light', 'dark', 'auto'].includes(p.ui.theme)) p.ui.theme = 'light';
     if (!['brand', 'purple', 'green'].includes(p.ui.accent)) p.ui.accent = 'brand';
-    if (!['grid', 'stream', 'dash'].includes(p.ui.layout)) p.ui.layout = 'grid';
+    p.ui.layout = 'grid';   // 风格锁定默认（2026-11-21）；写入侧同样洗回，防止 IPC 传入 stream/dash
   }
   Object.assign(data, p);
   try { atomicWrite(FILE, JSON.stringify(data, null, 2)); } catch (e) { console.warn('[settings] save fail:', e.message); }

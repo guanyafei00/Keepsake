@@ -35,45 +35,16 @@
   }
   html[data-theme="dark"][data-accent="purple"] { --acc:#A78BDA; --acc2:#8B6BC4; --accbg:rgba(167,139,218,.15); --acc-border:rgba(167,139,218,.4); }
   html[data-theme="dark"][data-accent="green"]  { --acc:#5BBE8E; --acc2:#3E9C70; --accbg:rgba(91,190,142,.14); --acc-border:rgba(91,190,142,.4); }
-  /* ===== U6.2 订阅布局三选一：grid=现状行卡 / stream=紧凑列表 / dash=仪表盘摘要条+行卡（同一份数据，只分渲染层）=====
-     11-12 修正：原 stream 与 grid 的 DOM 完全相同，只差 padding 和缩略图，真机上几乎看不出切换；
-     现补左边色条 / 去阴影 / 缩行距 / 缩字号，让三种形态一眼可分。 */
-  #subList.stream .task { padding:6px 11px; gap:8px; margin-bottom:4px; border-radius:var(--r-sm); box-shadow:none; border-left:3px solid var(--acc); }
-  #subList.stream .t-thumb { display:none; }
-  #subList.stream .task .meta { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; font-size:12px; }
-  #subList.stream .task .x { opacity:.6; }
-  .kpi-row { display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:10px; margin:0 2px 12px; }
-  .kpi-cell { background:var(--panel); border:1px solid var(--line); border-radius:var(--r-md); padding:10px 12px; box-shadow:var(--shadow-sm); }
-  .kpi-cell b { display:block; font-size:20px; font-weight:800; line-height:1.25; }
-  .kpi-cell span { font-size:11.5px; color:var(--txt2); }
-  /* ===== U6.3 设置页外观实时预览：不依赖订阅数据，切换下拉当场可见（原本只能去订阅页才看得到）===== */
-  .ui-prev { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px; width:100%; margin:2px 0 10px; }
-  .ui-prev-item { border:1.5px solid var(--line); border-radius:var(--r-md); padding:9px 10px 10px; background:var(--panel); cursor:pointer; transition:.15s; min-width:0; }
-  .ui-prev-item:hover { border-color:var(--acc); }
-  .ui-prev-item.on { border-color:var(--acc); box-shadow:0 0 0 2px var(--accbg); }
-  .pv-cap { font-size:11.5px; font-weight:700; color:var(--txt2); margin-bottom:8px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-  .ui-prev-item.on .pv-cap { color:var(--acc2); }
-  .pv-body { display:flex; flex-direction:column; gap:5px; }
-  .pv-row { display:flex; align-items:center; gap:7px; background:var(--panel2); border:1px solid var(--line); border-radius:var(--r-sm); padding:7px 8px; }
-  .pv-thumb { width:22px; height:22px; border-radius:5px; background:linear-gradient(135deg,var(--acc),var(--acc2)); flex-shrink:0; }
-  .pv-lines { display:flex; flex-direction:column; gap:4px; flex:1; min-width:0; }
-  .pv-lines b { display:block; height:6px; border-radius:3px; background:var(--txt2); opacity:.65; }
-  .pv-lines s { display:block; height:5px; border-radius:3px; background:var(--line-strong); width:65%; text-decoration:none; }
-  .pv-row.streamline { padding:3px 7px; border-left:3px solid var(--acc); border-radius:3px; }
-  .pv-row.streamline .pv-lines s { display:none; }
-  .pv-kpi { display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:4px; }
-  .pv-kpi i { display:block; height:20px; border-radius:4px; background:var(--accbg); border:1px solid var(--acc-border); }
+  /* 2026-11-21 主人拍板只保留默认风格：U6.2 三布局样式 + U6.3 设置页预览样式已移除。
+     订阅列表形态现由期2 的固定样式决定；顶部状态与 KPI 由 .topbar + #kpiHost 承担。 */
   .pv-row em { font-style:normal; color:var(--txt2); font-size:10px; flex-shrink:0; }
-  /* ===== U6.4 整站界面风格：把三份效果图真正落进应用 =====
-     grid   = 经典卡片（旧版原貌，零覆盖）/ stream = 方案 X 极简单栏流式 / dash = 方案 Y 仪表盘卡片式
-     差异落在骨架上：侧栏宽度与导航形态、顶部状态条 / 四 KPI、订阅列表形态、底部队列条。
-     以下全部是追加的高特异性覆盖规则，不修改任何既有组件定义；数据来源仍是现有 IPC，不造假。 */
+  /* ===== 整站概览层（原 U6.4 三风格，2026-11-21 只保留默认 grid）=====
+     方案 X(stream)/方案 Y(dash) 的 CSS 覆盖已随主人拍板移除；skin-bar / skin-drawer 现在恒不显示，
+     顶部状态与 KPI 由期2 的 .topbar + #kpiHost 承担。容器保留仅为不破坏 mountSkinLayer。 */
   .skin-bar { display:none; flex:0 0 auto; padding:0 22px; margin-top:14px; }
   .skin-drawer { display:none; flex:0 0 46px; align-items:center; gap:12px; margin:0 22px 14px; padding:0 16px;
     background:var(--panel); border:1px solid var(--line); border-left:3px solid var(--acc);
     border-radius:var(--r-md); font-size:12.5px; color:var(--txt2); }
-  html[data-skin="stream"] .skin-bar, html[data-skin="dash"] .skin-bar { display:block; }
-  html[data-skin="stream"] .skin-drawer, html[data-skin="dash"] .skin-drawer { display:flex; }
   .skin-strip { display:flex; align-items:stretch; height:58px; background:var(--panel); border:1px solid var(--line);
     border-radius:var(--r-md); box-shadow:var(--shadow-sm); }
   .skin-cell { flex:1; min-width:0; display:flex; align-items:center; gap:10px; padding:0 16px; position:relative; }
@@ -93,57 +64,9 @@
   .skin-drawer b { color:var(--txt); font-size:13px; }
   .skin-go { margin-left:auto; color:var(--acc2); font-weight:700; cursor:pointer; white-space:nowrap; }
 
-  /* --- 方案 X：窄侧栏 / 分组导航 / 薄状态条 / 单列流 --- */
-  html[data-skin="stream"] .sidebar { width:168px; background:var(--panel2); padding:12px 8px; }
-  html[data-skin="stream"] .logo { font-size:13px; padding:2px 8px 12px; }
-  html[data-skin="stream"] .logo .gem { width:24px; height:24px; border-radius:7px; }
-  html[data-skin="stream"] .nav { position:relative; height:32px; padding:0 9px; gap:8px; font-size:12.5px; border-radius:5px; }
-  html[data-skin="stream"] .nav[data-page="tasks"] { margin-top:17px; }
-  html[data-skin="stream"] .nav[data-page="settings"] { margin-top:17px; }
-  html[data-skin="stream"] .nav[data-page="tasks"]::before,
-  html[data-skin="stream"] .nav[data-page="settings"]::before { position:absolute; left:9px; top:-15px; font-size:10px;
-    letter-spacing:.06em; color:var(--txt2); font-weight:600; }
-  html[data-skin="stream"] .nav[data-page="tasks"]::before { content:"工作流"; }
-  html[data-skin="stream"] .nav[data-page="settings"]::before { content:"更多"; }
-  html[data-skin="stream"] .side-foot { font-size:10.5px; line-height:1.9; padding:8px 9px; }
-  html[data-skin="stream"] .page { padding:14px 22px 18px; }
-  html[data-skin="stream"] .paste-box,
-  html[data-skin="stream"] .card,
-  html[data-skin="stream"] .pick { border-radius:7px; box-shadow:none; }
-  html[data-skin="stream"] .card { padding:13px 16px; margin-bottom:11px; }
-  html[data-skin="stream"] .sec-t { margin:14px 2px 8px; }
-  html[data-skin="stream"] .btn-dl { border-radius:7px; }
-  html[data-skin="stream"] .empty { padding:16px 0; }
-  html[data-skin="stream"] #subList .task { box-shadow:none; border:0; border-bottom:1px solid var(--line);
-    border-radius:0; padding:8px; margin-bottom:0; gap:10px; }
-  html[data-skin="stream"] #subList .t-thumb { width:34px; height:34px; border-radius:50%; font-size:14px; }
-  html[data-skin="stream"] #subList .t-thumb .eng { display:none; }
-  html[data-skin="stream"] #subList .t-info .name { font-size:13px; }
-  html[data-skin="stream"] #subList .t-info .meta { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; font-size:11px; }
-  html[data-skin="stream"] #subList .bar { margin-top:5px; height:3px; }
-  html[data-skin="stream"] #subList .kpi-row { display:none; }
+  /* 方案 X / 方案 Y 的整站 CSS 覆盖规则已于 2026-11-21 移除（主人拍板只保留默认）。 */
 
-  /* --- 方案 Y：宽侧栏 / 四 KPI / 订阅卡片网格 --- */
-  html[data-skin="dash"] .sidebar { width:216px; padding:18px 12px; }
-  html[data-skin="dash"] .logo { font-size:15.5px; padding:4px 12px 18px; }
-  html[data-skin="dash"] .nav { height:38px; padding:0 14px; border-radius:8px; font-size:13.5px; }
-  html[data-skin="dash"] .page { padding:22px 28px 30px; }
-  html[data-skin="dash"] .card { border-radius:16px; box-shadow:var(--shadow); padding:18px 22px; }
-  html[data-skin="dash"] .paste-box { border-radius:14px; }
-  html[data-skin="dash"] .sec-t { margin:22px 2px 12px; font-size:12.5px; }
-  html[data-skin="dash"] #subList { display:grid; grid-template-columns:repeat(auto-fill,minmax(268px,1fr)); gap:14px; align-items:start; }
-  html[data-skin="dash"] #subList .kpi-row { display:none; }
-  html[data-skin="dash"] #subList > .empty { grid-column:1/-1; }
-  html[data-skin="dash"] #subList .task { flex-wrap:wrap; align-content:flex-start; gap:9px; padding:14px 16px;
-    border-radius:14px; margin-bottom:0; min-height:126px; }
-  html[data-skin="dash"] #subList .t-info { flex:1 1 calc(100% - 60px); min-width:0; }
-  html[data-skin="dash"] #subList .t-info .meta { display:block; white-space:normal; line-height:1.65;
-    font-size:11px; max-height:52px; overflow:hidden; }
-  html[data-skin="dash"] #subList .t-thumb { width:38px; height:38px; border-radius:11px; }
-  html[data-skin="dash"] #subList .bar { flex:1 1 100%; margin-top:2px; }
-  html[data-skin="dash"] #subList .x { font-size:13px; }
-
-  /* --- 设置页预览升级：画「迷你整站」而不是只画列表 --- */
+  /* --- 设置页预览样式：预览三选一已移除，以下迷你整站绘制规则保留但不再被引用 --- */
   .pv-app { display:flex; height:78px; border:1px solid var(--line); border-radius:5px; overflow:hidden; background:var(--bg); }
   .pv-side { flex:0 0 16px; background:var(--panel); border-right:1px solid var(--line); padding:5px 2px;
     display:flex; flex-direction:column; gap:3px; }
@@ -159,13 +82,6 @@
   .pv-r i { width:8px; height:8px; border-radius:2px; background:var(--acc); flex-shrink:0; }
   .pv-r b { display:block; height:4px; width:58%; border-radius:2px; background:var(--line-strong); }
   .pv-r s { display:block; height:3px; width:22%; border-radius:2px; background:var(--line); text-decoration:none; margin-left:auto; }
-  .ui-prev-item[data-l="stream"] .pv-side { flex-basis:12px; }
-  .ui-prev-item[data-l="dash"] .pv-side { flex-basis:20px; }
-  .ui-prev-item[data-l="stream"] .pv-r { height:9px; border:0; border-bottom:1px solid var(--line);
-    border-left:2px solid var(--acc); border-radius:0; padding:0 3px; }
-  .ui-prev-item[data-l="stream"] .pv-r s { display:none; }
-  .ui-prev-item[data-l="dash"] .pv-rows { display:grid; grid-template-columns:repeat(2,1fr); gap:3px; }
-  .ui-prev-item[data-l="dash"] .pv-r { height:100%; min-height:16px; flex-direction:column; align-items:flex-start; justify-content:center; }
 
   * { margin:0; padding:0; box-sizing:border-box; }
   body { font-family:"PingFang SC","Microsoft YaHei","Source Han Sans SC",system-ui,-apple-system,sans-serif; background:var(--bg); color:var(--txt); height:100dvh; display:flex; overflow:hidden; -webkit-font-smoothing:antialiased; }
@@ -634,22 +550,16 @@
           <option value="green">绿</option>
         </select>
       </div>
-      <div class="row">
+      <div class="row" style="margin-bottom:0">
         <label>界面风格</label>
-        <select id="uiLayoutSel" onchange="saveUiAppearance()" style="max-width:260px">
-          <option value="grid">经典卡片（原版）</option>
-          <option value="stream">单栏流式 · 方案 X</option>
-          <option value="dash">仪表盘 · 方案 Y</option>
+        <select id="uiLayoutSel" disabled style="max-width:260px;opacity:.65">
+          <option value="grid">经典卡片（默认）</option>
         </select>
       </div>
-      <!-- U6.4：三种风格改的是整站骨架，这里画迷你整站预览，点小图/下拉当场切换 -->
-      <div style="margin:4px 0 2px;font-size:12px;font-weight:700;color:var(--txt2)">整站预览（点小图也能直接切换）</div>
-      <div class="ui-prev" id="uiPrev"></div>
-      <div id="uiStateLine" style="font-size:11.5px;color:var(--txt2);line-height:1.7;margin-bottom:8px"></div>
-      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
-        <button class="btn-mini" onclick="switchPage('rss')">去订阅页看实际效果 →</button>
-        <span style="font-size:11.5px;color:var(--txt2)">切换后<b>整个应用</b>都会变：侧栏宽度、顶部状态条 / 统计卡、订阅列表形态、底部队列条。三种风格共用同一份真实数据，不会多存一份。</span>
-      </div>
+      <!-- 2026-11-21 主人拍板：界面风格只保留默认，方案 X(stream)/方案 Y(dash) 已移除。
+           select 保留是为了不破坏 saveUiAppearance 读取与 settings 持久化，禁用即可；CSS/JS 里的 stream/dash 分支永不触发。 -->
+      <div id="uiStateLine" style="font-size:11.5px;color:var(--txt2);line-height:1.7;margin:8px 0"></div>
+      <div style="font-size:11.5px;color:var(--txt2);line-height:1.7">主题与强调色可随时切换，设置保存在本机、重启后仍生效。</div>
     </div>
     <div class="card">
       <h3>⚙ 下载设置</h3>
@@ -1490,7 +1400,7 @@ let currentUi = { theme: 'light', accent: 'brand' };
 const _sysThemeDark = window.matchMedia('(prefers-color-scheme: dark)');
 const UI_THEME_NAME = { light: '浅色', dark: '深色', auto: '跟随系统' };
 const UI_ACCENT_NAME = { brand: '品牌蓝', purple: '紫', green: '绿' };
-const UI_LAYOUT_NAME = { grid: '经典卡片', stream: '单栏流式（方案 X）', dash: '仪表盘（方案 Y）' };
+const UI_LAYOUT_NAME = { grid: '经典卡片（默认）' };   // 风格只保留默认；X/Y 已于 2026-11-21 移除
 function resolvedTheme(t) { return t === 'auto' ? (_sysThemeDark.matches ? 'dark' : 'light') : (t === 'dark' ? 'dark' : 'light'); }
 
 // ===== U6.4 整站外观层 =====
@@ -1521,22 +1431,9 @@ function mountSkinLayer() {
   renderSkinBar();
 }
 function renderSkinBar() {
-  const bar = $('skinBar'); if (!bar) return;
-  const st = skinStats(), skin = (currentUi && currentUi.layout) || 'grid';
-  if (skin === 'stream') {
-    bar.innerHTML = `<div class="skin-strip">
-      <div class="skin-cell"><span class="skin-dot"></span><div><div class="l">订阅</div><div class="v">${st.subs}</div></div><span class="r">本地归档 · 数据不出机</span></div>
-      <div class="skin-cell"><span class="skin-dot y"></span><div><div class="l">任务队列</div><div class="v">${st.queue}</div></div><span class="r">已完成 ${st.done}</span></div>
-      <div class="skin-cell"><span class="skin-dot ${st.fail ? 'r' : 'g'}"></span><div><div class="l">最近检查失败</div><div class="v">${st.fail}</div></div><span class="r">媒体库 ${st.lib}</span></div>
-    </div>`;
-  } else if (skin === 'dash') {
-    const kpi = (v, l, s, cls) => `<div class="skin-kpi ${cls || ''}"><div class="l">${l}</div><div class="v">${v}</div><div class="s">${s}</div></div>`;
-    bar.innerHTML = `<div class="skin-kpis">` +
-      kpi(st.subs, '订阅总数', '本机订阅') +
-      kpi(st.fail, '最近检查失败', '失败后会自动重试', 'warn') +
-      kpi(st.paused, '连续失败暂停', '满 3 次自动暂停', 'err') +
-      kpi(st.cooling, '站点冷却中', '其他站点不受影响', 'info') + `</div>`;
-  } else bar.innerHTML = '';
+  // 2026-11-21：风格锁定默认，skin-bar 容器恒不显示；顶部状态/KPI 由期2 顶栏承担。
+  // skin-drawer 底部队列条仍复用本函数刷新，故保留 st 与 drawer 刷新。
+  const st = skinStats();
   const dr = $('skinDrawer');
   if (dr) dr.innerHTML = `<span>▸</span><b>任务队列 ${st.queue}</b><span>· 已完成 ${st.done}</span><span class="skin-go" onclick="switchPage('tasks')">查看队列 →</span>`;
 }
@@ -1668,45 +1565,29 @@ function p2TaskView(v, chipEl) {
   const secs = document.querySelectorAll('#page-tasks .sec-t');
   if (secs.length >= 2) { secs[0].style.display = showQ ? '' : 'none'; secs[1].style.display = showD ? '' : 'none'; }
 }
-// U6.3（11-12）：三种布局原本只在订阅页呈现，用户在设置页切换时看不到任何反馈。
-// 这里直接把三种形态画在设置页，切换下拉或点小图当场变色变形，并显式说明「跟随系统」当前实际是浅还是深。
+// 2026-11-21 主人拍板：界面风格只保留默认（grid），方案 X/Y 已移除。
+// 保留本函数仅更新状态行；预览三选一 DOM 已删，不再生成。
 function updateUiPreview() {
-  const box = $('uiPrev'); if (!box) return;
-  // 迷你整站：侧栏宽窄 + 顶部条有无/形态 + 列表形态，与真实 skin 一一对应
-  const side = [1, 2, 3, 4, 5].map(() => '<i></i>').join('');
-  const demo = l => {
-    const top = l === 'grid' ? ''
-      : l === 'stream' ? '<div class="pv-top"></div>'
-        : '<div class="pv-top kpis">' + [1, 2, 3, 4].map(() => '<i></i>').join('') + '</div>';
-    const rows = l === 'grid' ? [1, 2] : l === 'stream' ? [1, 2, 3] : [1, 2, 3, 4];
-    return `<div class="pv-app"><div class="pv-side">${side}</div><div class="pv-main">${top}<div class="pv-rows">` +
-      rows.map(() => '<div class="pv-r"><i></i><b></b><s></s></div>').join('') + '</div></div></div>';
-  };
-  box.innerHTML = ['grid', 'stream', 'dash'].map(l => {
-    const on = currentUi.layout === l;
-    return `<div class="ui-prev-item${on ? ' on' : ''}" data-l="${l}" onclick="pickUiLayout('${l}')" title="点击切换到${UI_LAYOUT_NAME[l]}">
-      <div class="pv-cap">${UI_LAYOUT_NAME[l]}${on ? ' · 当前' : ''}</div><div class="pv-body">${demo(l)}</div></div>`;
-  }).join('');
   const line = $('uiStateLine'); if (!line) return;
   const actual = currentUi.theme === 'auto' ? `（当前实际：${resolvedTheme('auto') === 'dark' ? '深色' : '浅色'}）` : '';
-  line.textContent = `当前：${UI_THEME_NAME[currentUi.theme]}${actual} · ${UI_ACCENT_NAME[currentUi.accent]} · ${UI_LAYOUT_NAME[currentUi.layout]}。设置已保存在本机，重启后仍生效。`;
+  line.textContent = `当前：${UI_THEME_NAME[currentUi.theme]}${actual} · ${UI_ACCENT_NAME[currentUi.accent]} · 界面风格：经典卡片（默认）。`;
 }
-function pickUiLayout(l) {
+function pickUiLayout(l) {   // 兼容外部残留调用：风格已锁定默认，任何入参都回落到 grid
   const sel = $('uiLayoutSel'); if (!sel) return Promise.resolve();
-  sel.value = l; return saveUiAppearance();
+  sel.value = 'grid'; return saveUiAppearance();
 }
 function applyUiAppearance(ui) {
   const u = ui || {};
   const next = {
     theme: ['light', 'dark', 'auto'].includes(u.theme) ? u.theme : 'light',
     accent: ['brand', 'purple', 'green'].includes(u.accent) ? u.accent : 'brand',
-    layout: ['grid', 'stream', 'dash'].includes(u.layout) ? u.layout : 'grid'
+    layout: 'grid'   // 锁死默认：老用户 settings.json 里若存了 stream/dash，启动即回退到 grid
   };
   const layoutChanged = currentUi.layout !== next.layout && typeof renderSubs === 'function' && $('subList');
   currentUi = next;
   document.documentElement.dataset.theme = resolvedTheme(currentUi.theme);
   document.documentElement.dataset.accent = currentUi.accent;
-  document.documentElement.dataset.skin = currentUi.layout;   // U6.4：整站骨架切换，切完当场可见
+  document.documentElement.dataset.skin = 'grid';             // 整站骨架固定默认风格
   mountSkinLayer();                                          // 顶部状态条 / 四 KPI + 底部队列条
   try { mountP2Layer(); } catch (e) {}                        // 期2：真实顶栏 + KPI 卡组（只加容器）
   if (layoutChanged) try { renderSubs(); } catch (e) {}   // 切布局时若订阅页已渲染，立即重渲染
@@ -1714,10 +1595,10 @@ function applyUiAppearance(ui) {
 }
 _sysThemeDark.addEventListener('change', () => { if (currentUi.theme === 'auto') applyUiAppearance(currentUi); });
 async function saveUiAppearance() {
-  const t = $('uiThemeSel').value, a = $('uiAccentSel').value, l = $('uiLayoutSel').value;
-  const r = await window.keepsake.settingsSetUi({ theme: t, accent: a, layout: l });
+  const t = $('uiThemeSel').value, a = $('uiAccentSel').value;
+  const r = await window.keepsake.settingsSetUi({ theme: t, accent: a, layout: 'grid' });
   applyUiAppearance(r && r.ui);
-  toast(`界面风格已切换：${UI_LAYOUT_NAME[l]} · 整站生效（侧栏 / 顶部条 / 列表 / 队列条）`);
+  toast(`外观已更新：${UI_THEME_NAME[t]} · ${UI_ACCENT_NAME[a]}`);
 }
 window.keepsake.settingsGet().then(s => applyUiAppearance(s && s.ui)).catch(() => {});   // 启动即套主题，不等进设置页
 // 切页或数据更新后刷新整站概览；纯读现有 DOM 计数，不额外发 IPC
@@ -2187,24 +2068,7 @@ async function renderSubs() {
   else if (gf) items = items.filter(s => (s.group || '').trim() === gf);
   $('s-cnt2').textContent = items.length;
   window._subOrder = items.map(s => s.id);   // 当前显示顺序（Shift 范围选基准，含分组过滤）
-  // U6.2 布局三选一：同一份数据三种呈现（grid 现状行卡 / stream 紧凑列表 / dash 仪表盘摘要+行卡），只分渲染层不动业务逻辑
-  const layout = (currentUi && currentUi.layout) || 'grid';
-  el.classList.toggle('stream', layout === 'stream');
-  let kpiHtml = '';
-  if (layout === 'dash') {
-    const nFailPaused = items.filter(s => s.paused).length;
-    const nPaused = items.filter(s => s.userPaused && !s.paused).length;
-    const nFailRecent = items.filter(s => s.lastError && (!s.lastCheck || (s.lastFailAt || 0) > (s.lastCheck || 0)) && !s.paused && !s.userPaused).length;
-    const nCooling = items.filter(s => s._observability && s._observability.cooldownUntil > Date.now()).length;
-    const cell = (n, label, color) => `<div class="kpi-cell"><b style="${color ? 'color:' + color : ''}">${n}</b><span>${label}</span></div>`;
-    kpiHtml = '<div class="kpi-row">' +
-      cell(items.length, '订阅总数') +
-      cell(nFailRecent, '最近检查失败', 'var(--yellow)') +
-      cell(nFailPaused, '连续失败暂停', 'var(--red)') +
-      cell(nPaused, '手动暂停') +
-      cell(nCooling, '站点冷却中', 'var(--info)') +
-      '</div>';
-  }
+  // 2026-11-21：界面风格锁定默认，原 stream/dash 三形态分支已移除；订阅列表统一用默认行卡样式。
   const htmls = [];
   for (const s of items) {
     const ago = s.lastCheck ? Math.round((Date.now() - s.lastCheck) / 60000) : null;
@@ -2260,7 +2124,7 @@ async function renderSubs() {
       <div class="x" onclick="removeSub('${s.id}')" title="取消订阅">✕</div>
     </div>`);
   }
-  el.innerHTML = kpiHtml + (htmls.length ? htmls.join('') : (subsItems.length ? `<div class="empty">该分组下暂无订阅</div>` : `<div class="empty">还没有订阅——支持 B站UP主/合集 / YouTube频道 / X用户 / Pixiv / 微博 / Reddit / Instagram / Danbooru 等站点主页</div>`));
+  el.innerHTML = htmls.length ? htmls.join('') : (subsItems.length ? `<div class="empty">该分组下暂无订阅</div>` : `<div class="empty">还没有订阅——支持 B站UP主/合集 / YouTube频道 / X用户 / Pixiv / 微博 / Reddit / Instagram / Danbooru 等站点主页</div>`);
   const wrCnt = $('wr-cnt'); if (wrCnt) wrCnt.textContent = subsItems.filter(s => s.kind === 'weread').length;   // M-A5 公众号追更计数同步
   updateSelBar();
 }
