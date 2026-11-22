@@ -555,9 +555,41 @@
   }
   .pbtn-plain:hover { background:var(--accbg); }
   .pbtn-plain:active { transform:scale(.97); }
+  .side-cnt { margin-left:auto; font-size:10px; font-weight:600; color:var(--txt3); font-variant-numeric:tabular-nums; }
+  .side-sub { display:flex; align-items:center; gap:8px; height:32px; padding:0 10px; border-radius:8px; cursor:pointer; color:var(--txt2); font-size:12.5px; white-space:nowrap; overflow:hidden; transition:background 150ms var(--ease-out),color 150ms var(--ease-out); }
+  .side-sub:hover { background:var(--panel2); color:var(--txt); }
+  .side-sub.on { background:var(--accbg); color:var(--acc); font-weight:600; }
+  .side-sub .ss-dot { width:6px; height:6px; border-radius:50%; background:var(--txt3); flex:none; }
+  .side-sub.on .ss-dot { background:var(--acc); }
+  .side-sub.err .ss-dot { background:var(--red); }
+  .side-sub .ss-name { overflow:hidden; text-overflow:ellipsis; }
+  .side-sub-more { display:flex; align-items:center; height:28px; padding:0 10px; border-radius:8px; cursor:pointer; color:var(--txt3); font-size:11.5px; transition:color 150ms var(--ease-out); }
+  .side-sub-more:hover { color:var(--acc); }
+  /* 订阅页卡片（第三阶段） */
+  .subcard { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:13px 16px 12px; margin-bottom:12px; box-shadow:var(--shadow-sm); transition:border-color 180ms var(--ease-out); animation:libCardIn 380ms var(--ease-out) both; }
+  .subcard.dim { opacity:.62; }
+  .sc-head { display:flex; align-items:center; gap:12px; min-width:0; }
+  .sc-thumb { width:44px; height:44px; border-radius:11px; background:var(--panel2); display:grid; place-items:center; font-size:19px; flex:none; position:relative; }
+  .sc-thumb .eng { position:absolute; bottom:-6px; left:50%; transform:translateX(-50%); font-size:9px; font-weight:700; background:var(--acc); color:#fff; border-radius:6px; padding:1px 6px; white-space:nowrap; pointer-events:none; }
+  .sc-main { flex:1; min-width:0; }
+  .sc-name { font-size:14.5px; font-weight:650; color:var(--txt); display:flex; align-items:center; gap:8px; min-width:0; }
+  .sc-name > .nm { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .sc-meta { font-size:12px; color:var(--txt2); margin-top:3px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; font-variant-numeric:tabular-nums; display:flex; align-items:center; gap:5px; }
+  .sc-actions { display:flex; gap:2px; flex:none; }
+  .sc-actions .sx { width:30px; height:30px; border-radius:8px; display:grid; place-items:center; cursor:pointer; color:var(--txt2); font-size:14px; border:0; background:none; transition:background 150ms,color 150ms,transform 140ms var(--ease-out); }
+  .sc-actions .sx:hover { background:var(--panel2); color:var(--acc); }
+  .sc-actions .sx:active { transform:scale(.94); }
+  .sc-actions .sx.go { color:var(--green); }
+  .sc-detail { margin-top:10px; border-top:1px dashed var(--line); padding-top:7px; }
+  .sc-detail summary { cursor:pointer; font-size:11.5px; font-weight:600; color:var(--txt3); user-select:none; list-style:none; }
+  .sc-detail summary::-webkit-details-marker { display:none; }
+  .sc-detail summary::before { content:"▸ "; }
+  .sc-detail[open] summary::before { content:"▾ "; }
+  .sc-detail-body { font-size:12px; color:var(--txt2); line-height:1.95; padding:6px 2px 2px; overflow-wrap:anywhere; font-variant-numeric:tabular-nums; }
   @media (max-width:820px) {
     .tb-sec-btn span.label { display:none; }
     .tb-acc-btn span.label { display:none; }
+    .sc-actions .sx { width:26px; height:26px; font-size:12.5px; }
   }
   @media (prefers-reduced-motion:reduce) {
     * { animation-duration:.01ms !important; transition-duration:.01ms !important; }
@@ -582,7 +614,7 @@
       </button>
     </div>
     <div class="tb-spacer"></div>
-    <button class="tb-sec-btn" id="openDlModalBtn" title="粘贴单条或多条内容链接，下载到本地后可在媒体库「手动保存」里找到" aria-haspopup="dialog">
+    <button class="tb-sec-btn" id="openDlModalBtn" title="粘贴单条或多条内容链接，下载到本地后可在媒体库「手动添加」里找到" aria-haspopup="dialog">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
       <span class="label">粘贴链接下载</span>
     </button>
@@ -599,11 +631,14 @@
   <div class="workspace">
 <aside class="sidebar">
   <div class="logo"><span class="gem">K</span><span class="logo-txt"><span class="logo-name">Keepsake</span><span class="logo-sub">个人媒体归档台</span></span></div>
-  <div class="nav-grp">工作台</div>
-  <div class="nav on" data-page="tasks" onclick="switchPage('tasks')"><svg viewBox="0 0 256 256" fill="currentColor"><path d="M32,64a8,8,0,0,1,8-8H216a8,8,0,0,1,0,16H40A8,8,0,0,1,32,64Zm104,56H40a8,8,0,0,0,0,16h96a8,8,0,0,0,0-16Zm0,64H40a8,8,0,0,0,0,16h96a8,8,0,0,0,0-16Zm112-24a8,8,0,0,1-3.76,6.78l-64,40A8,8,0,0,1,168,200V120a8,8,0,0,1,12.24-6.78l64,40A8,8,0,0,1,248,160Zm-23.09,0L184,134.43v51.14Z"/></svg>任务队列 <span class="cnt" id="q-cnt">0</span></div>
+  <div class="nav-grp">媒体库</div>
+  <div class="nav on" data-page="lib" onclick="switchPage('lib')"><svg viewBox="0 0 256 256" fill="currentColor"><path d="M216,72H131.31L104,44.69A15.86,15.86,0,0,0,92.69,40H40A16,16,0,0,0,24,56V200.62A15.4,15.4,0,0,0,39.38,216H216.89A15.13,15.13,0,0,0,232,200.89V88A16,16,0,0,0,216,72ZM40,56H92.69l16,16H40ZM216,200H40V88H216Z"/></svg>媒体库 <span class="cnt" id="l-cnt">0</span></div>
+  <div class="nav" data-nav="manual" onclick="libOriginGo('manual', this)" title="单独下载的内容都收在这里，没有订阅归属"><svg viewBox="0 0 256 256" fill="currentColor"><path d="M208,40H48A16,16,0,0,0,32,56v144a16,16,0,0,0,16,16h160a16,16,0,0,0,16-16V56A16,16,0,0,0,208,40Zm0,144H48V56H208ZM176,88H80v16h96Zm0,32H80v16h96Z"/></svg>手动添加</div>
+  <div class="nav-grp" style="justify-content:space-between">订阅主页 <span class="side-cnt" id="sideSubCnt">0</span></div>
+  <div id="sideSubList"></div>
+  <div class="nav-grp">工具</div>
   <div class="nav" data-page="rss" onclick="switchPage('rss')"><svg viewBox="0 0 256 256" fill="currentColor"><path d="M240,88.23a54.43,54.43,0,0,1-16,37L189.25,160a54.27,54.27,0,0,1-38.63,16h-.05A54.63,54.63,0,0,1,96,119.84a8,8,0,0,1,16,.45A38.62,38.62,0,0,0,150.58,160h0a38.39,38.39,0,0,0,27.31-11.31l34.75-34.75a38.63,38.63,0,0,0-54.63-54.63l-11,11A8,8,0,0,1,135.7,59l11-11A54.65,54.65,0,0,1,224,48,54.86,54.86,0,0,1,240,88.23ZM109,185.66l-11,11A38.41,38.41,0,0,1,70.6,208h0a38.63,38.63,0,0,1-27.29-65.94L78,107.31A38.63,38.63,0,0,1,144,135.71a8,8,0,0,0,16,.45A54.86,54.86,0,0,0,144,96a54.65,54.65,0,0,0-77.27,0L32,130.75A54.62,54.62,0,0,0,70.56,224h0a54.28,54.28,0,0,0,38.64-16l11-11A8,8,0,0,0,109,185.66Z"/></svg>订阅归档 <span class="cnt" id="s-cnt">0</span></div>
-  <div class="nav" data-page="lib" onclick="switchPage('lib')"><svg viewBox="0 0 256 256" fill="currentColor"><path d="M216,72H131.31L104,44.69A15.86,15.86,0,0,0,92.69,40H40A16,16,0,0,0,24,56V200.62A15.4,15.4,0,0,0,39.38,216H216.89A15.13,15.13,0,0,0,232,200.89V88A16,16,0,0,0,216,72ZM40,56H92.69l16,16H40ZM216,200H40V88H216Z"/></svg>媒体库 <span class="cnt" id="l-cnt">0</span></div>
-  <div class="nav-grp">系统</div>
+  <div class="nav" data-page="tasks" onclick="switchPage('tasks')"><svg viewBox="0 0 256 256" fill="currentColor"><path d="M32,64a8,8,0,0,1,8-8H216a8,8,0,0,1,0,16H40A8,8,0,0,1,32,64Zm104,56H40a8,8,0,0,0,0,16h96a8,8,0,0,0,0-16Zm0,64H40a8,8,0,0,0,0,16h96a8,8,0,0,0,0-16Zm112-24a8,8,0,0,1-3.76,6.78l-64,40A8,8,0,0,1,168,200V120a8,8,0,0,1,12.24-6.78l64,40A8,8,0,0,1,248,160Zm-23.09,0L184,134.43v51.14Z"/></svg>任务队列 <span class="cnt" id="q-cnt">0</span></div>
   <div class="nav" data-page="strategy" onclick="switchPage('strategy')"><svg viewBox="0 0 256 256" fill="currentColor"><path d="M208,40H48A16,16,0,0,0,32,56v56c0,52.72,25.52,84.67,46.93,102.19,23.06,18.86,46,25.27,47,25.53a8,8,0,0,0,4.2,0c1-.26,23.91-6.67,47-25.53C198.48,196.67,224,164.72,224,112V56A16,16,0,0,0,208,40Zm0,72c0,37.07-13.66,67.16-40.6,89.42A129.3,129.3,0,0,1,128,223.62a128.25,128.25,0,0,1-38.92-21.81C61.82,179.51,48,149.3,48,112l0-56,160,0Z"/></svg>限流策略</div>
   <!-- 视频号入口暂时下架（2026-11-19 拍板）：受控窗/IPC 保留，恢复时解开本行
   <div class="nav" onclick="openChannelsWin()" title="打开微信视频号受控浏览器：官方页面正常登录浏览，播放后点窗口内【📥 归档】一键保存">📹 视频号</div> -->
@@ -619,7 +654,7 @@
 
 <main class="main">
   <!-- 任务页 -->
-  <div class="page on" id="page-tasks">
+  <div class="page" id="page-tasks">
     <div class="paste-box">
       <span>🔗</span>
       <textarea id="urls" rows="2" placeholder="粘贴视频 / 图片 / 文章链接（B站、YouTube、Pixiv、公众号、知乎…每行一个），自动识别并加入下载队列"></textarea>
@@ -692,12 +727,12 @@
     </div>
   </div>
 
-  <!-- 媒体库页 -->
-  <div class="page" id="page-lib">
+  <!-- 媒体库页（默认页：设计图的主视图） -->
+  <div class="page on" id="page-lib">
     <div class="hint" style="margin:0 2px 12px">按 <b>站点 / UP主</b> 聚合的本地媒体索引 · 只读展示，<b>任何情况下都不会自动删除你的文件</b> · 点击卡片展开文件列表</div>
     <div class="paste-box" style="margin:0 2px 12px">
       <span>🔍</span>
-      <input id="libKw" placeholder="搜索 UP主 / 站点 / 文件名…" style="flex:1;border:none;outline:none;font:inherit;font-size:13.5px;background:transparent;color:var(--txt)" oninput="setLibKw(this.value)">
+      <input id="libKw" placeholder="搜索 UP主 / 站点 / 文件名…" style="flex:1;border:none;outline:none;font:inherit;font-size:13.5px;background:transparent;color:var(--txt)" oninput="_sideSubActive=null;if(typeof renderSideSubs==='function')renderSideSubs();setLibKw(this.value)">
       <span class="act" id="libKwClear" style="display:none;cursor:pointer;font-size:12px" onclick="setLibKw('');$('libKw').value=''">✕ 清除</span>
     </div>
     <div class="sec-t" style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">📚 已收藏媒体 <span class="cnt" id="l-sum">0 个文件</span>
@@ -705,11 +740,11 @@
         <span class="libseg-thumb" id="libSegThumb"></span>
         <button class="libseg-item active" data-origin="all" role="tab" aria-selected="true">全部</button>
         <button class="libseg-item" data-origin="sub" role="tab" aria-selected="false">订阅</button>
-        <button class="libseg-item" data-origin="manual" role="tab" aria-selected="false">手动保存</button>
+        <button class="libseg-item" data-origin="manual" role="tab" aria-selected="false">手动添加</button>
       </div>
       <span class="act" style="cursor:pointer;font-size:12px;margin-left:auto" onclick="loadLibrary(true)">⟳ 重新扫描</span>
     </div>
-    <div id="libList"><div class="empty">还没有下载任何媒体——去任务队列贴个链接吧</div></div>
+    <div id="libList"><div class="empty">还没有下载任何媒体——用工具栏「粘贴链接下载」单独收一条，或添加订阅自动追更</div></div>
   </div>
 
   <!-- 策略页 -->
@@ -1074,7 +1109,7 @@
   <div class="pmodal">
     <div class="pmodal-head">
       <div class="pmodal-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg></div>
-      <div><h2>粘贴链接下载</h2><p>粘贴单条或多条内容链接，下载到本地后在媒体库「手动保存」里能找到。</p></div>
+      <div><h2>粘贴链接下载</h2><p>粘贴单条或多条内容链接，下载到本地后在媒体库「手动添加」里能找到。</p></div>
       <button class="pmodal-x" data-close aria-label="关闭"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="width:16px;height:16px"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg></button>
     </div>
     <div class="pmodal-body">
@@ -2353,27 +2388,40 @@ async function renderSubs() {
     // M-A5 公众号追更徽标：独立于 RSS 语义（新增文章自动归档为本地文章存档）
     const wrTag = s.kind === 'weread' ? ' · <span title="公众号文章追更：新文章自动归档为本地文章存档，可在媒体库阅读">📖 公众号</span>' : '';
     const xhsTag = s.kind === 'xhs-user' ? ' · <span title="小红书主页追更：新笔记自动解析图组/视频归档；需在小红书受控浏览器中保持登录态">📕 小红书</span>' : '';
+    // 第三阶段卡化：短状态上卡面，调度/规则长串收进「调度与规则」展开区（信息不丢，卡面不再糊成一长串）
+    const kindLabel = s.kind === 'bilibili' ? 'B站' : s.kind === 'bili-collection' ? '合集' : s.kind === 'x' ? 'X' : s.kind === 'youtube' ? 'YouTube' : s.kind === 'rss' ? 'RSS' : s.kind === 'weread' ? '公众号' : s.kind === 'xhs-user' ? '小红书' : s.kind === 'gdl' ? '图站' : '订阅';
+    const kindEmoji = { bilibili: '📺', 'bili-collection': '🎬', x: '𝕏', youtube: '▶️', rss: '📡', weread: '📖', 'xhs-user': '📕', gdl: '🖼️' }[s.kind] || '📡';
+    const kwLine = s.kw && s.kw.length ? ` · 🏷 关键词：<b style="color:var(--txt)">${esc(s.kw.join('/'))}</b>` : '';
+    const pausedLine = s.userPaused ? '手动暂停中，点 ▶ 恢复' : s.paused ? '连续失败自动暂停（悬停 ▶ 看原因）' : '';
     htmls.push(`
-    <div class="task"${paused ? ' style="opacity:.62"' : ''}>
-      <div class="pickbox${_subSel.has(s.id) ? ' on' : ''}" onclick="subPick(event,'${s.id}')" title="选中（Ctrl 切换 / Shift 范围选）">${_subSel.has(s.id) ? '✔' : ''}</div>
-      <div class="t-thumb">📡<span class="eng">${s.kind === 'bilibili' ? 'B站' : s.kind === 'bili-collection' ? '合集' : s.kind === 'x' ? 'X' : s.kind === 'youtube' ? 'YouTube' : s.kind === 'rss' ? 'RSS' : s.kind === 'weread' ? '公众号' : s.kind === 'xhs-user' ? '小红书' : s.kind === 'gdl' ? '图站' : '订阅'}</span></div>
-      <div class="t-info">
-        <div class="name">${esc(s.name)}</div>
-        <div class="meta">${groupTag}${pausedTag ? pausedTag + ' · ' : ''}${statusHtml} · 已跟踪 ${s.knownCount} 条${s.lastNew ? ` · 上轮新增 ${s.lastNew}` : ''}${rssTag}${wrTag}${xhsTag}${s._pendingBackfill ? ' · <span style="color:var(--acc2)">⏳ 排队待回溯</span>' : ''}${s.autoBackfill ? ' · <span style="color:var(--acc2)">⤓ 自动全量下载中</span>' : ''}${s.kw && s.kw.length ? ' · 🏷 ' + esc(s.kw.join('/')) : ''}${freqTag}${obsTags}${atTag}${lnTag}${mbTag}${goneBadge(s)}</div>
+    <div class="subcard${paused ? ' dim' : ''}">
+      <div class="sc-head">
+        <div class="pickbox${_subSel.has(s.id) ? ' on' : ''}" onclick="subPick(event,'${s.id}')" title="选中（Ctrl 切换 / Shift 范围选）">${_subSel.has(s.id) ? '✔' : ''}</div>
+        <div class="sc-thumb">${kindEmoji}<span class="eng">${kindLabel}</span></div>
+        <div class="sc-main">
+          <div class="sc-name"><span class="nm">${esc(s.name)}</span>${groupTag}</div>
+          <div class="sc-meta">${pausedTag ? pausedTag + ' · ' : ''}${statusHtml} · 已跟踪 ${s.knownCount} 条${s.lastNew ? ` · 上轮新增 ${s.lastNew}` : ''}${rssTag}${wrTag}${xhsTag}${s._pendingBackfill ? ' · <span style="color:var(--acc2)">⏳ 排队待回溯</span>' : ''}${s.autoBackfill ? ' · <span style="color:var(--acc2)">⤓ 自动全量下载中</span>' : ''}${goneBadge(s)}</div>
+        </div>
+        <div class="sc-actions">
+          <button type="button" class="sx" onclick="openSubLink('${s.id}')" title="打开订阅原链接（浏览器）">🔗</button>
+          <button type="button" class="sx" onclick="checkSub('${s.id}')" title="立即检查">⟳</button>
+          <button type="button" class="sx" onclick="backfillSub('${s.id}')" title="把 TA 已发布的内容全部加入下载队列">⤓</button>
+          <button type="button" class="sx" onclick="openSubFolder('${s.id}')" title="打开下载文件夹">📂</button>
+          <button type="button" class="sx" onclick="editKw('${s.id}')" title="关键词过滤：只自动下载含关键词的内容">🏷</button>
+          <button type="button" class="sx" onclick="editSubOpts('${s.id}')" title="订阅设置：暂停/分组/检查频率/自动转写">⚙</button>
+          ${(s.userPaused || s.paused) ? `<button type="button" class="sx go" onclick="resumeSub('${s.id}')" title="${s.userPaused ? '恢复检查' : '恢复检查（连续失败已自动暂停）'}">▶</button>` : ''}
+          <button type="button" class="sx" onclick="removeSub('${s.id}')" title="取消订阅">✕</button>
+        </div>
       </div>
-      <div class="x" onclick="openSubLink('${s.id}')" title="打开订阅原链接（浏览器）">🔗</div>
-      <div class="x" onclick="checkSub('${s.id}')" title="立即检查">⟳</div>
-      <div class="x" onclick="backfillSub('${s.id}')" title="把 TA 已发布的内容全部加入下载队列">⤓</div>
-      <div class="x" onclick="openSubFolder('${s.id}')" title="打开下载文件夹">📂</div>
-      <div class="x" onclick="editKw('${s.id}')" title="关键词过滤：只自动下载含关键词的内容">🏷</div>
-      <div class="x" onclick="editSubOpts('${s.id}')" title="订阅设置：暂停/分组/检查频率/自动转写">⚙</div>
-      ${s.userPaused ? `<div class="x" onclick="resumeSub('${s.id}')" title="恢复检查" style="color:var(--green)">▶</div>`
-        : s.paused ? `<div class="x" onclick="resumeSub('${s.id}')" title="恢复检查（连续失败已自动暂停）" style="color:var(--green)">▶</div>` : ''}
-      <div class="x" onclick="removeSub('${s.id}')" title="取消订阅">✕</div>
+      <details class="sc-detail"${pausedLine ? ' open' : ''}>
+        <summary>调度与规则</summary>
+        <div class="sc-detail-body">${pausedLine ? `⏸ ${pausedLine}<br>` : ''}${freqTag}${obsTags}${atTag}${lnTag}${mbTag}${kwLine}</div>
+      </details>
     </div>`);
   }
   el.innerHTML = htmls.length ? htmls.join('') : (subsItems.length ? `<div class="empty">该分组下暂无订阅</div>` : `<div class="empty">还没有订阅——支持 B站UP主/合集 / YouTube频道 / X用户 / Pixiv / 微博 / Reddit / Instagram / Danbooru 等站点主页</div>`);
   const wrCnt = $('wr-cnt'); if (wrCnt) wrCnt.textContent = subsItems.filter(s => s.kind === 'weread').length;   // M-A5 公众号追更计数同步
+  if (typeof renderSideSubs === 'function') renderSideSubs();
   updateSelBar();
 }
 
@@ -2849,7 +2897,7 @@ function setLibKw(v) {
 function localImgUrl(p) {
   try { return encodeURI('file:///' + String(p).replace(/\\/g, '/')).replace(/#/g, '%23'); } catch (e) { return ''; }
 }
-// 来源分段筛选：all / sub / manual（手动保存视图 = 缺口①）
+// 来源分段筛选：all / sub / manual（手动添加视图 = 缺口①）
 let libOriginFilter = 'all';
 function renderLibrary() {
   const el = $('libList');
@@ -2859,7 +2907,7 @@ function renderLibrary() {
   let groups = kw ? libData.groups.filter(g =>
     g.uploader.toLowerCase().includes(kw) || g.site.toLowerCase().includes(kw) ||
     g.files.some(f => f.name.toLowerCase().includes(kw)) || g.files.some(f => txtHit(f))) : libData.groups.slice();
-  // 手动保存视图：文件带来源索引且非订阅才算；老文件无索引记录不冒充手动（诚实边界）
+  // 手动添加视图：文件带来源索引且非订阅才算；老文件无索引记录不冒充手动（诚实边界）
   if (libOriginFilter === 'manual') groups = groups.filter(g => g.files.some(f => f.src && f.src.via && f.src.via !== 'sub'));
   else if (libOriginFilter === 'sub') groups = groups.filter(g => g.files.some(f => f.src && f.src.via === 'sub'));
   $('l-cnt').textContent = (kw || libOriginFilter !== 'all') ? groups.length + '/' + libData.groups.length : libData.groups.length;
@@ -2870,7 +2918,7 @@ function renderLibrary() {
   }
   if (!groups.length) {
     const emptyByView = {
-      manual: '还没有手动保存的内容——用工具栏「粘贴链接下载」单独收一条试试',
+      manual: '还没有手动添加的内容——用工具栏「粘贴链接下载」单独收一条试试',
       sub: '还没有订阅归档的内容——订阅后更新的内容会带「订阅」角标',
       all: '没有匹配「' + esc(libKw) + '」的媒体'
     };
@@ -2888,7 +2936,7 @@ function renderLibrary() {
     const hasSub = g.files.some(f => f.src && f.src.via === 'sub');
     const hasManual = g.files.some(f => f.src && f.src.via && f.src.via !== 'sub');
     const originPill = hasManual
-      ? '<span class="lpill manual">手动保存</span>'
+      ? '<span class="lpill manual">手动添加</span>'
       : (hasSub ? '<span class="lpill">订阅</span>' : '');
     const img = g.files.find(f => f.kind === 'image' && /\.(jpe?g|png|webp|gif|avif|bmp)$/i.test(f.name));
     const cover = img ? '<img src="' + localImgUrl(img.path) + '" alt="" loading="lazy">'
@@ -3384,9 +3432,10 @@ const CK_ACTIONS = [
   { ic: 'tasks',    label: '任务队列',     hint: '切换到任务页',              run: () => { closeCmdk(); switchPage('tasks'); } },
   { ic: 'rss',      label: '订阅归档',     hint: '切换到订阅页',              run: () => { closeCmdk(); switchPage('rss'); } },
   { ic: 'lib',      label: '媒体库',       hint: '浏览本地已归档媒体',        run: () => { closeCmdk(); switchPage('lib'); } },
+  { ic: 'lib',      label: '手动添加',     hint: '单独下载的内容都收在这里',  run: () => { closeCmdk(); libOriginGo('manual'); } },
   { ic: 'strategy', label: '风控策略',     hint: '查看限流与学习状态',        run: () => { closeCmdk(); switchPage('strategy'); } },
   { ic: 'settings', label: '设置',         hint: '打开设置页',                run: () => { closeCmdk(); switchPage('settings'); } },
-  { ic: 'paste',    label: '粘贴链接下载', hint: '单条或多条链接，归档到手动保存', run: () => { closeCmdk(); openDlModal(); } },
+  { ic: 'paste',    label: '粘贴链接下载', hint: '单条或多条链接，归档到手动添加', run: () => { closeCmdk(); openDlModal(); } },
   { ic: 'sub',      label: '添加订阅',     hint: '粘贴创作者主页地址，自动追更', run: () => { closeCmdk(); openSubModal(); } },
   { ic: 'sun',      label: '切浅色',       hint: '外观 · 浅色主题',           run: () => { closeCmdk(); setUiTheme('light'); } },
   { ic: 'moon',     label: '切深色',       hint: '外观 · 深色主题',           run: () => { closeCmdk(); setUiTheme('dark'); } },
@@ -3587,7 +3636,7 @@ window.addEventListener('keydown', e => {
   const ml = document.querySelector('.modal-layer.open');
   if (ml) { closeLayerModal(ml); e.stopImmediatePropagation(); }
 }, true);
-// 媒体库来源分段控件（全部 / 订阅 / 手动保存视图）
+// 媒体库来源分段控件（全部 / 订阅 / 手动添加视图）
 function moveLibSegThumb() {
   const act = document.querySelector('#libOriginSeg .libseg-item.active');
   const th = $('libSegThumb');
@@ -3599,10 +3648,49 @@ $('libOriginSeg').addEventListener('click', e => {
   const b = e.target.closest('.libseg-item');
   if (!b) return;
   libOriginFilter = b.dataset.origin;
+  _sideSubActive = null;
+  if (typeof renderSideSubs === 'function') renderSideSubs();
+  document.querySelectorAll('.nav').forEach(n => { if (n.dataset.nav === 'manual') n.classList.remove('on'); });
   document.querySelectorAll('#libOriginSeg .libseg-item').forEach(x => { const on = x === b; x.classList.toggle('active', on); x.setAttribute('aria-selected', on); });
   moveLibSegThumb();
   try { renderLibrary(); } catch (err) {}
 });
+// ===== 第三阶段：侧栏设计图化 —— 手动添加入口 + 订阅主页动态列表 =====
+let _sideSubActive = null;
+function libOriginGo(origin, el) {
+  switchPage('lib');
+  if (el) { document.querySelectorAll('.nav').forEach(n => n.classList.remove('on')); el.classList.add('on'); }
+  libOriginFilter = origin;
+  document.querySelectorAll('#libOriginSeg .libseg-item').forEach(x => { const on = x.dataset.origin === origin; x.classList.toggle('active', on); x.setAttribute('aria-selected', on); });
+  moveLibSegThumb();
+  try { renderLibrary(); } catch (err) {}
+}
+function renderSideSubs() {
+  const box = $('sideSubList'); if (!box) return;
+  const cnt = $('sideSubCnt'); if (cnt) cnt.textContent = (subsItems || []).length;
+  const subs = (subsItems || []).slice().sort((a, b) => (b.lastCheck || 0) - (a.lastCheck || 0));
+  const MAX = 8;
+  box.innerHTML = subs.slice(0, MAX).map(s => {
+    const bad = s.lastError && (!s.lastCheck || (s.lastFailAt || 0) > (s.lastCheck || 0)) && !(s.userPaused || s.paused);
+    return `<div class="side-sub${_sideSubActive === s.id ? ' on' : ''}${bad ? ' err' : ''}" onclick="sideSubGo('${s.id}')" title="${escAttr(s.name)} · 点击在媒体库查看 TA 的归档"><span class="ss-dot"></span><span class="ss-name">${esc(s.name)}</span></div>`;
+  }).join('') + (subs.length > MAX ? `<div class="side-sub-more" onclick="switchPage('rss')">＋ 其余 ${subs.length - MAX} 个订阅…</div>` : '');
+}
+function sideSubGo(id) {
+  const s = (subsItems || []).find(x => x.id === id);
+  if (!s) return;
+  _sideSubActive = id;
+  renderSideSubs();
+  switchPage('lib');
+  // 来源保持「全部」：老文件没有来源索引，切到「订阅」视图会把 TA 的老归档误过滤成空；
+  // 按订阅名过滤卡墙（库分组按 UP主/站点名聚合，订阅名即其名）已足够精确定位 TA 的归档
+  libOriginFilter = 'all';
+  document.querySelectorAll('#libOriginSeg .libseg-item').forEach(x => { const on = x.dataset.origin === 'all'; x.classList.toggle('active', on); x.setAttribute('aria-selected', on); });
+  moveLibSegThumb();
+  const box = $('libKw'); if (box) box.value = s.name;
+  setLibKw(s.name);
+  try { renderLibrary(); } catch (err) {}
+}
+
 window.addEventListener('resize', moveLibSegThumb);
 requestAnimationFrame(() => requestAnimationFrame(moveLibSegThumb));
 

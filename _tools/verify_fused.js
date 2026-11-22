@@ -92,11 +92,15 @@ document.addEventListener('DOMContentLoaded', () => {
     app: !!document.getElementById('app')
   }));
   ok('工具栏（应用名+搜索触发框+主题按钮+侧栏开关）', () => assert(base.toolbar && base.brand && base.search && base.themeBtn && base.sideToggle, JSON.stringify(base)));
-  ok('毛玻璃侧栏在 workspace 内，五页导航 + 分组', () => assert(base.sidebar && base.navs.length === 5 && base.grp === 2, JSON.stringify(base.navs)));
+  ok('毛玻璃侧栏在 workspace 内，五页导航 + 三分组（媒体库/订阅主页/工具）', () => assert(base.sidebar && base.navs.length === 5 && base.grp === 3 && base.navs[0] === 'lib', JSON.stringify(base.navs)));
   ok('侧栏底部状态区（登录/规则/引擎更新入口）', () => assert(base.foot, 'no side-foot'));
   ok('⌘K 面板容器在位', () => assert(base.cmdk, 'no cmdk'));
   ok('详情抽屉在位', () => assert(base.drawer, 'no drawer'));
   ok('五页 id 齐全', () => assert(['page-tasks', 'page-rss', 'page-lib', 'page-strategy', 'page-settings'].every(x => base.pages.includes(x)), JSON.stringify(base.pages)));
+  const onPageLib = await page.evaluate(() => (document.querySelector('.page.on') || {}).id === 'page-lib');
+  ok('第三阶段：默认页 = 媒体库（启动第一眼）', () => assert(onPageLib));
+  const sideShell = await page.evaluate(() => !!document.querySelector('.sidebar .nav[data-nav="manual"]') && !!document.getElementById('sideSubList') && !!document.getElementById('sideSubCnt'));
+  ok('第三阶段：侧栏手动添加入口 + 订阅列表容器在位', () => assert(sideShell));
 
   console.log('\n=== B. backdrop-filter 只在 4 个固定面 ===');
   const bf = await page.evaluate(() => {
@@ -135,8 +139,23 @@ document.addEventListener('DOMContentLoaded', () => {
     seg: document.querySelectorAll('#libOriginSeg .libseg-item').length
   }));
   ok('媒体库卡墙渲染（2 组卡 + 封面 + 分段控件）', () => assert(libRendered.cards === 2 && libRendered.grid && libRendered.covers === 2 && libRendered.seg === 3, JSON.stringify(libRendered)));
-  const rssRendered = await page.evaluate(() => document.querySelectorAll('#subList .task').length);
-  ok('订阅页渲染订阅卡', () => assert(rssRendered === 2, 'rows=' + rssRendered));
+  const rssRendered = await page.evaluate(() => ({
+    cards: document.querySelectorAll('#subList .subcard').length,
+    detail: document.querySelectorAll('#subList .sc-detail').length,
+    actions: document.querySelectorAll('#subList .sc-actions .sx').length
+  }));
+  ok('订阅页卡片化渲染（2 卡 + 展开区 + 操作挂点）', () => assert(rssRendered.cards === 2 && rssRendered.detail === 2 && rssRendered.actions >= 14, JSON.stringify(rssRendered)));
+  const sideSubs = await page.evaluate(() => ({ items: document.querySelectorAll('#sideSubList .side-sub').length, cnt: document.getElementById('sideSubCnt').textContent }));
+  ok('侧栏订阅主页动态列表同步（2 项 + 计数）', () => assert(sideSubs.items === 2 && sideSubs.cnt === '2', JSON.stringify(sideSubs)));
+  // 手动添加联动：点击侧栏入口 → 媒体库切到手动添加视图
+  await page.evaluate(() => document.querySelector('.sidebar .nav[data-nav="manual"]').click());
+  await page.waitForTimeout(260);
+  const manualView = await page.evaluate(() => ({
+    seg: document.querySelector('#libOriginSeg .libseg-item.active').dataset.origin,
+    navOn: document.querySelector('.sidebar .nav.on[data-nav]') ? 'manual' : 'page'
+  }));
+  ok('侧栏「手动添加」→ 媒体库手动视图 + 入口高亮', () => assert(manualView.seg === 'manual' && manualView.navOn === 'manual', JSON.stringify(manualView)));
+  await page.evaluate(() => { libOriginFilter = 'all'; document.querySelectorAll('#libOriginSeg .libseg-item').forEach(x => { const on = x.dataset.origin === 'all'; x.classList.toggle('active', on); x.setAttribute('aria-selected', on); }); });
 
   console.log('\n=== D. ⌘K 面板 ===');
   await page.keyboard.press('Control+k');
@@ -339,8 +358,9 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   console.log('\n=== I. 坑位静态计数 ===');
+  // 91 基线 +1：第三阶段 renderSubs 拆 kindLabel/kindEmoji 两个映射，weread 标识符同函数内重复一次，非新增入口
   const occ = (src.match(/公众号|视频号|weread|weixin|Channels/g) || []).length;
-  ok('公众号/视频号坑位出现次数 = 91（迁移前基线）', () => assert(occ === 91, 'occ=' + occ));
+  ok('公众号/视频号坑位出现次数 = 92（91 基线 + renderSubs 映射重构重复）', () => assert(occ === 92, 'occ=' + occ));
 
   console.log('\n=== J. 运行时无 JS 报错 ===');
   ok('pageerror 为空', () => assert(errors.length === 0, errors.slice(0, 3).join(' | ')));
