@@ -88,16 +88,16 @@
   html[data-theme="dark"] .tb-brand .gem { background:var(--acc); color:#fff; }
   .tb-brand .tb-name { font-weight:700; font-size:15px; letter-spacing:.01em; white-space:nowrap; }
   .search { position:relative; flex:0 1 340px; min-width:150px; }
-  .search-trigger {
-    width:100%; height:38px; border:1px solid transparent; border-radius:10px; min-height:38px;
-    background:var(--panel2); padding:0 10px 0 38px; font-size:13px;
-    display:flex; align-items:center; text-align:left; color:var(--txt3);
-    transition:background 180ms var(--ease-out), border-color 180ms var(--ease-out), transform 140ms var(--ease-out);
+  .search > svg { position:absolute; left:12px; top:50%; transform:translateY(-50%); width:16px; height:16px; color:var(--txt3); pointer-events:none; }
+  .search > .tb-kbd { position:absolute; right:10px; top:50%; transform:translateY(-50%); pointer-events:none; }
+  .search input {
+    width:100%; height:38px; border:1px solid transparent; border-radius:10px; box-sizing:border-box;
+    background:var(--panel2); padding:0 64px 0 38px; font-size:13px; font-family:inherit; color:var(--txt); outline:none;
+    transition:background 180ms var(--ease-out), border-color 180ms var(--ease-out);
   }
-  .search-trigger svg { position:absolute; left:12px; top:50%; transform:translateY(-50%); width:16px; height:16px; color:var(--txt3); }
-  .search-trigger .txt { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-  .search-trigger:hover { background:var(--panel); border-color:var(--line-strong); }
-  .search-trigger:active { transform:scale(.98); }
+  .search input:hover { background:var(--panel); border-color:var(--line-strong); }
+  .search input:focus { background:var(--panel); border-color:var(--acc); box-shadow:0 0 0 3px var(--accbg); }
+  .search input::placeholder { color:var(--txt3); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   .tb-kbd {
     font-size:11px; font-weight:500; padding:2px 6px; border-radius:5px; flex:none;
     border:1px solid var(--line); background:var(--panel); color:var(--txt3); font-variant-numeric:tabular-nums;
@@ -121,8 +121,7 @@
   .logo-txt { display:flex; flex-direction:column; line-height:1.3; min-width:0; }
   .logo-name { font-weight:700; font-size:16px; color:var(--txt); letter-spacing:.02em; }
   .logo-sub { font-size:10.5px; color:var(--txt2); letter-spacing:.04em; }
-  .nav-grp { display:flex; align-items:center; gap:8px; font-size:10.5px; font-weight:700; letter-spacing:.12em; color:var(--txt3); padding:14px 10px 6px; white-space:nowrap; }
-  .nav-grp::before { content:""; width:12px; height:2px; border-radius:2px; background:var(--acc); opacity:.75; }
+  .nav-grp { font-size:12px; font-weight:600; letter-spacing:.04em; color:var(--txt3); padding:16px 10px 7px; white-space:nowrap; }
   .nav {
     position:relative; width:100%; min-height:40px; border-radius:9px; display:flex; align-items:center; gap:11px;
     padding:9px 10px; color:var(--txt); font-size:13.5px; cursor:pointer; user-select:none; white-space:nowrap;
@@ -133,8 +132,14 @@
   .nav.on { background:var(--accbg); color:var(--acc); font-weight:600; }
   .nav svg { width:18px; height:18px; flex:none; color:var(--txt2); }
   .nav.on svg { color:var(--acc); }
-  .nav .cnt { margin-left:auto; background:var(--panel2); color:var(--txt2); font-size:10.5px; font-weight:600; border-radius:999px; padding:2px 9px; }
-  .nav.on .cnt { background:var(--panel); color:var(--acc); }
+  .nav .cnt { margin-left:auto; color:var(--txt3); font-size:12px; font-weight:500; font-variant-numeric:tabular-nums; }
+  .nav.on .cnt { color:var(--acc); }
+  .side-sep { height:1px; background:var(--line); margin:14px 10px 2px; }
+  .sub-avatar {
+    width:22px; height:22px; border-radius:7px; flex:none; display:grid; place-items:center;
+    color:#fff; font-size:11px; font-weight:700; overflow:hidden; letter-spacing:-.02em;
+  }
+  .nav.is-sub { padding-left:9px; }
   .side-foot { margin-top:auto; font-size:11.5px; color:var(--txt2); padding:12px 8px 2px; border-top:1px solid var(--line); line-height:2.1; }
   .side-foot .frow { display:flex; align-items:center; gap:9px; white-space:nowrap; }
   .side-foot .frow svg { width:15px; height:15px; flex:none; color:var(--txt2); }
@@ -436,7 +441,7 @@
     .toolbar { gap:10px; padding:0 14px; }
     .search { flex-basis:110px; min-width:110px; }
     .toolbar { gap:8px; }
-    .search-trigger .tb-kbd { display:none; }
+    .search > .tb-kbd { display:none; }
     .tb-brand .tb-name { display:none; }
     .tb-acc-btn { padding:0 10px; }
     .tb-sec-btn { padding:0 10px; }
@@ -586,16 +591,31 @@
   .sc-detail summary::before { content:"▸ "; }
   .sc-detail[open] summary::before { content:"▾ "; }
   .sc-detail-body { font-size:12px; color:var(--txt2); line-height:1.95; padding:6px 2px 2px; overflow-wrap:anywhere; font-variant-numeric:tabular-nums; }
-  /* 媒体库工具行（第四批：去重复 + 页头收敛） */
-  .lib-tools { display:flex; align-items:center; gap:14px; flex-wrap:wrap; margin:0 2px 16px; }
-  .lib-sum { font-size:13px; font-weight:600; color:var(--txt); font-variant-numeric:tabular-nums; white-space:nowrap; }
-  .lib-search { margin-left:auto; display:flex; align-items:center; gap:7px; height:34px; padding:0 10px; border-radius:9px; background:var(--panel2); border:1px solid transparent; transition:border-color 180ms,background 180ms; min-width:210px; }
-  .lib-search:focus-within { border-color:var(--acc); background:var(--panel); box-shadow:0 0 0 3px var(--accbg); }
-  .lib-search > span { font-size:12px; opacity:.6; }
-  .lib-search input { border:none; outline:none; background:transparent; font:inherit; font-size:12.5px; color:var(--txt); width:100%; }
-  .lib-search input::placeholder { color:var(--txt3); }
-  .lib-manual-on { display:inline-flex; align-items:center; height:26px; padding:0 10px; border-radius:8px; background:var(--accbg); color:var(--acc); font-size:12px; font-weight:600; cursor:pointer; }
-  .lib-manual-on:hover { filter:brightness(.97); }
+  /* 媒体库页头（设计稿 main-head：大标题+副标题+右侧分段） */
+  .lib-head { flex:none; display:flex; align-items:flex-end; gap:16px; flex-wrap:wrap; padding:20px 2px 14px; }
+  .lib-title-wrap { flex:1; min-width:150px; }
+  .lib-title { font-size:26px; font-weight:700; letter-spacing:-.02em; line-height:1.15; text-wrap:balance; color:var(--txt); }
+  .lib-sub { font-size:13px; color:var(--txt2); margin-top:3px; }
+  .lib-more { grid-column:1/-1; text-align:center; font-size:12px; color:var(--txt3); padding:10px 0 4px; }
+  .lpill.origin {
+    background:rgba(255,255,255,.92); color:#1d1d1f;
+    max-width:112px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+  }
+  .lpill.origin.manual { background:var(--acc); color:#fff; }
+  .lbadge-bl { position:absolute; bottom:8px; left:9px; right:9px; z-index:2; display:flex; align-items:center; justify-content:space-between; gap:6px; flex-wrap:wrap; }
+  .sub-avatar.err { box-shadow:0 0 0 2px var(--red); }
+  .dot-mini { width:6px; height:6px; border-radius:50%; flex:none; }
+  .platform-dot { width:7px; height:7px; border-radius:50%; flex:none; }
+  .ccard-ph {
+    position:absolute; inset:0; display:grid; place-items:center; font-size:40px;
+    background:linear-gradient(135deg,var(--panel2),var(--panel));
+  }
+  .ccard-ph.video { background:linear-gradient(135deg,#2b2f3a,#1c1f28); color:rgba(255,255,255,.85); }
+  .ccard-ph .ph-play { width:52px; height:52px; border-radius:50%; background:rgba(255,255,255,.16); display:grid; place-items:center; }
+  .ccard-ph .ph-play::after { content:""; width:0; height:0; border-left:16px solid rgba(255,255,255,.9); border-top:10px solid transparent; border-bottom:10px solid transparent; margin-left:4px; }
+  .d-file .df-ops { display:none; gap:2px; flex:none; }
+  .d-file:hover .df-ops { display:flex; }
+  .d-file .df-ops .x { font-size:12px; }
   .lib-footnote { font-size:11.5px; color:var(--txt3); margin:14px 2px 0; line-height:1.8; }
   .side-cnt-wrap { display:inline-flex; align-items:center; gap:8px; }
   .side-manage { font-size:10.5px; font-weight:600; color:var(--acc); cursor:pointer; opacity:.85; }
@@ -621,11 +641,9 @@
     </button>
     <div class="tb-brand"><span class="gem">K</span><span class="tb-name">Keepsake</span></div>
     <div class="search">
-      <button class="search-trigger" id="searchTrigger" aria-label="搜索媒体库，或按 Ctrl+K 调出指令面板" aria-haspopup="dialog">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><line x1="20" y1="20" x2="16.65" y2="16.65"/></svg>
-        <span class="txt">搜索媒体库，或按 Ctrl+K 调出指令面板</span>
-        <kbd class="tb-kbd">Ctrl K</kbd>
-      </button>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><line x1="20" y1="20" x2="16.65" y2="16.65"/></svg>
+      <input id="libKw" placeholder="搜索媒体，或按 Ctrl+K 调出命令面板" autocomplete="off" spellcheck="false" oninput="if(typeof renderSideSubs==='function')renderSideSubs();setLibKw(this.value)">
+      <kbd class="tb-kbd">Ctrl K</kbd>
     </div>
     <div class="tb-spacer"></div>
     <button class="tb-sec-btn" id="openDlModalBtn" title="粘贴单条或多条内容链接，下载到本地后可在媒体库「手动添加」里找到" aria-haspopup="dialog">
@@ -645,11 +663,14 @@
   <div class="workspace">
 <aside class="sidebar">
   <div class="logo"><span class="gem">K</span><span class="logo-txt"><span class="logo-name">Keepsake</span><span class="logo-sub">个人媒体归档台</span></span></div>
-  <div class="nav-grp">媒体库</div>
-  <div class="nav on" data-page="lib" onclick="switchPage('lib')"><svg viewBox="0 0 256 256" fill="currentColor"><path d="M216,72H131.31L104,44.69A15.86,15.86,0,0,0,92.69,40H40A16,16,0,0,0,24,56V200.62A15.4,15.4,0,0,0,39.38,216H216.89A15.13,15.13,0,0,0,232,200.89V88A16,16,0,0,0,216,72ZM40,56H92.69l16,16H40ZM216,200H40V88H216Z"/></svg>媒体库 <span class="cnt" id="l-cnt">0</span></div>
-  <div class="nav" data-nav="manual" onclick="libOriginGo('manual', this)" title="单独下载的内容都收在这里，没有订阅归属"><svg viewBox="0 0 256 256" fill="currentColor"><path d="M208,40H48A16,16,0,0,0,32,56v144a16,16,0,0,0,16,16h160a16,16,0,0,0,16-16V56A16,16,0,0,0,208,40Zm0,144H48V56H208ZM176,88H80v16h96Zm0,32H80v16h96Z"/></svg>手动添加</div>
+  <div class="nav-grp">智能相簿</div>
+  <div class="nav on" data-page="lib" onclick="libViewGo('all')"><svg viewBox="0 0 256 256" fill="currentColor"><path d="M216,72H131.31L104,44.69A15.86,15.86,0,0,0,92.69,40H40A16,16,0,0,0,24,56V200.62A15.4,15.4,0,0,0,39.38,216H216.89A15.13,15.13,0,0,0,232,200.89V88A16,16,0,0,0,216,72ZM40,56H92.69l16,16H40ZM216,200H40V88H216Z"/></svg>所有归档 <span class="cnt" id="l-fileAll">0</span></div>
+  <div class="nav" data-nav="only" onclick="libViewGo('only')" title="没有可预览封面、只有文件名的内容"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="fill:none"><path d="M12 3 2.5 20h19L12 3Z"/><line x1="12" y1="9" x2="12" y2="14"/><circle cx="12" cy="17" r=".6" fill="currentColor"/></svg>仅文件名 <span class="cnt" id="l-fileOnly">0</span></div>
   <div class="nav-grp" style="justify-content:space-between"><span>订阅主页</span><span class="side-cnt-wrap"><span class="side-cnt" id="sideSubCnt">0</span><span class="side-manage" onclick="switchPage('rss')" title="订阅管理：检查频率/回溯/分组/批量操作">管理</span></span></div>
   <div id="sideSubList"></div>
+  <div class="side-sep"></div>
+  <div class="nav-grp">手动添加</div>
+  <div class="nav" data-nav="manual" onclick="libViewGo('manual')" title="单独下载的内容都收在这里，没有订阅归属"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="fill:none"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M4 20h16"/></svg>手动保存 <span class="cnt" id="l-fileManual">0</span></div>
   <div class="nav-grp">工具</div>
   <div class="nav" data-page="tasks" onclick="switchPage('tasks')"><svg viewBox="0 0 256 256" fill="currentColor"><path d="M32,64a8,8,0,0,1,8-8H216a8,8,0,0,1,0,16H40A8,8,0,0,1,32,64Zm104,56H40a8,8,0,0,0,0,16h96a8,8,0,0,0,0-16Zm0,64H40a8,8,0,0,0,0,16h96a8,8,0,0,0,0-16Zm112-24a8,8,0,0,1-3.76,6.78l-64,40A8,8,0,0,1,168,200V120a8,8,0,0,1,12.24-6.78l64,40A8,8,0,0,1,248,160Zm-23.09,0L184,134.43v51.14Z"/></svg>任务队列 <span class="cnt" id="q-cnt">0</span></div>
   <div class="nav" data-page="strategy" onclick="switchPage('strategy')"><svg viewBox="0 0 256 256" fill="currentColor"><path d="M208,40H48A16,16,0,0,0,32,56v56c0,52.72,25.52,84.67,46.93,102.19,23.06,18.86,46,25.27,47,25.53a8,8,0,0,0,4.2,0c1-.26,23.91-6.67,47-25.53C198.48,196.67,224,164.72,224,112V56A16,16,0,0,0,208,40Zm0,72c0,37.07-13.66,67.16-40.6,89.42A129.3,129.3,0,0,1,128,223.62a128.25,128.25,0,0,1-38.92-21.81C61.82,179.51,48,149.3,48,112l0-56,160,0Z"/></svg>限流策略</div>
@@ -740,21 +761,22 @@
     </div>
   </div>
 
-  <!-- 媒体库页（默认页：设计图的主视图） -->
+  <!-- 媒体库页（默认页：设计图的主视图，内容级卡片墙） -->
   <div class="page on" id="page-lib">
-    <div class="lib-tools">
-      <span class="lib-sum" id="l-sum">0 个文件</span>
+    <div class="lib-head">
+      <div class="lib-title-wrap">
+        <div class="lib-title" id="libTitle">所有归档</div>
+        <div class="lib-sub" id="libSub">订阅追更与手动添加，收在一处</div>
+      </div>
       <div class="libseg" id="libKindSeg" role="tablist" aria-label="按类型筛选">
         <span class="libseg-thumb" id="libSegThumb"></span>
         <button class="libseg-item active" data-kind="all" role="tab" aria-selected="true">全部</button>
         <button class="libseg-item" data-kind="video" role="tab" aria-selected="false">视频</button>
         <button class="libseg-item" data-kind="image" role="tab" aria-selected="false">图文</button>
       </div>
-      <span class="lib-manual-on" id="libManualClear" style="display:none" onclick="libOriginGo('all')" title="退出手动添加视图">✕ 只看手动添加</span>
-      <div class="lib-search"><span>🔍</span><input id="libKw" placeholder="搜索 UP主 / 站点 / 文件名…" oninput="_sideSubActive=null;if(typeof renderSideSubs==='function')renderSideSubs();setLibKw(this.value)"><span class="act" id="libKwClear" style="display:none;cursor:pointer" onclick="setLibKw('');$('libKw').value=''">✕</span></div>
     </div>
     <div id="libList"><div class="empty">还没有下载任何媒体——用工具栏「粘贴链接下载」单独收一条，或添加订阅自动追更</div></div>
-    <div class="lib-footnote">按 站点 / UP主 聚合的本地媒体索引 · 只读展示，任何情况下都不会自动删除你的文件 · 点击卡片展开文件列表</div>
+    <div class="lib-footnote">只读展示，任何情况下都不会自动删除你的文件 · 点击卡片查看档案与操作</div>
   </div>
 
   <!-- 策略页 -->
@@ -1714,7 +1736,7 @@ function skinStats() {
     fail: items.filter(s => s.lastError && (!s.lastCheck || (s.lastFailAt || 0) > (s.lastCheck || 0)) && !s.paused && !s.userPaused).length,
     paused: items.filter(s => s.paused).length,
     cooling: items.filter(s => s._observability && s._observability.cooldownUntil > Date.now()).length,
-    queue: txt('q-cnt'), done: txt('d-cnt'), lib: txt('l-cnt')
+    queue: txt('q-cnt'), done: txt('d-cnt'), lib: txt('l-fileAll')
   };
 }
 function mountSkinLayer() {
@@ -1779,6 +1801,8 @@ function p2Kpi(icon, label, val, unit, foot, cls) {
 function renderP2() {
   const top = $('p2Top'); if (!top) return;
   const page = (document.querySelector('.page.on') && document.querySelector('.page.on').id.replace('page-','')) || 'tasks';
+  // 媒体库页有自己的设计稿页头（lib-head 大标题+分段），期2 注入页头在此页隐藏避免叠加
+  top.style.display = page === 'lib' ? 'none' : '';
   const m = P2_META[page] || P2_META.tasks;
   const topHTML = `<div><div class="tb-t">${m.t}</div><div class="tb-c">${m.c}</div></div><div class="tb-sp"></div>` +
     (m.act ? `<div class="tb-act ${m.pri ? 'pri' : ''}" onclick="${m.fn}">${m.act}</div>` : '');
@@ -2876,7 +2900,6 @@ function txtHit(f) {
 }
 function setLibKw(v) {
   libKw = String(v || '').trim();
-  $('libKwClear').style.display = libKw ? 'inline' : 'none';
   clearTimeout(_txtSearchTimer);
   if (!libKw) { _txtHits = {}; renderLibrary(); return; }
   // 标题过滤立即反馈；文稿内容检索防抖 400ms（避免每敲一键扫索引）
@@ -2898,93 +2921,110 @@ function localImgUrl(p) {
   try { return encodeURI('file:///' + String(p).replace(/\\/g, '/')).replace(/#/g, '%23'); } catch (e) { return ''; }
 }
 // 来源视图筛选：all / manual（手动添加视图 = 缺口①，入口在侧栏；页内另有 libKind 类型分段）
-let libOriginFilter = 'all';   // 来源视图：all / manual（只由侧栏「手动添加」入口驱动）
-let libKind = 'all';           // 页内类型分段：all / video / image（与侧栏来源导航正交，不重复）
+let libView = 'all';           // 侧栏视图：all / only（仅文件名）/ manual（手动添加）
+let libKind = 'all';           // 页内类型分段：all / video / image（与侧栏视图正交）
+// 设计稿色板：订阅头像色（按名哈希）+ 平台色点
+const SUB_COLORS = ['#FF6699', '#5AC8FA', '#34C759', '#AF52DE', '#FF9500', '#64D2FF', '#FF375F', '#30D158'];
+const subColor = name => SUB_COLORS[[...String(name)].reduce((a, c) => a + (c.codePointAt(0) || 0), 0) % SUB_COLORS.length];
+const PLAT_COLOR = { bilibili: '#FB7299', xhs: '#FF2442', xiaohongshu: '#FF2442', youtube: '#FF0000', weread: '#07C160', weixin: '#07C160', rss: '#FF8800', pixiv: '#0096FA', x: '#1d1d1f', twitter: '#1d1d1f' };
+const platColor = s2 => PLAT_COLOR[String(s2).toLowerCase()] || '#8E8E93';
+const SITE_LABEL = { bilibili: 'B站', xhs: '小红书', xiaohongshu: '小红书', youtube: 'YouTube', weread: '公众号', weixin: '公众号', rss: 'RSS', pixiv: 'Pixiv', x: 'X', twitter: 'X' };
+const siteLabel = s2 => SITE_LABEL[String(s2).toLowerCase()] || s2;
 function renderLibrary() {
   const el = $('libList');
   if (!libData) return;
+  syncLibHead();
+  // 内容级清单（设计稿口径：每条内容一张卡）；顺带算三组侧栏计数
+  let onlyCnt = 0, manualCnt = 0;
+  const items = [];
+  for (const g of libData.groups) {
+    for (const f of g.files) {
+      const only = !['video', 'image', 'article'].includes(f.kind);
+      const manual = !!(f.src && f.src.via && f.src.via !== 'sub');
+      if (only) onlyCnt++;
+      if (manual) manualCnt++;
+      items.push({ g, f, only, manual });
+    }
+  }
+  const fa = $('l-fileAll'), fo = $('l-fileOnly'), fm = $('l-fileManual');
+  if (fa) fa.textContent = items.length;
+  if (fo) fo.textContent = onlyCnt;
+  if (fm) fm.textContent = manualCnt;
   const kw = libKw.toLowerCase();
-  // 关键词过滤：UP主 / 站点 / 任一文件名命中 / 文稿内容命中（#70③）即保留该组
-  let groups = kw ? libData.groups.filter(g =>
-    g.uploader.toLowerCase().includes(kw) || g.site.toLowerCase().includes(kw) ||
-    g.files.some(f => f.name.toLowerCase().includes(kw)) || g.files.some(f => txtHit(f))) : libData.groups.slice();
-  // 手动添加视图（侧栏入口）：文件带来源索引且非订阅才算；老文件无索引记录不冒充手动（诚实边界）
-  if (libOriginFilter === 'manual') groups = groups.filter(g => g.files.some(f => f.src && f.src.via && f.src.via !== 'sub'));
-  // 页内类型分段（全部/视频/图文）
-  if (libKind === 'video') groups = groups.filter(g => g.videoCount > 0);
-  else if (libKind === 'image') groups = groups.filter(g => g.imageCount > 0 || (g.articleCount || 0) > 0);
-  $('l-cnt').textContent = (kw || libKind !== 'all' || libOriginFilter !== 'all') ? groups.length + '/' + libData.groups.length : libData.groups.length;
-  $('l-sum').textContent = libData.totalFiles + ' 个文件 · ' + fmtBytes(libData.totalSize);
-  if (!libData.groups.length) {
+  let list = items;
+  if (kw) list = list.filter(it =>
+    it.f.name.toLowerCase().includes(kw) || it.g.uploader.toLowerCase().includes(kw) ||
+    it.g.site.toLowerCase().includes(kw) || txtHit(it.f));
+  if (libView === 'manual') list = list.filter(it => it.manual);   // 诚实边界：老文件无来源索引不冒充手动
+  else if (libView === 'only') list = list.filter(it => it.only);
+  if (libKind === 'video') list = list.filter(it => it.f.kind === 'video');
+  else if (libKind === 'image') list = list.filter(it => it.f.kind === 'image' || it.f.kind === 'article');
+  // 大库保护：最新优先，最多渲染 400 张卡，其余引导用顶栏搜索
+  list = list.slice().sort((a, b) => (b.f.mtime || 0) - (a.f.mtime || 0));
+  const LIMIT = 400;
+  const truncated = list.length > LIMIT;
+  const shown = truncated ? list.slice(0, LIMIT) : list;
+  if (!items.length) {
     el.innerHTML = '<div class="empty">还没有下载任何媒体——用工具栏「粘贴链接下载」单独收一条，或添加订阅自动追更</div>';
     return;
   }
-  if (!groups.length) {
+  if (!shown.length) {
     let msg;
-    if (libOriginFilter === 'manual') msg = '还没有手动添加的内容——用工具栏「粘贴链接下载」单独收一条试试';
-    else if (libKind === 'video') msg = '没有含视频的主页' + (kw ? '（搜索「' + esc(libKw) + '」无命中）' : '');
-    else if (libKind === 'image') msg = '没有含图文的主页' + (kw ? '（搜索「' + esc(libKw) + '」无命中）' : '');
-    else msg = '没有匹配「' + esc(libKw) + '」的媒体';
+    if (kw) msg = '没有匹配「' + esc(libKw) + '」的媒体';
+    else if (libView === 'manual' && libKind === 'video') msg = '手动保存的内容里还没有视频';
+    else if (libView === 'manual' && libKind === 'image') msg = '手动保存的内容里还没有图文';
+    else if (libView === 'manual') msg = '还没有手动保存的内容——用工具栏「粘贴链接下载」单独收一条试试';
+    else if (libView === 'only') msg = '没有仅文件名的内容——每条内容都有可预览的封面';
+    else if (libKind === 'video') msg = '没有视频';
+    else if (libKind === 'image') msg = '没有图文';
+    else msg = '没有匹配的媒体';
     el.innerHTML = '<div class="empty">' + msg + '</div>';
     return;
   }
-  // 大库提示——文件多时引导用搜索定位，避免用户翻几千个文件的卡片
-  const bigNote = (!kw && libOriginFilter === 'all' && libData.totalFiles > 3000)
-    ? '<div class="hint" style="margin:0 2px 10px">📦 媒体文件较多（' + libData.totalFiles + ' 个）：用上方搜索框按 UP主 / 站点 / 文件名 快速定位</div>' : '';
-  const cards = groups.map((g, gi) => {
-    const open = g.key === expandedKey;
-    const matched = kw ? g.files.filter(f => f.name.toLowerCase().includes(kw)).length : 0;
-    const txtMatched = kw ? g.files.filter(f => txtHit(f)).length : 0;
-    const kwNote = (kw && (matched || txtMatched)) ? ' · 命中 ' + (matched ? matched + ' 个文件' : '') + (matched && txtMatched ? ' + ' : '') + (txtMatched ? txtMatched + ' 篇文稿' : '') : '';
-    const hasSub = g.files.some(f => f.src && f.src.via === 'sub');
-    const hasManual = g.files.some(f => f.src && f.src.via && f.src.via !== 'sub');
-    const originPill = hasManual
-      ? '<span class="lpill manual">手动添加</span>'
-      : (hasSub ? '<span class="lpill">订阅</span>' : '');
-    const img = g.files.find(f => f.kind === 'image' && /\.(jpe?g|png|webp|gif|avif|bmp)$/i.test(f.name));
-    const cover = img ? '<img src="' + localImgUrl(img.path) + '" alt="" loading="lazy">'
-      : '<div class="lthumb-fallback">' + siteIcon(g.site) + '</div>';
-    const card = '<article class="lcard' + (open ? ' open' : '') + '" style="animation-delay:' + Math.min(gi, 12) * 32 + 'ms" onclick="toggleGroup(\'' + escAttr(g.key) + '\')">' +
+  const cards = shown.map((it, i) => {
+    const { g, f, only, manual } = it;
+    const kindPill = f.kind === 'video'
+      ? '<span class="lpill kind-video">▶ 视频</span>'
+      : '<span class="lpill">' + (f.kind === 'image' ? '🖼' : '📄') + ' 图文</span>';
+    let cover;
+    if (f.kind === 'image' && /\.(jpe?g|png|webp|gif|avif|bmp)$/i.test(f.name)) cover = '<img src="' + localImgUrl(f.path) + '" alt="" loading="lazy">';
+    else if (f.kind === 'video') cover = '<div class="ccard-ph video"><span class="ph-play"></span></div>';
+    else cover = '<div class="ccard-ph">' + kindIcon(f.kind) + '</div>';
+    const onlyPill = only ? '<span class="lpill only">仅文件名</span>' : '';
+    const originPill = manual
+      ? '<span class="lpill origin manual">⤓ 手动添加</span>'
+      : (f.src && f.src.via === 'sub' ? '<span class="lpill origin"><span class="dot-mini" style="background:' + subColor(g.uploader) + '"></span>' + esc(g.uploader) + '</span>' : '');
+    const plat = '<span class="lpill" style="background:rgba(0,0,0,.42)">' + esc(siteLabel(g.site)) + '</span>';
+    const stem = f.name.replace(/\.[^.]+$/, '');
+    const d = new Date(f.mtime || Date.now());
+    const date = isNaN(d) ? '' : d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+    return '<article class="lcard" style="animation-delay:' + Math.min(i, 12) * 32 + 'ms" onclick="openLibDrawer(\'' + escAttr(g.key) + '\')">' +
       '<div class="lthumb">' + cover +
-        '<div class="lbadge-tl">' + originPill + '</div>' +
+        '<div class="lbadge-tl">' + kindPill + onlyPill + '</div>' +
+        '<div class="lbadge-bl">' + originPill + plat + '</div>' +
       '</div>' +
       '<div class="lcard-body">' +
-        '<div class="lcard-title" title="' + escAttr(g.uploader) + '">' + esc(g.uploader) + '</div>' +
-        '<div class="lcard-meta"><span class="lpill" style="position:static;height:18px;padding:0 7px;max-width:110px">' + esc(g.site) + '</span><span class="sep">·</span>' + g.fileCount + ' 个文件' + kwNote + '</div>' +
-        '<div class="lcard-meta">' + esc(g.sizeText) + ' <span class="sep">·</span> 最近更新 ' + timeAgo(g.lastMtime) + '</div>' +
+        '<div class="lcard-title" title="' + escAttr(stem) + '">' + esc(stem) + '</div>' +
+        '<div class="lcard-meta"><span class="platform-dot" style="background:' + platColor(g.site) + '"></span>' + esc(g.uploader) + '<span class="sep">·</span>' + date + '</div>' +
       '</div>' +
     '</article>';
-    // 展开文件列表：占满整行（grid-column:1/-1），紧跟所属卡片之后
-    const detail = !open ? '' : '<div style="grid-column:1/-1;margin:2px 0 8px">' +
-      (g.files.length > 200 ? '<div class="hint" style="margin:0 0 6px">该组共 ' + g.files.length + ' 个文件，仅展示最近的 200 个（按发布时间排序）</div>' : '') +
-      '<div style="display:flex;gap:8px;margin:0 0 8px;flex-wrap:wrap">' +
-        (g.files.some(f => /\.(mp4|mkv|webm|mov|avi|flv|m4a|mp3|wav)$/i.test(f.name)) ? '<button type="button" class="btn-mini" style="color:var(--acc2)" onclick="transcribeGroup(\'' + escAttr(g.key) + '\')" title="把组内还没有字幕的音视频全部排队转写（串行处理）">📝 全组转写</button>' : '') +
-        '<button type="button" class="btn-mini" style="color:var(--acc2)" onclick="summarizeGroup(\'' + escAttr(g.key) + '\')" title="把组内可总结文本（转写稿/笔记/文章正文）交给 AI 做专题综述（需设置页配置 AI）">✨ 专题总结</button>' +
-        '<button type="button" class="btn-mini" style="color:var(--acc2)" onclick="openLibDrawer(\'' + escAttr(g.key) + '\')" title="档案详情">ⓘ 详情</button>' +
-        '<button type="button" class="btn-mini" style="color:var(--acc2)" onclick="openPath(\'' + escAttr(g.files[0] ? g.files[0].path : g.key) + '\')" title="打开文件夹">📂 文件夹</button>' +
-      '</div>' +
-      g.files.slice(0, 200).map(f => '<div class="task" style="margin:0 0 6px;padding:8px 12px">' +
-        '<div class="t-thumb" style="width:36px;height:28px;font-size:14px">' + kindIcon(f.kind) + '</div>' +
-        '<div class="t-info">' +
-          '<div class="name" title="' + esc(f.path) + '">' + esc(f.name) + '</div>' +
-          '<div class="meta">' + (f.kind === 'article' ? '文章存档 · ' + f.sizeText + ' · ' : f.sizeText + ' · ') + timeAgo(f.mtime) + articleBadge(f) + (txtHit(f) ? (txtHit(f).kind === 'filename' ? ' · 📛 <span title="' + escAttr(txtHit(f).snippet || '') + '" style="color:var(--acc2)">仅文件名</span>' : ' · 📄 <span title="' + escAttr(txtHit(f).snippet || '') + '" style="color:var(--acc2)">文稿匹配</span>') : '') + (asrStates[f.path] ? ' · 📝 ' + (asrStates[f.path].state === 'preparing' ? '准备中…' : asrStates[f.path].state === 'running' ? '转写中 ' + (asrStates[f.path].pct != null ? asrStates[f.path].pct + '%' : '…') : asrStates[f.path].state === 'done' ? '已转写' : '转写失败') : '') + jobStatus(f) + srcBadge(f) + '</div>' +
-          (asrStates[f.path] && asrStates[f.path].state === 'running' && asrStates[f.path].pct != null ? '<div class="bar"><i style="width:' + asrStates[f.path].pct + '%"></i></div>' : (asrStates[f.path] && asrStates[f.path].state === 'preparing' ? '<div class="bar indet"><i></i></div>' : '')) +
-        '</div>' +
-        (f.kind === 'article' ? '<div class="x" onclick="event.stopPropagation();openArticle(\'' + escAttr(f.path) + '\')" title="阅读（浏览器打开本地存档，离线可看）">📖</div><div class="x" onclick="event.stopPropagation();recheckArticle(\'' + escAttr(f.path) + '\')" title="重新检查原文：是否被删除或编辑">⟳</div><div class="x" onclick="event.stopPropagation();aiPanel(\'' + escAttr(f.path) + '\')" title="AI 摘要（对归档正文 article.md）">✨</div>' : '') +
-        (/\.(mp4|mkv|webm|mov|avi|flv|m4a|mp3|wav)$/i.test(f.name) ? '<div class="x" onclick="event.stopPropagation();transcribeFile(\'' + escAttr(f.path) + '\')" title="本地转写出 SRT 字幕">📝</div><div class="x" onclick="event.stopPropagation();translateFile(\'' + escAttr(f.path) + '\')" title="生成中英双语字幕（无字幕会先自动转写；需在设置页配置 AI）">🌐</div><div class="x" onclick="event.stopPropagation();burnFile(\'' + escAttr(f.path) + '\')" title="把字幕硬烧进视频（生成新视频文件）">🎬</div><div class="x" onclick="event.stopPropagation();aiPanel(\'' + escAttr(f.path) + '\')" title="AI 文稿助理（摘要/翻译）">✨</div>' : '') +
-        (f.kind === 'image' ? '<div class="x" onclick="event.stopPropagation();makeCbz(\'' + escAttr(f.path) + '\')" title="把该图片所在目录的散图打包成 .cbz 漫画册（含 ComicInfo 元数据）">📖</div>' : '') +
-        (f.kind === 'image' && f.hasText ? '<div class="x" onclick="event.stopPropagation();aiPanel(\'' + escAttr(f.path) + '\')" title="AI 摘要（对笔记正文 note.md）">✨</div>' : '') +
-        '<div class="x" onclick="event.stopPropagation();openLibSource(\'' + escAttr(f.path) + '\')" title="打开来源链接（浏览器）">🔗</div>' +
-        '<div class="x" onclick="openPath(\'' + escAttr(f.path) + '\')" title="打开所在文件夹">📁</div>' +
-        '<div class="x" onclick="event.stopPropagation();trashFile(\'' + escAttr(f.path) + '\')" title="删除（移入回收站，可恢复）" style="color:var(--red)">🗑</div>' +
-      '</div>').join('') +
-    '</div>';
-    return card + detail;
   }).join('');
-  el.innerHTML = bigNote + '<div class="libgrid">' + cards + '</div>';
-  const mc = $('libManualClear'); if (mc) mc.style.display = libOriginFilter === 'manual' ? '' : 'none';
-  try { if (typeof renderP2 === 'function') renderP2(); } catch (e) {}   // 期2：媒体库数据到位后刷 KPI
+  el.innerHTML = '<div class="libgrid">' + cards + '</div>' + (truncated ? '<div class="lib-more">还有 ' + (list.length - LIMIT) + ' 个更早的内容——用顶栏搜索快速定位</div>' : '');
+  try { if (typeof renderP2 === 'function') renderP2(); } catch (e) {}
 }
+
+// 页头标题/副标题随视图切换（设计稿 viewTitle/viewSub）
+function syncLibHead() {
+  const t = $('libTitle'), s2 = $('libSub');
+  if (!t || !s2) return;
+  if (libKw) { t.textContent = '搜索结果'; s2.textContent = '关键词「' + libKw + '」的命中内容'; return; }
+  if (libView === 'manual') { t.textContent = '手动添加'; s2.textContent = '单独保存的内容，收在这里'; }
+  else if (libView === 'only') { t.textContent = '仅文件名'; s2.textContent = '没有可预览封面的内容'; }
+  else if (libKind === 'video') { t.textContent = '视频'; s2.textContent = '本地已归档的视频内容'; }
+  else if (libKind === 'image') { t.textContent = '图文'; s2.textContent = '图片与文章存档'; }
+  else { t.textContent = '所有归档'; s2.textContent = '订阅追更与手动添加，收在一处'; }
+}
+
 
 // ===== 阶段一：双语字幕 / 烧字幕状态 =====
 const jobStates = {};
@@ -3510,11 +3550,9 @@ function cmdkTrigger() {
   const r = cmdkResults[cmdkSel];
   if (!r) return;
   if (r.type === 'action') { r.a.run(); return; }
-  // 媒体库命中：切到媒体库页、展开该主页并打开详情抽屉
+  // 媒体库命中：切到媒体库页并打开该主页的详情抽屉
   closeCmdk();
   switchPage('lib');
-  expandedKey = r.g.key;
-  try { renderLibrary(); } catch (e) {}
   openLibDrawer(r.g.key);
 }
 
@@ -3522,6 +3560,19 @@ function cmdkTrigger() {
 let _drawerRetryTimer = null;
 function isLibDrawerOpen() { return $('libDrawer').classList.contains('open'); }
 function closeLibDrawer() { $('libDrawer').classList.remove('open'); $('libDrawerScrim').classList.remove('show'); }
+// 抽屉文件行操作挂点（与旧展开行一致：阅读/检查原文/AI/转写/双语/烧字幕/成册/来源/文件夹/删除）
+function dFileOps(f) {
+  const btn = (ic, fn, tip, extra) => `<span class="x" onclick="event.stopPropagation();${fn}('${escAttr(f.path)}')" title="${tip}"${extra || ''}>${ic}</span>`;
+  const isAv = /\.(mp4|mkv|webm|mov|avi|flv|m4a|mp3|wav)$/i.test(f.name);
+  let h = '';
+  if (f.kind === 'article') h += btn('📖', 'openArticle', '阅读（浏览器打开本地存档，离线可看）') + btn('⟳', 'recheckArticle', '重新检查原文：是否被删除或编辑') + btn('✨', 'aiPanel', 'AI 摘要（对归档正文 article.md）');
+  if (isAv) h += btn('📝', 'transcribeFile', '本地转写出 SRT 字幕') + btn('🌐', 'translateFile', '生成中英双语字幕（无字幕会先自动转写；需在设置页配置 AI）') + btn('🎬', 'burnFile', '把字幕硬烧进视频（生成新视频文件）') + btn('✨', 'aiPanel', 'AI 文稿助理（摘要/翻译）');
+  if (f.kind === 'image') h += btn('📖', 'makeCbz', '把该图片所在目录的散图打包成 .cbz 漫画册（含 ComicInfo 元数据）');
+  if (f.kind === 'image' && f.hasText) h += btn('✨', 'aiPanel', 'AI 摘要（对笔记正文 note.md）');
+  h += btn('🔗', 'openLibSource', '打开来源链接（浏览器）') + btn('📁', 'openPath', '打开所在文件夹') + btn('🗑', 'trashFile', '删除（移入回收站，可恢复）', ' style="color:var(--red)"');
+  return h;
+}
+
 function openLibDrawer(key) {
   if (!libData || !Array.isArray(libData.groups)) {   // 数据未就绪（首次进库正在扫描）：短暂重试
     clearTimeout(_drawerRetryTimer);
@@ -3550,6 +3601,7 @@ function openLibDrawer(key) {
       <div class="d-file">
         <span class="df-ic">${kindIcon(f.kind)}</span>
         <span class="df-name" title="${escAttr(f.path)}">${esc(f.name)}</span>
+        <span class="df-ops">${dFileOps(f)}</span>
         <span class="df-meta">${f.sizeText || ''} · ${timeAgo(f.mtime)}</span>
       </div>`).join('')}${(g.files || []).length > 60 ? `<div class="d-more">其余 ${(g.files || []).length - 60} 个文件在媒体库列表展开查看</div>` : ''}</div>`;
   $('libDrawer').classList.add('open');
@@ -3585,7 +3637,6 @@ cmdkList.addEventListener('click', e => {
 cmdkOverlay.addEventListener('mousedown', e => { if (e.target === e.currentTarget) closeCmdk(); });
 
 // 工具栏挂点：搜索触发框 / 主题切换 / 侧栏折叠 / 抽屉关闭
-$('searchTrigger').addEventListener('click', openCmdk);
 $('themeToggleBtn').addEventListener('click', cycleUiTheme);
 $('sidebarToggle').addEventListener('click', () => document.getElementById('app').classList.toggle('sidebar-collapsed'));
 $('libDrawerClose').addEventListener('click', closeLibDrawer);
@@ -3661,11 +3712,18 @@ $('libKindSeg').addEventListener('click', e => {
 });
 // ===== 第三阶段：侧栏设计图化 —— 手动添加入口 + 订阅主页动态列表 =====
 let _sideSubActive = null;
-function libOriginGo(origin, el) {
+function libViewGo(v) {
   switchPage('lib');
-  libOriginFilter = origin === 'manual' ? 'manual' : 'all';
-  // 侧栏高亮：手动视图点亮手动入口，否则回媒体库 nav
-  document.querySelectorAll('.sidebar .nav').forEach(n => n.classList.toggle('on', origin === 'manual' ? n.dataset.nav === 'manual' : n.dataset.page === 'lib'));
+  libView = v === 'manual' ? 'manual' : v === 'only' ? 'only' : 'all';
+  // 侧栏视图高亮（视图项 data-nav / 归档项 data-page）
+  document.querySelectorAll('.sidebar .nav').forEach(n => {
+    const on = (libView === 'manual' && n.dataset.nav === 'manual') ||
+      (libView === 'only' && n.dataset.nav === 'only') ||
+      (libView === 'all' && n.dataset.page === 'lib');
+    n.classList.toggle('on', on);
+  });
+  _sideSubActive = null;
+  if (typeof renderSideSubs === 'function') renderSideSubs();
   try { renderLibrary(); } catch (err) {}
 }
 function renderSideSubs() {
@@ -3675,7 +3733,7 @@ function renderSideSubs() {
   const MAX = 8;
   box.innerHTML = subs.slice(0, MAX).map(s => {
     const bad = s.lastError && (!s.lastCheck || (s.lastFailAt || 0) > (s.lastCheck || 0)) && !(s.userPaused || s.paused);
-    return `<div class="side-sub${_sideSubActive === s.id ? ' on' : ''}${bad ? ' err' : ''}" onclick="sideSubGo('${s.id}')" title="${escAttr(s.name)} · 点击在媒体库查看 TA 的归档"><span class="ss-dot"></span><span class="ss-name">${esc(s.name)}</span></div>`;
+    return `<div class="nav is-sub${_sideSubActive === s.id ? ' on' : ''}" onclick="sideSubGo('${s.id}')" title="${escAttr(s.name)} · 点击在媒体库查看 TA 的归档"><span class="sub-avatar${bad ? ' err' : ''}" style="background:${subColor(s.name)}">${esc(String(s.name).trim().slice(0, 1).toUpperCase())}</span><span style="overflow:hidden;text-overflow:ellipsis;min-width:0">${esc(s.name)}</span></div>`;
   }).join('') + (subs.length > MAX ? `<div class="side-sub-more" onclick="switchPage('rss')">＋ 其余 ${subs.length - MAX} 个订阅…</div>` : '');
 }
 function sideSubGo(id) {
@@ -3683,10 +3741,10 @@ function sideSubGo(id) {
   if (!s) return;
   _sideSubActive = id;
   renderSideSubs();
+  libView = 'all';
   switchPage('lib');
-  // 按订阅名过滤卡墙（库分组按 UP主/站点名聚合，订阅名即其名）；
-  // 来源保持全部——老文件无来源索引，切订阅来源视图会把老归档误过滤成空
-  libOriginFilter = 'all';
+  // 按订阅名过滤（内容卡按 UP主/站点聚合归属，订阅名即其名）
+  document.querySelectorAll('.sidebar .nav').forEach(n => n.classList.toggle('on', n.dataset.page === 'lib'));
   const box = $('libKw'); if (box) box.value = s.name;
   setLibKw(s.name);
   try { renderLibrary(); } catch (err) {}
