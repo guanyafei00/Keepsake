@@ -59,21 +59,18 @@ document.addEventListener('DOMContentLoaded', () => {
     await page.goto(url, { waitUntil: 'domcontentloaded' });
     await page.waitForTimeout(900);
 
-    console.log('\n=== A. 设置页外观只有默认 ===');
-    const a = await page.evaluate(() => {
-      const sel = document.getElementById('uiLayoutSel');
-      return {
-        opts: sel ? [...sel.options].map(o => ({ v:o.value, t:o.textContent })) : null,
-        disabled: sel ? sel.disabled : null,
-        prev: !!document.getElementById('uiPrev'),
-        state: (document.getElementById('uiStateLine') || {}).textContent || ''
-      };
-    });
-    ok('风格下拉只 1 个选项(grid)', () => assert(a.opts && a.opts.length === 1 && a.opts[0].v === 'grid', JSON.stringify(a.opts)));
-    ok('下拉选项文案含「默认」不含 X/Y', () => assert(/默认/.test(a.opts[0].t) && !/方案/.test(a.opts[0].t), a.opts[0].t));
-    ok('风格下拉已禁用', () => assert(a.disabled === true, 'disabled=' + a.disabled));
+    console.log('\n=== A. 设置页外观只剩主题/强调色 ===');
+    const a = await page.evaluate(() => ({
+      layoutSel: !!document.getElementById('uiLayoutSel'),
+      themeSel: !!document.getElementById('uiThemeSel'),
+      accentSel: !!document.getElementById('uiAccentSel'),
+      prev: !!document.getElementById('uiPrev'),
+      state: (document.getElementById('uiStateLine') || {}).textContent || ''
+    }));
+    ok('界面风格下拉框已删除', () => assert(a.layoutSel === false, 'uiLayoutSel 仍存在'));
+    ok('主题/强调色下拉框保留', () => assert(a.themeSel && a.accentSel, JSON.stringify(a)));
     ok('预览三选一容器已删除', () => assert(a.prev === false, 'uiPrev 仍存在'));
-    ok('状态行不再提三风格', () => assert(/经典卡片（默认）/.test(a.state) && !/方案/.test(a.state), a.state));
+    ok('状态行不再提界面风格', () => assert(/当前：/.test(a.state) && !/界面风格/.test(a.state) && !/方案/.test(a.state), a.state));
 
     console.log('\n=== B. 渲染无报错 / 坑位 ===');
     ok('pageerror 为空', () => assert(errors.length === 0, errors.slice(0,3).join(' | ')));
@@ -99,9 +96,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const r = await page.evaluate(() => ({
       skin: document.documentElement.dataset.skin,
       layout: (typeof currentUi !== 'undefined' && currentUi.layout) || null,
-      sel: (document.getElementById('uiLayoutSel') || {}).value
+      sel: !!document.getElementById('uiLayoutSel')
     }));
-    ok(`老用户 layout=${bad} 启动回退 grid`, () => assert(r.skin === 'grid' && r.layout === 'grid' && r.sel === 'grid', JSON.stringify(r)));
+    ok(`老用户 layout=${bad} 启动回退 grid`, () => assert(r.skin === 'grid' && r.layout === 'grid' && r.sel === false, JSON.stringify(r)));
     ok(`layout=${bad} 回退时无报错`, () => assert(errors.length === 0, errors.slice(0,3).join(' | ')));
     await ctx.close();
   }

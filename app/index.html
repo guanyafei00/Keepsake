@@ -533,7 +533,7 @@
   <!-- 设置页 -->
   <div class="page" id="page-settings">
     <div class="card">
-      <h3>🎨 外观 <span class="rec">主题 · 强调色 · 界面风格</span></h3>
+      <h3>🎨 外观 <span class="rec">主题 · 强调色</span></h3>
       <div class="row">
         <label>主题</label>
         <select id="uiThemeSel" onchange="saveUiAppearance()" style="max-width:260px">
@@ -550,14 +550,8 @@
           <option value="green">绿</option>
         </select>
       </div>
-      <div class="row" style="margin-bottom:0">
-        <label>界面风格</label>
-        <select id="uiLayoutSel" disabled style="max-width:260px;opacity:.65">
-          <option value="grid">经典卡片（默认）</option>
-        </select>
-      </div>
-      <!-- 2026-11-21 主人拍板：界面风格只保留默认，方案 X(stream)/方案 Y(dash) 已移除。
-           select 保留是为了不破坏 saveUiAppearance 读取与 settings 持久化，禁用即可；CSS/JS 里的 stream/dash 分支永不触发。 -->
+      <!-- 2026-11-21 主人拍板：界面风格锁死默认 grid，原禁用下拉框已删（无选项可切）。
+           settings 仍持久化 layout 字段并强制回退 grid，老用户数据自动收敛，不受影响。 -->
       <div id="uiStateLine" style="font-size:11.5px;color:var(--txt2);line-height:1.7;margin:8px 0"></div>
       <div style="font-size:11.5px;color:var(--txt2);line-height:1.7">主题与强调色可随时切换，设置保存在本机、重启后仍生效。</div>
     </div>
@@ -1565,16 +1559,11 @@ function p2TaskView(v, chipEl) {
   const secs = document.querySelectorAll('#page-tasks .sec-t');
   if (secs.length >= 2) { secs[0].style.display = showQ ? '' : 'none'; secs[1].style.display = showD ? '' : 'none'; }
 }
-// 2026-11-21 主人拍板：界面风格只保留默认（grid），方案 X/Y 已移除。
-// 保留本函数仅更新状态行；预览三选一 DOM 已删，不再生成。
+// 外观状态行：只显示主题 + 强调色（界面风格已锁死，下拉框已删）
 function updateUiPreview() {
   const line = $('uiStateLine'); if (!line) return;
   const actual = currentUi.theme === 'auto' ? `（当前实际：${resolvedTheme('auto') === 'dark' ? '深色' : '浅色'}）` : '';
-  line.textContent = `当前：${UI_THEME_NAME[currentUi.theme]}${actual} · ${UI_ACCENT_NAME[currentUi.accent]} · 界面风格：经典卡片（默认）。`;
-}
-function pickUiLayout(l) {   // 兼容外部残留调用：风格已锁定默认，任何入参都回落到 grid
-  const sel = $('uiLayoutSel'); if (!sel) return Promise.resolve();
-  sel.value = 'grid'; return saveUiAppearance();
+  line.textContent = `当前：${UI_THEME_NAME[currentUi.theme]}${actual} · ${UI_ACCENT_NAME[currentUi.accent]}。`;
 }
 function applyUiAppearance(ui) {
   const u = ui || {};
@@ -1612,7 +1601,6 @@ async function loadSettings() {
   currentUi = s.ui || currentUi; applyUiAppearance(currentUi);
   $('uiThemeSel').value = currentUi.theme || 'light';
   $('uiAccentSel').value = currentUi.accent || 'brand';
-  $('uiLayoutSel').value = currentUi.layout || 'grid';
   $('outDirInput').value = s.outDir;
   $('proxyInput').value = s.proxy || '';
   $('updateUrlInput').value = s.updateUrl || '';
@@ -2907,8 +2895,8 @@ loadLibrary(true).catch(() => {});
 // 旧版只认 10 张卡（漏了「外观」「本土平台受控浏览」），漏网的卡片一直悬在导航外 → 页面显得乱。
 // 现在按 h3 文本归组，认不出的卡片统一归入「其他」，绝不留在导航外面。
 const SET_GROUPS = [
-  { name: '界面与外观', hint: '主题、强调色、整站风格', items: [
-    ['set-appearance', '🎨', '外观', '主题 / 风格'],
+  { name: '主题与配色', hint: '主题、强调色', items: [
+    ['set-appearance', '🎨', '外观', '主题 / 配色'],
   ]},
   { name: '下载与传输', hint: '保存位置、速度、引擎、代理', items: [
     ['set-downloads', '⚙', '下载设置', '保存目录'],
@@ -3037,7 +3025,7 @@ function initSettingsNav() {
   main.insertBefore(head, main.firstChild);
   wrap.appendChild(nav); wrap.appendChild(main); page.appendChild(wrap);
   let last = null; try { last = localStorage.getItem('keepsake.setSection'); } catch (e) {}
-  // 旧版存的是 10 个老 id，仍在新表里就沿用；否则默认落到「界面与外观」
+  // 旧版存的是 10 个老 id，仍在新表里就沿用；否则默认落到「主题与配色」
   switchSet(last === '__all__' || SET_IDS.has(last) ? last : SET_GROUPS[0].items[0][0]);
   loadWereadSetState();
 }
