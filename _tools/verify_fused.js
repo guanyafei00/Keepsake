@@ -116,12 +116,11 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     return faces;
   });
-  ok('毛玻璃面 = 工具栏/侧栏/⌘K面板/抽屉（+模态层/卡角标，无意外面）', () => {
-    const ALLOWED = ['toolbar', 'sidebar', 'cmdk', 'drawer', 'modal-layer', 'lpill'];
+  ok('毛玻璃面 = 工具栏/侧栏/⌘K面板/抽屉（+卡角标，无意外面）', () => {
+    const ALLOWED = ['toolbar', 'sidebar', 'cmdk', 'drawer', 'lpill'];
     const norm = faces => faces.map(f => {
       const s = f.replace(/^#/, '');
       if (s === 'libDrawer') return 'drawer';
-      if (s === 'subscribeLayer' || s === 'downloadLayer') return 'modal-layer';
       return s.split('.').pop();
     });
     const got = [...new Set(norm(bf))];
@@ -205,9 +204,8 @@ document.addEventListener('DOMContentLoaded', () => {
   // Enter 触发（源码含 isComposing 防中文输入法误触发）
   await page.keyboard.press('Enter');
   await page.waitForTimeout(200);
-  st = await page.evaluate(() => ({ open: isCmdkOpen(), dl: document.getElementById('downloadLayer').classList.contains('open') }));
-  ok('Enter 执行：打开「粘贴链接下载」模态且面板关闭', () => assert(!st.open && st.dl, JSON.stringify(st)));
-  await page.evaluate(() => closeLayerModal('downloadLayer'));
+  st = await page.evaluate(() => ({ open: isCmdkOpen(), page: (document.querySelector('.page.on') || {}).id, focus: document.activeElement === document.getElementById('urls') }));
+  ok('Enter 执行：跳任务队列页并聚焦粘贴框且面板关闭', () => assert(!st.open && st.page === 'page-tasks' && st.focus, JSON.stringify(st)));
   const src = fs.readFileSync(HTML, 'utf-8');
   ok('Enter 带 !e.isComposing 检查（中文输入法防误触）', () => assert(src.includes("e.key === 'Enter' && !e.isComposing"), 'no isComposing guard'));
   // >切深色
@@ -257,17 +255,9 @@ document.addEventListener('DOMContentLoaded', () => {
   await page.waitForTimeout(300);
   st = await page.evaluate(() => ({ kw: document.getElementById('libKw').value, cards: document.querySelectorAll('#libList .lcard').length }));
   ok('搜索直达项把关键词填入媒体库搜索框（setLibKw）', () => assert(st.kw === 'UP主乙', JSON.stringify(st)));
-  // Esc 分层关闭（⌘K > 新模态层 > 通用模态 > 抽屉）
-  // 先测新模态层拦截：Esc 只关模态层，不透传（capture 前置）
-  await page.evaluate(() => { openLayerModal('subscribeLayer'); openCmdk(); });
-  await page.waitForTimeout(80);
-  await page.keyboard.press('Escape');
-  await page.waitForTimeout(80);
-  st = await page.evaluate(() => ({ sub: document.getElementById('subscribeLayer').classList.contains('open'), cmdk: isCmdkOpen() }));
-  ok('Esc：新模态层拦截且只关模态层（⌘K 仍在）', () => assert(!st.sub && st.cmdk, JSON.stringify(st)));
-  await page.evaluate(() => { closeCmdk(); });
+  // Esc 分层关闭（⌘K > 通用模态 > 抽屉；订阅/下载模态层已撤，入口收敛到各自页面）
   // 经典三层
-  await page.evaluate(() => { [...document.querySelectorAll('.modal-layer.open')].forEach(l => l.classList.remove('open')); openCmdk(); });
+  await page.evaluate(() => { openCmdk(); });
   await page.waitForTimeout(80);
   await page.evaluate(() => { openModal('测试模态', 'x'); openLibDrawer('g1'); });
   await page.waitForTimeout(150);
@@ -326,7 +316,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const t2 = await page.evaluate(() => currentUi.theme);
   ok('工具栏主题按钮循环切换（light→dark→auto）', () => assert(t1 === 'dark' && t2 === 'auto', t1 + '/' + t2));
 
-  console.log('\n=== F2. 第二阶段真移植：模态提交 + 手动保存视图 ===');
+  console.log('\n=== F2. 入口去重 + 手动保存视图 ===');
   // 内容级卡墙：点卡开抽屉 + 封面 file:// + 平台 pill
   await page.evaluate(() => { document.getElementById('libKw').value = ''; setLibKw(''); libView = 'all'; renderLibrary(); window.switchPage('lib'); });
   await page.waitForTimeout(300);
@@ -341,22 +331,23 @@ document.addEventListener('DOMContentLoaded', () => {
   }));
   ok('点内容卡开详情抽屉 + 封面 file:// + 角标齐（b.jpg 双 pill，c.srt 带「仅文件名」角标）', () => assert(st.drawer && st.title === 'UP主甲' && st.coverImg && st.platPill === 5 && st.kindPill === 5, JSON.stringify(st)));
   await page.evaluate(() => document.querySelector('#libDrawerScrim').click());
-  // 添加订阅模态：提交 → 关模态 + 切订阅页
-  await page.evaluate(() => { document.getElementById('subUrlModal').value = 'https://example.com/u1'; openSubModal(); });
+  // 入口去重（2026-11-22 拍板）：工具栏不再有 添加订阅/粘贴下载 按钮，模态层整体撤除
+  st = await page.evaluate(() => ({
+    dlBtn: !!document.getElementById('openDlModalBtn'),
+    subBtn: !!document.getElementById('openSubModalBtn'),
+    layers: document.querySelectorAll('.modal-layer').length,
+    toolbarBtns: [...document.querySelectorAll('.toolbar button')].map(b => b.id || b.className)
+  }));
+  ok('工具栏无重复入口（无添加订阅/粘贴下载按钮，无模态层；入口收敛到各自页面）', () => assert(!st.dlBtn && !st.subBtn && st.layers === 0, JSON.stringify(st)));
+  // ⌘K「添加订阅」命令 → 跳订阅管理页并聚焦输入框
+  await page.evaluate(() => { openCmdk(); });
   await page.waitForTimeout(100);
-  st = await page.evaluate(() => document.getElementById('subscribeLayer').classList.contains('open'));
-  ok('openSubModal 打开添加订阅模态', () => assert(st, 'not open'));
-  await page.evaluate(() => document.getElementById('submitSubscribeBtn').click());
-  await page.waitForTimeout(400);
-  st = await page.evaluate(() => ({ open: document.getElementById('subscribeLayer').classList.contains('open'), page: (document.querySelector('.page.on') || {}).id }));
-  ok('订阅模态提交：关模态 + 切订阅页（复用 addSub）', () => assert(!st.open && st.page === 'page-rss', JSON.stringify(st)));
-  // 粘贴下载模态：提交 → 关模态 + 切任务页 + 链接填入 #urls
-  await page.evaluate(() => { document.getElementById('linkBoxModal').value = 'https://e.com/1\nhttps://e.com/2'; openDlModal(); });
-  await page.waitForTimeout(100);
-  await page.evaluate(() => document.getElementById('submitDownloadBtn').click());
-  await page.waitForTimeout(400);
-  st = await page.evaluate(() => ({ open: document.getElementById('downloadLayer').classList.contains('open'), page: (document.querySelector('.page.on') || {}).id, urls: document.getElementById('urls').value }));
-  ok('下载模态提交：关模态 + 切任务页 + addUrls 已消费链接（#urls 清空）', () => assert(!st.open && st.page === 'page-tasks' && st.urls === '', JSON.stringify(st)));
+  await page.keyboard.insertText('>添加订阅');
+  await page.waitForTimeout(120);
+  await page.keyboard.press('Enter');
+  await page.waitForTimeout(300);
+  st = await page.evaluate(() => ({ page: (document.querySelector('.page.on') || {}).id, focus: document.activeElement === document.getElementById('subUrl') }));
+  ok('⌘K「添加订阅」→ 跳订阅管理页并聚焦粘贴框', () => assert(st.page === 'page-rss' && st.focus, JSON.stringify(st)));
   // 手动添加视图（缺口①）：侧栏入口 → manual 只留 b.jpg 一张卡
   await page.evaluate(() => { window.__lib.groups[0].files[1].src = { via: 'single', url: 'https://e.com/b' }; document.getElementById('libKw').value = ''; setLibKw(''); window.switchPage('lib'); });
   await page.waitForTimeout(200);

@@ -60,9 +60,8 @@ function assert(c, m) { if (!c) throw new Error(m || 'assertion failed'); }
   await win.waitForTimeout(100);
   await win.keyboard.press('Enter');
   await win.waitForTimeout(250);
-  st = await win.evaluate(() => ({ dl: document.getElementById('downloadLayer').classList.contains('open'), closed: !isCmdkOpen() }));
-  ok('>粘贴链接 → 打开下载模态且面板关闭', () => assert(st.dl && st.closed, JSON.stringify(st)));
-  await win.evaluate(() => closeLayerModal('downloadLayer'));
+  st = await win.evaluate(() => ({ page: (document.querySelector('.page.on') || {}).id, focus: document.activeElement === document.getElementById('urls'), closed: !isCmdkOpen() }));
+  ok('>粘贴链接 → 跳任务队列页并聚焦粘贴框且面板关闭', () => assert(st.page === 'page-tasks' && st.focus && st.closed, JSON.stringify(st)));
   await win.evaluate(() => window.switchPage('tasks'));
   await win.waitForTimeout(200);
   await win.click('#urls');

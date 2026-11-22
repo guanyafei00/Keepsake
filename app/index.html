@@ -443,7 +443,6 @@
     .toolbar { gap:8px; }
     .search > .tb-kbd { display:none; }
     .tb-brand .tb-name { display:none; }
-    .tb-acc-btn { padding:0 10px; }
     .tb-sec-btn { padding:0 10px; }
     .topbar { padding:16px 18px 0; }
     #kpiHost { padding:12px 18px 0; }
@@ -454,15 +453,7 @@
     .setNav { width:100%; }
     .setNavInner { position:static; max-height:none; }
   }
-  /* ---------- 内容区组件（第二阶段真移植：卡墙/分段控件/模态） ---------- */
-  .tb-acc-btn {
-    height:36px;padding:0 14px;border-radius:9px;display:inline-flex;align-items:center;gap:7px;
-    background:var(--acc);color:#fff;font-size:13px;font-weight:600;white-space:nowrap;
-    box-shadow:0 1px 2px rgba(0,0,0,.18), 0 3px 10px var(--accbg);
-    transition:transform 140ms var(--ease-out),filter 180ms var(--ease-out);
-  }
-  .tb-acc-btn:hover { filter:brightness(1.06); }
-  .tb-acc-btn:active { transform:scale(.97); }
+  /* ---------- 内容区组件（第二阶段真移植：卡墙/分段控件） ---------- */
   .tb-sec-btn {
     height:36px;padding:0 12px;border-radius:9px;display:inline-flex;align-items:center;gap:6px;
     background:var(--panel2);color:var(--txt);font-size:13px;font-weight:500;white-space:nowrap;
@@ -517,49 +508,6 @@
   .lcard-title { font-size:15px;font-weight:600;line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis; }
   .lcard-meta { font-size:12px;color:var(--txt2);margin-top:4px;display:flex;align-items:center;gap:6px;white-space:nowrap;overflow:hidden;font-variant-numeric:tabular-nums; }
   .lcard-meta .sep { opacity:.45; }
-  .modal-layer {
-    position:fixed;inset:0;z-index:100;display:grid;place-items:center;padding:24px;
-    background:rgba(0,0,0,.32);
-    -webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px);
-    opacity:0;pointer-events:none;transition:opacity 220ms var(--ease-out);
-  }
-  .modal-layer.open { opacity:1;pointer-events:auto; }
-  .pmodal {
-    width:100%;max-width:470px;border-radius:18px;overflow:hidden;
-    background:var(--panel);box-shadow:var(--shadow-lg);
-    transform:scale(.95) translateY(8px);opacity:0;
-    transition:transform 340ms var(--ease-spring),opacity 240ms var(--ease-out);
-  }
-  .modal-layer.open .pmodal { transform:scale(1) translateY(0);opacity:1; }
-  .pmodal-head { padding:22px 24px 4px;display:flex;align-items:flex-start;gap:14px; }
-  .pmodal-ic {
-    width:42px;height:42px;border-radius:12px;flex:none;display:grid;place-items:center;
-    background:var(--accbg);color:var(--acc);
-  }
-  .pmodal-ic svg { width:22px;height:22px; }
-  .pmodal-head h2 { font-size:18px;font-weight:700;letter-spacing:-.01em;margin:0; }
-  .pmodal-head p { font-size:13px;color:var(--txt2);margin:2px 0 0;line-height:1.5; }
-  .pmodal-x { margin-left:auto;width:32px;height:32px;border-radius:8px;display:grid;place-items:center;color:var(--txt3);border:0;background:none;cursor:pointer;transition:background 160ms; }
-  .pmodal-x:hover { background:var(--panel2); }
-  .pmodal-body { padding:18px 24px 4px; }
-  .pfield label { display:block;font-size:13px;font-weight:600;margin-bottom:7px;color:var(--txt); }
-  .pfield input,.pfield textarea {
-    width:100%;border:1px solid var(--line);border-radius:10px;background:var(--panel2);
-    padding:11px 12px;font-size:14px;font-family:inherit;color:var(--txt);resize:none;
-    transition:border-color 180ms,box-shadow 180ms,background 180ms;
-  }
-  .pfield input { height:44px;box-sizing:border-box; }
-  .pfield textarea { min-height:118px;line-height:1.5;box-sizing:border-box; }
-  .pfield input::placeholder,.pfield textarea::placeholder { color:var(--txt3); }
-  .pfield input:focus,.pfield textarea:focus { outline:none;border-color:var(--acc);box-shadow:0 0 0 3px var(--accbg);background:var(--panel); }
-  .pfield-hint { font-size:12px;color:var(--txt3);margin-top:7px; }
-  .pmodal-foot { display:flex;justify-content:flex-end;gap:10px;padding:18px 24px 24px; }
-  .pbtn-plain {
-    height:40px;padding:0 18px;border-radius:10px;font-size:14px;font-weight:600;color:var(--acc);
-    border:0;background:none;cursor:pointer;transition:background 160ms,transform 140ms;
-  }
-  .pbtn-plain:hover { background:var(--accbg); }
-  .pbtn-plain:active { transform:scale(.97); }
   .side-cnt { margin-left:auto; font-size:10px; font-weight:600; color:var(--txt3); font-variant-numeric:tabular-nums; }
   .side-sub { display:flex; align-items:center; gap:8px; height:32px; padding:0 10px; border-radius:8px; cursor:pointer; color:var(--txt2); font-size:12.5px; white-space:nowrap; overflow:hidden; transition:background 150ms var(--ease-out),color 150ms var(--ease-out); }
   .side-sub:hover { background:var(--panel2); color:var(--txt); }
@@ -636,7 +584,6 @@
   .side-manage:hover { opacity:1; text-decoration:underline; }
   @media (max-width:820px) {
     .tb-sec-btn span.label { display:none; }
-    .tb-acc-btn span.label { display:none; }
     .sc-actions .sx { width:26px; height:26px; font-size:12.5px; }
   }
   @media (prefers-reduced-motion:reduce) {
@@ -662,14 +609,6 @@
     <button class="tb-sec-btn" id="xhsWinBtn" onclick="openXhsWin()" title="打开小红书受控浏览器：浏览笔记页后点窗口内【📥 归档】一键保存图文/视频">
       <svg viewBox="0 0 256 256" fill="currentColor"><path d="M208,40H48A16,16,0,0,0,32,56v144a16,16,0,0,0,16,16h160a16,16,0,0,0,16-16V56A16,16,0,0,0,208,40ZM48,200V56H208V200ZM80,88h64v16H80ZM80,120h96v16H80Z"/></svg>
       <span class="label">小红书</span>
-    </button>
-    <button class="tb-sec-btn" id="openDlModalBtn" title="粘贴单条或多条内容链接，下载到本地后可在媒体库「手动添加」里找到" aria-haspopup="dialog">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
-      <span class="label">粘贴链接下载</span>
-    </button>
-    <button class="tb-acc-btn" id="openSubModalBtn" title="粘贴创作者主页地址，自动追更归档" aria-haspopup="dialog">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="width:15px;height:15px"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-      <span class="label">添加订阅</span>
     </button>
     <button class="tb-btn" id="themeToggleBtn" title="切换主题：浅色 / 深色 / 跟随系统" aria-label="切换主题">
       <span id="themeToggleIcon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8Z"/></svg></span>
@@ -1129,48 +1068,8 @@
   </div>
 </div>
 
-<!-- ============ 模态：添加订阅 / 粘贴链接下载（缺口②，原型 p17-a 标准模态）============ -->
-<div class="modal-layer" id="subscribeLayer" role="dialog" aria-modal="true" aria-label="添加订阅">
-  <div class="pmodal">
-    <div class="pmodal-head">
-      <div class="pmodal-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></div>
-      <div><h2>添加订阅</h2><p>粘贴创作者主页地址，Keepsake 会自动追更并归档到「订阅归档」。</p></div>
-      <button class="pmodal-x" data-close aria-label="关闭"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="width:16px;height:16px"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg></button>
-    </div>
-    <div class="pmodal-body">
-      <div class="pfield">
-        <label for="subUrlModal">主页地址</label>
-        <input id="subUrlModal" type="text" placeholder="https://space.bilibili.com/… 或小红书 / RSS 主页链接" autocomplete="off">
-        <div class="pfield-hint">支持 B站UP主 / YouTube频道 / X用户 / RSS·Atom / Pixiv·微博·Reddit·Instagram 等图站主页</div>
-      </div>
-    </div>
-    <div class="pmodal-foot">
-      <button class="pbtn-plain" data-close>取消</button>
-      <button class="tb-acc-btn" id="submitSubscribeBtn">添加订阅</button>
-    </div>
-  </div>
-</div>
-
-<div class="modal-layer" id="downloadLayer" role="dialog" aria-modal="true" aria-label="粘贴链接下载">
-  <div class="pmodal">
-    <div class="pmodal-head">
-      <div class="pmodal-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg></div>
-      <div><h2>粘贴链接下载</h2><p>粘贴单条或多条内容链接，下载到本地后在媒体库「手动添加」里能找到。</p></div>
-      <button class="pmodal-x" data-close aria-label="关闭"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="width:16px;height:16px"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg></button>
-    </div>
-    <div class="pmodal-body">
-      <div class="pfield">
-        <label for="linkBoxModal">内容链接</label>
-        <textarea id="linkBoxModal" placeholder="每行粘贴一条链接，例如：&#10;https://www.bilibili.com/video/BV…&#10;https://www.xiaohongshu.com/explore/…"></textarea>
-        <div class="pfield-hint">一行一条，自动识别视频 / 图文 / 文章；单条链接会先弹确认卡片</div>
-      </div>
-    </div>
-    <div class="pmodal-foot">
-      <button class="pbtn-plain" data-close>取消</button>
-      <button class="tb-acc-btn" id="submitDownloadBtn">开始下载</button>
-    </div>
-  </div>
-</div>
+<!-- 模态层已撤（2026-11-22 拍板）：添加订阅/粘贴下载入口收敛到各自页面（订阅管理页/任务队列页的粘贴框是全功能版，
+     模态是功能子集还会分叉体验）；⌘K 的对应命令改为跳页并聚焦输入框 -->
 
 <div id="interruptBanner" style="display:none;position:fixed;top:0;left:0;right:0;z-index:150;gap:14px;align-items:center;justify-content:center;background:var(--yellowbg);color:var(--yellow);font-size:12.5px;font-weight:600;padding:8px 16px;box-shadow:var(--shadow)">
   <span id="interruptMsg">上次未正常退出，有任务未完成</span>
@@ -2951,7 +2850,7 @@ const subKindPlat = k => ({ 'xhs-user': 'xiaohongshu', 'bili-collection': 'bilib
 function renderSubsGallery() {
   const el = $('libList'); if (!el) return;
   const subs = (subsItems || []).slice().sort((a, b) => (b.lastCheck || 0) - (a.lastCheck || 0));
-  if (!subs.length) { el.innerHTML = '<div class="empty">还没有订阅主页——用工具栏「添加订阅」追更一位创作者试试</div>'; return; }
+  if (!subs.length) { el.innerHTML = '<div class="empty">还没有订阅主页——点上方「管理」到订阅页粘贴主页地址添加</div>'; return; }
   const kw = libKw.toLowerCase();
   const list = kw ? subs.filter(s => String(s.name).toLowerCase().includes(kw)) : subs;
   if (!list.length) { el.innerHTML = '<div class="empty">没有匹配「' + esc(libKw) + '」的订阅主页</div>'; return; }
@@ -3006,7 +2905,7 @@ function renderLibrary() {
   const truncated = list.length > LIMIT;
   const shown = truncated ? list.slice(0, LIMIT) : list;
   if (!items.length) {
-    el.innerHTML = '<div class="empty">还没有下载任何媒体——用工具栏「粘贴链接下载」单独收一条，或添加订阅自动追更</div>';
+    el.innerHTML = '<div class="empty">还没有下载任何媒体——到「任务队列」粘贴链接单独收一条，或添加订阅自动追更</div>';
     return;
   }
   if (!shown.length) {
@@ -3014,7 +2913,7 @@ function renderLibrary() {
     if (kw) msg = '没有匹配「' + esc(libKw) + '」的媒体';
     else if (libView === 'manual' && libKind === 'video') msg = '手动保存的内容里还没有视频';
     else if (libView === 'manual' && libKind === 'image') msg = '手动保存的内容里还没有图文';
-    else if (libView === 'manual') msg = '还没有手动保存的内容——用工具栏「粘贴链接下载」单独收一条试试';
+    else if (libView === 'manual') msg = '还没有手动保存的内容——到「任务队列」粘贴链接单独收一条试试';
     else if (libView === 'only') msg = '没有仅文件名的内容——每条内容都有可预览的封面';
     else if (libKind === 'video') msg = '没有视频';
     else if (libKind === 'image') msg = '没有图文';
@@ -3522,8 +3421,8 @@ const CK_ACTIONS = [
   { ic: 'lib',      label: '手动添加',     hint: '单独下载的内容都收在这里',  run: () => { closeCmdk(); libOriginGo('manual'); } },
   { ic: 'strategy', label: '风控策略',     hint: '查看限流与学习状态',        run: () => { closeCmdk(); switchPage('strategy'); } },
   { ic: 'settings', label: '设置',         hint: '打开设置页',                run: () => { closeCmdk(); switchPage('settings'); } },
-  { ic: 'paste',    label: '粘贴链接下载', hint: '单条或多条链接，归档到手动添加', run: () => { closeCmdk(); openDlModal(); } },
-  { ic: 'sub',      label: '添加订阅',     hint: '粘贴创作者主页地址，自动追更', run: () => { closeCmdk(); openSubModal(); } },
+  { ic: 'paste',    label: '粘贴链接下载', hint: '到任务队列页粘贴，自动识别入队', run: () => { closeCmdk(); switchPage('tasks'); setTimeout(() => { const i = document.getElementById('urls'); if (i) i.focus(); }, 150); } },
+  { ic: 'sub',      label: '添加订阅',     hint: '到订阅管理页粘贴主页地址',       run: () => { closeCmdk(); switchPage('rss'); setTimeout(() => { const i = document.getElementById('subUrl'); if (i) i.focus(); }, 150); } },
   { ic: 'sun',      label: '切浅色',       hint: '外观 · 浅色主题',           run: () => { closeCmdk(); setUiTheme('light'); } },
   { ic: 'moon',     label: '切深色',       hint: '外观 · 深色主题',           run: () => { closeCmdk(); setUiTheme('dark'); } },
   { ic: 'auto',     label: '跟随系统',     hint: '外观 · 深浅跟随系统',       run: () => { closeCmdk(); setUiTheme('auto'); } },
@@ -3698,42 +3597,7 @@ ckSyncThemeIcon();
 // 窄屏默认折叠侧栏（390px 等小窗不横向溢出；用户可点工具栏按钮展开）
 if (window.innerWidth <= 820) document.getElementById('app').classList.add('sidebar-collapsed');
 
-// ===== 第二阶段真移植：模态层（添加订阅 / 粘贴链接下载 = 缺口②）+ 媒体库来源分段 =====
-function openLayerModal(id) { document.getElementById(id).classList.add('open'); }
-function closeLayerModal(layer) { (typeof layer === 'string' ? document.getElementById(layer) : layer).classList.remove('open'); }
-function openSubModal() { openLayerModal('subscribeLayer'); setTimeout(() => { const i = document.getElementById('subUrlModal'); if (i) i.focus(); }, 120); }
-function openDlModal() { openLayerModal('downloadLayer'); setTimeout(() => { const i = document.getElementById('linkBoxModal'); if (i) i.focus(); }, 120); }
-$('openSubModalBtn').addEventListener('click', openSubModal);
-$('openDlModalBtn').addEventListener('click', openDlModal);
-['subscribeLayer', 'downloadLayer'].forEach(id => {
-  const layer = document.getElementById(id);
-  layer.querySelectorAll('[data-close]').forEach(b => b.addEventListener('click', () => closeLayerModal(layer)));
-  layer.addEventListener('mousedown', e => { if (e.target === layer) closeLayerModal(layer); });
-});
-$('submitSubscribeBtn').addEventListener('click', () => {
-  const v = $('subUrlModal').value.trim();
-  if (!v) { toast('先粘贴一个主页地址'); return; }
-  closeLayerModal('subscribeLayer');
-  $('subUrlModal').value = '';
-  $('subUrl').value = v;   // 复用现有订阅入列逻辑（回溯条数沿用订阅页下拉）
-  switchPage('rss');
-  addSub();
-});
-$('submitDownloadBtn').addEventListener('click', () => {
-  const lines = $('linkBoxModal').value.split('\n').map(s => s.trim()).filter(Boolean);
-  if (!lines.length) { toast('先粘贴至少一条链接'); return; }
-  closeLayerModal('downloadLayer');
-  $('linkBoxModal').value = '';
-  $('urls').value = lines.join('\n');   // 复用现有入队逻辑（单条弹确认卡片，多条直通）
-  switchPage('tasks');
-  addUrls();
-});
-// Esc 分层：新模态层插在通用模态之前（⌘K > 新模态 > 通用模态 > 抽屉），capture 前置拦截不重复绑定
-window.addEventListener('keydown', e => {
-  if (e.key !== 'Escape') return;
-  const ml = document.querySelector('.modal-layer.open');
-  if (ml) { closeLayerModal(ml); e.stopImmediatePropagation(); }
-}, true);
+// ===== 媒体库来源分段（原模态层已撤：入口收敛到订阅管理页/任务队列页粘贴框，⌘K 命令跳页聚焦）=====
 // 媒体库类型分段（全部 / 视频 / 图文）——来源导航完全交给侧栏，页内不重复
 function moveLibSegThumb() {
   const act = document.querySelector('#libKindSeg .libseg-item.active');
