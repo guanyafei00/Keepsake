@@ -78,7 +78,8 @@ document.addEventListener('DOMContentLoaded', () => {
   console.log('\n=== A. 融合版骨架结构 ===');
   const base = await page.evaluate(() => ({
     toolbar: !!document.querySelector('.toolbar'),
-    brand: !!document.querySelector('.tb-brand .tb-name'),
+    brand: !!document.querySelector('.sidebar .logo .logo-name') && !document.querySelector('.tb-brand'),
+    xhsBtn: !!document.getElementById('xhsWinBtn'),
     search: !!document.querySelector('.toolbar .search input#libKw'),
     themeBtn: !!document.getElementById('themeToggleBtn'),
     sideToggle: !!document.getElementById('sidebarToggle'),
@@ -91,8 +92,8 @@ document.addEventListener('DOMContentLoaded', () => {
     pages: [...document.querySelectorAll('.main .page')].map(p => p.id),
     app: !!document.getElementById('app')
   }));
-  ok('工具栏（应用名+真搜索框+主题按钮+侧栏开关）', () => assert(base.toolbar && base.brand && base.search && base.themeBtn && base.sideToggle, JSON.stringify(base)));
-  ok('毛玻璃侧栏在 workspace 内，四页导航 + 三分组（智能相簿/手动添加/工具，订阅主页为单入口）', () => assert(base.sidebar && base.navs.length === 4 && base.grp === 3 && base.navs[0] === 'lib' && !base.navs.includes('rss'), JSON.stringify({ navs: base.navs, grp: base.grp })));
+  ok('工具栏（真搜索框+小红书受控窗入口+主题按钮+侧栏开关；品牌标识只在侧栏，全局仅一个 Keepsake）', () => assert(base.toolbar && base.brand && base.search && base.themeBtn && base.sideToggle && base.xhsBtn, JSON.stringify(base)));
+  ok('毛玻璃侧栏在 workspace 内，四页导航 + 两组标签（智能相簿/工具；订阅主页/手动保存为无标签单入口）', () => assert(base.sidebar && base.navs.length === 4 && base.grp === 2 && base.navs[0] === 'lib' && !base.navs.includes('rss'), JSON.stringify({ navs: base.navs, grp: base.grp })));
   ok('侧栏底部状态区（登录/规则/引擎更新入口）', () => assert(base.foot, 'no side-foot'));
   ok('⌘K 面板容器在位', () => assert(base.cmdk, 'no cmdk'));
   ok('详情抽屉在位', () => assert(base.drawer, 'no drawer'));
@@ -101,7 +102,7 @@ document.addEventListener('DOMContentLoaded', () => {
   ok('第三阶段：默认页 = 媒体库（启动第一眼）', () => assert(onPageLib));
   const sideShell = await page.evaluate(() => !!document.querySelector('.sidebar .nav[data-nav="manual"]') && !!document.querySelector('.sidebar .nav[data-nav="subs"]') && !!document.getElementById('sideSubCnt') && !document.getElementById('sideSubList'));
   const smartGroup = await page.evaluate(() => [...document.querySelectorAll('.sidebar .nav')].some(n => n.textContent.includes('仅文件名')) && [...document.querySelectorAll('.sidebar .nav')].some(n => n.textContent.includes('手动保存')) && !!document.getElementById('l-fileAll') && !!document.getElementById('l-fileOnly') && !!document.getElementById('l-fileManual'));
-  ok('第五批：智能相簿组带「所有归档/仅文件名」，手动添加组带「手动保存」', () => assert(smartGroup));
+  ok('第五批：智能相簿组带「所有归档/仅文件名」，手动保存为无标签单入口', () => assert(smartGroup));
   const manageLink = await page.evaluate(() => !!document.querySelector('.side-manage') && ![...document.querySelectorAll('.sidebar .nav')].some(n => n.textContent.includes('订阅归档')));
   ok('第四批：订阅管理入口在订阅主页组标题，工具组不再重复订阅归档 nav', () => assert(manageLink));
 
