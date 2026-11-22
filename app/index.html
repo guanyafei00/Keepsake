@@ -591,6 +591,20 @@
   .sc-detail summary::before { content:"▸ "; }
   .sc-detail[open] summary::before { content:"▾ "; }
   .sc-detail-body { font-size:12px; color:var(--txt2); line-height:1.95; padding:6px 2px 2px; overflow-wrap:anywhere; font-variant-numeric:tabular-nums; }
+  /* 订阅主页视图（侧栏单入口 → 右侧详细名称列表） */
+  .subsgrid { display:grid; grid-template-columns:repeat(auto-fill,minmax(240px,1fr)); gap:14px; }
+  .subgcard { display:flex; align-items:center; gap:12px; padding:14px 16px; background:var(--panel); border:1px solid var(--line); border-radius:14px; box-shadow:var(--shadow-sm); cursor:pointer; user-select:none; transition:border-color 180ms var(--ease-out),transform 140ms var(--ease-out); animation:libCardIn 380ms var(--ease-out) both; }
+  .subgcard:hover { border-color:var(--acc); transform:translateY(-1px); }
+  .subgcard:active { transform:scale(.98); }
+  .subgcard.dim { opacity:.62; }
+  .subgcard .sub-avatar { width:40px; height:40px; border-radius:50%; font-size:16px; }
+  .subgcard.err .sub-avatar { box-shadow:0 0 0 2px var(--red); }
+  .sg-main { flex:1; min-width:0; }
+  .sg-name { font-size:14px; font-weight:650; color:var(--txt); display:flex; align-items:center; gap:6px; min-width:0; }
+  .sg-name .nm { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; min-width:0; }
+  .sg-name .sg-pause { font-size:10px; font-weight:600; color:var(--txt3); background:var(--panel2); border:1px solid var(--line); border-radius:6px; padding:1px 6px; flex:none; }
+  .sg-meta { font-size:12px; color:var(--txt2); margin-top:3px; display:flex; align-items:center; gap:5px; font-variant-numeric:tabular-nums; white-space:nowrap; overflow:hidden; }
+  .sg-go { color:var(--txt3); font-size:18px; flex:none; }
   /* 媒体库页头（设计稿 main-head：大标题+副标题+右侧分段） */
   .lib-head { flex:none; display:flex; align-items:flex-end; gap:16px; flex-wrap:wrap; padding:20px 2px 14px; }
   .lib-title-wrap { flex:1; min-width:150px; }
@@ -666,8 +680,7 @@
   <div class="nav-grp">智能相簿</div>
   <div class="nav on" data-page="lib" onclick="libViewGo('all')"><svg viewBox="0 0 256 256" fill="currentColor"><path d="M216,72H131.31L104,44.69A15.86,15.86,0,0,0,92.69,40H40A16,16,0,0,0,24,56V200.62A15.4,15.4,0,0,0,39.38,216H216.89A15.13,15.13,0,0,0,232,200.89V88A16,16,0,0,0,216,72ZM40,56H92.69l16,16H40ZM216,200H40V88H216Z"/></svg>所有归档 <span class="cnt" id="l-fileAll">0</span></div>
   <div class="nav" data-nav="only" onclick="libViewGo('only')" title="没有可预览封面、只有文件名的内容"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="fill:none"><path d="M12 3 2.5 20h19L12 3Z"/><line x1="12" y1="9" x2="12" y2="14"/><circle cx="12" cy="17" r=".6" fill="currentColor"/></svg>仅文件名 <span class="cnt" id="l-fileOnly">0</span></div>
-  <div class="nav-grp" style="justify-content:space-between"><span>订阅主页</span><span class="side-cnt-wrap"><span class="side-cnt" id="sideSubCnt">0</span><span class="side-manage" onclick="switchPage('rss')" title="订阅管理：检查频率/回溯/分组/批量操作">管理</span></span></div>
-  <div id="sideSubList"></div>
+  <div class="nav" data-nav="subs" onclick="libViewGo('subs')" style="margin-top:16px" title="所有订阅主页收在这里，点击在右侧查看详细名称"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="fill:none"><rect x="3.5" y="3.5" width="17" height="17" rx="3"/><circle cx="12" cy="10" r="3"/><path d="M6.5 19a6 6 0 0 1 11 0"/></svg>订阅主页 <span class="cnt" id="sideSubCnt">0</span><span class="side-manage" style="margin-left:8px" onclick="event.stopPropagation();switchPage('rss')" title="订阅管理：检查频率/回溯/分组/批量操作">管理</span></div>
   <div class="side-sep"></div>
   <div class="nav-grp">手动添加</div>
   <div class="nav" data-nav="manual" onclick="libViewGo('manual')" title="单独下载的内容都收在这里，没有订阅归属"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="fill:none"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M4 20h16"/></svg>手动保存 <span class="cnt" id="l-fileManual">0</span></div>
@@ -2921,7 +2934,7 @@ function localImgUrl(p) {
   try { return encodeURI('file:///' + String(p).replace(/\\/g, '/')).replace(/#/g, '%23'); } catch (e) { return ''; }
 }
 // 来源视图筛选：all / manual（手动添加视图 = 缺口①，入口在侧栏；页内另有 libKind 类型分段）
-let libView = 'all';           // 侧栏视图：all / only（仅文件名）/ manual（手动添加）
+let libView = 'all';           // 侧栏视图：all / only（仅文件名）/ manual（手动添加）/ subs（订阅主页单入口）
 let libKind = 'all';           // 页内类型分段：all / video / image（与侧栏视图正交）
 // 设计稿色板：订阅头像色（按名哈希）+ 平台色点
 const SUB_COLORS = ['#FF6699', '#5AC8FA', '#34C759', '#AF52DE', '#FF9500', '#64D2FF', '#FF375F', '#30D158'];
@@ -2930,6 +2943,31 @@ const PLAT_COLOR = { bilibili: '#FB7299', xhs: '#FF2442', xiaohongshu: '#FF2442'
 const platColor = s2 => PLAT_COLOR[String(s2).toLowerCase()] || '#8E8E93';
 const SITE_LABEL = { bilibili: 'B站', xhs: '小红书', xiaohongshu: '小红书', youtube: 'YouTube', weread: '公众号', weixin: '公众号', rss: 'RSS', pixiv: 'Pixiv', x: 'X', twitter: 'X' };
 const siteLabel = s2 => SITE_LABEL[String(s2).toLowerCase()] || s2;
+// 订阅主页视图：kind → 平台标签/色点映射（与订阅页 kindLabel 同口径）
+const SUB_KIND_LABEL = { bilibili: 'B站', 'bili-collection': '合集', x: 'X', youtube: 'YouTube', rss: 'RSS', weread: '公众号', 'xhs-user': '小红书', gdl: '图站' };
+const subKindLabel = k => SUB_KIND_LABEL[String(k).toLowerCase()] || '订阅';
+const subKindPlat = k => ({ 'xhs-user': 'xiaohongshu', 'bili-collection': 'bilibili', weread: 'weread' })[k] || k;
+function renderSubsGallery() {
+  const el = $('libList'); if (!el) return;
+  const subs = (subsItems || []).slice().sort((a, b) => (b.lastCheck || 0) - (a.lastCheck || 0));
+  if (!subs.length) { el.innerHTML = '<div class="empty">还没有订阅主页——用工具栏「添加订阅」追更一位创作者试试</div>'; return; }
+  const kw = libKw.toLowerCase();
+  const list = kw ? subs.filter(s => String(s.name).toLowerCase().includes(kw)) : subs;
+  if (!list.length) { el.innerHTML = '<div class="empty">没有匹配「' + esc(libKw) + '」的订阅主页</div>'; return; }
+  const cards = list.map((s, i) => {
+    const bad = s.lastError && (!s.lastCheck || (s.lastFailAt || 0) > (s.lastCheck || 0)) && !(s.userPaused || s.paused);
+    const paused = !!(s.userPaused || s.paused);
+    return '<article class="subgcard' + (bad ? ' err' : '') + (paused ? ' dim' : '') + '" style="animation-delay:' + Math.min(i, 12) * 32 + 'ms" onclick="sideSubGo(\'' + escAttr(s.id) + '\')" title="查看「' + escAttr(s.name) + '」的归档">' +
+      '<span class="sub-avatar" style="background:' + subColor(s.name) + '">' + esc(String(s.name).trim().slice(0, 1).toUpperCase()) + '</span>' +
+      '<div class="sg-main">' +
+        '<div class="sg-name"><span class="nm">' + esc(s.name) + '</span>' + (paused ? '<span class="sg-pause">⏸ 已暂停</span>' : '') + '</div>' +
+        '<div class="sg-meta"><span class="platform-dot" style="background:' + platColor(subKindPlat(s.kind)) + '"></span><span>' + esc(subKindLabel(s.kind)) + '</span><span class="sep">·</span><span>已跟踪 ' + (s.knownCount || 0) + ' 条</span></div>' +
+      '</div>' +
+      '<span class="sg-go">›</span>' +
+    '</article>';
+  }).join('');
+  el.innerHTML = '<div class="subsgrid">' + cards + '</div>';
+}
 function renderLibrary() {
   const el = $('libList');
   if (!libData) return;
@@ -2950,6 +2988,8 @@ function renderLibrary() {
   if (fa) fa.textContent = items.length;
   if (fo) fo.textContent = onlyCnt;
   if (fm) fm.textContent = manualCnt;
+  // 订阅主页视图（侧栏单入口）：右侧出详细名称列表，不走内容卡墙
+  if (libView === 'subs') { renderSubsGallery(); return; }
   const kw = libKw.toLowerCase();
   let list = items;
   if (kw) list = list.filter(it =>
@@ -3017,6 +3057,8 @@ function renderLibrary() {
 function syncLibHead() {
   const t = $('libTitle'), s2 = $('libSub');
   if (!t || !s2) return;
+  const seg = $('libKindSeg'); if (seg) seg.style.display = libView === 'subs' ? 'none' : '';
+  if (libView === 'subs') { t.textContent = '订阅主页'; s2.textContent = (subsItems || []).length + ' 个订阅主页 · 点击卡片查看 TA 的归档'; return; }
   if (libKw) { t.textContent = '搜索结果'; s2.textContent = '关键词「' + libKw + '」的命中内容'; return; }
   if (libView === 'manual') { t.textContent = '手动添加'; s2.textContent = '单独保存的内容，收在这里'; }
   else if (libView === 'only') { t.textContent = '仅文件名'; s2.textContent = '没有可预览封面的内容'; }
@@ -3710,37 +3752,28 @@ $('libKindSeg').addEventListener('click', e => {
   syncKindSeg();
   try { renderLibrary(); } catch (err) {}
 });
-// ===== 第三阶段：侧栏设计图化 —— 手动添加入口 + 订阅主页动态列表 =====
-let _sideSubActive = null;
+// ===== 第三阶段：侧栏设计图化 —— 手动添加入口 + 订阅主页单入口 =====
 function libViewGo(v) {
   switchPage('lib');
-  libView = v === 'manual' ? 'manual' : v === 'only' ? 'only' : 'all';
+  libView = v === 'manual' ? 'manual' : v === 'only' ? 'only' : v === 'subs' ? 'subs' : 'all';
   // 侧栏视图高亮（视图项 data-nav / 归档项 data-page）
   document.querySelectorAll('.sidebar .nav').forEach(n => {
     const on = (libView === 'manual' && n.dataset.nav === 'manual') ||
       (libView === 'only' && n.dataset.nav === 'only') ||
+      (libView === 'subs' && n.dataset.nav === 'subs') ||
       (libView === 'all' && n.dataset.page === 'lib');
     n.classList.toggle('on', on);
   });
-  _sideSubActive = null;
   if (typeof renderSideSubs === 'function') renderSideSubs();
   try { renderLibrary(); } catch (err) {}
 }
+// 侧栏订阅主页单入口后，这里只负责同步计数（详细名称在右侧订阅主页视图出）
 function renderSideSubs() {
-  const box = $('sideSubList'); if (!box) return;
   const cnt = $('sideSubCnt'); if (cnt) cnt.textContent = (subsItems || []).length;
-  const subs = (subsItems || []).slice().sort((a, b) => (b.lastCheck || 0) - (a.lastCheck || 0));
-  const MAX = 8;
-  box.innerHTML = subs.slice(0, MAX).map(s => {
-    const bad = s.lastError && (!s.lastCheck || (s.lastFailAt || 0) > (s.lastCheck || 0)) && !(s.userPaused || s.paused);
-    return `<div class="nav is-sub${_sideSubActive === s.id ? ' on' : ''}" onclick="sideSubGo('${s.id}')" title="${escAttr(s.name)} · 点击在媒体库查看 TA 的归档"><span class="sub-avatar${bad ? ' err' : ''}" style="background:${subColor(s.name)}">${esc(String(s.name).trim().slice(0, 1).toUpperCase())}</span><span style="overflow:hidden;text-overflow:ellipsis;min-width:0">${esc(s.name)}</span></div>`;
-  }).join('') + (subs.length > MAX ? `<div class="side-sub-more" onclick="switchPage('rss')">＋ 其余 ${subs.length - MAX} 个订阅…</div>` : '');
 }
 function sideSubGo(id) {
   const s = (subsItems || []).find(x => x.id === id);
   if (!s) return;
-  _sideSubActive = id;
-  renderSideSubs();
   libView = 'all';
   switchPage('lib');
   // 按订阅名过滤（内容卡按 UP主/站点聚合归属，订阅名即其名）

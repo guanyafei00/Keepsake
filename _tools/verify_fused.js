@@ -92,14 +92,14 @@ document.addEventListener('DOMContentLoaded', () => {
     app: !!document.getElementById('app')
   }));
   ok('工具栏（应用名+真搜索框+主题按钮+侧栏开关）', () => assert(base.toolbar && base.brand && base.search && base.themeBtn && base.sideToggle, JSON.stringify(base)));
-  ok('毛玻璃侧栏在 workspace 内，四页导航 + 四分组（智能相簿/订阅主页/手动添加/工具，设计稿结构）', () => assert(base.sidebar && base.navs.length === 4 && base.grp === 4 && base.navs[0] === 'lib' && !base.navs.includes('rss'), JSON.stringify(base.navs)));
+  ok('毛玻璃侧栏在 workspace 内，四页导航 + 三分组（智能相簿/手动添加/工具，订阅主页为单入口）', () => assert(base.sidebar && base.navs.length === 4 && base.grp === 3 && base.navs[0] === 'lib' && !base.navs.includes('rss'), JSON.stringify({ navs: base.navs, grp: base.grp })));
   ok('侧栏底部状态区（登录/规则/引擎更新入口）', () => assert(base.foot, 'no side-foot'));
   ok('⌘K 面板容器在位', () => assert(base.cmdk, 'no cmdk'));
   ok('详情抽屉在位', () => assert(base.drawer, 'no drawer'));
   ok('五页 id 齐全', () => assert(['page-tasks', 'page-rss', 'page-lib', 'page-strategy', 'page-settings'].every(x => base.pages.includes(x)), JSON.stringify(base.pages)));
   const onPageLib = await page.evaluate(() => (document.querySelector('.page.on') || {}).id === 'page-lib');
   ok('第三阶段：默认页 = 媒体库（启动第一眼）', () => assert(onPageLib));
-  const sideShell = await page.evaluate(() => !!document.querySelector('.sidebar .nav[data-nav="manual"]') && !!document.getElementById('sideSubList') && !!document.getElementById('sideSubCnt'));
+  const sideShell = await page.evaluate(() => !!document.querySelector('.sidebar .nav[data-nav="manual"]') && !!document.querySelector('.sidebar .nav[data-nav="subs"]') && !!document.getElementById('sideSubCnt') && !document.getElementById('sideSubList'));
   const smartGroup = await page.evaluate(() => [...document.querySelectorAll('.sidebar .nav')].some(n => n.textContent.includes('仅文件名')) && [...document.querySelectorAll('.sidebar .nav')].some(n => n.textContent.includes('手动保存')) && !!document.getElementById('l-fileAll') && !!document.getElementById('l-fileOnly') && !!document.getElementById('l-fileManual'));
   ok('第五批：智能相簿组带「所有归档/仅文件名」，手动添加组带「手动保存」', () => assert(smartGroup));
   const manageLink = await page.evaluate(() => !!document.querySelector('.side-manage') && ![...document.querySelectorAll('.sidebar .nav')].some(n => n.textContent.includes('订阅归档')));
@@ -149,8 +149,26 @@ document.addEventListener('DOMContentLoaded', () => {
     actions: document.querySelectorAll('#subList .sc-actions .sx').length
   }));
   ok('订阅页卡片化渲染（2 卡 + 展开区 + 操作挂点）', () => assert(rssRendered.cards === 2 && rssRendered.detail === 2 && rssRendered.actions >= 14, JSON.stringify(rssRendered)));
-  const sideSubs = await page.evaluate(() => ({ items: document.querySelectorAll('#sideSubList .nav.is-sub').length, avatars: document.querySelectorAll('#sideSubList .sub-avatar').length, cnt: document.getElementById('sideSubCnt').textContent }));
-  ok('侧栏订阅主页动态列表同步（2 项 + 彩色头像 + 计数）', () => assert(sideSubs.items === 2 && sideSubs.avatars === 2 && sideSubs.cnt === '2', JSON.stringify(sideSubs)));
+  const sideSubs = await page.evaluate(() => ({ subsNav: !!document.querySelector('.sidebar .nav[data-nav="subs"]'), isSubItems: document.querySelectorAll('.sidebar .nav.is-sub').length, cnt: document.getElementById('sideSubCnt').textContent }));
+  ok('侧栏订阅主页单入口（不展示详细主页名，只显示计数）', () => assert(sideSubs.subsNav && sideSubs.isSubItems === 0 && sideSubs.cnt === '2', JSON.stringify(sideSubs)));
+  // 点击单入口 → 右侧出详细名称（订阅主页视图）
+  await page.evaluate(() => libViewGo('subs'));
+  await page.waitForTimeout(260);
+  const subsView = await page.evaluate(() => ({
+    title: (document.getElementById('libTitle') || {}).textContent,
+    cards: document.querySelectorAll('#libList .subgcard').length,
+    names: [...document.querySelectorAll('#libList .sg-name')].map(x => x.textContent),
+    segHidden: (document.getElementById('libKindSeg') || {}).style.display === 'none'
+  }));
+  ok('订阅主页视图：右侧出详细名称（2 张订阅卡 + 页头标题 + 类型分段隐藏）', () => assert(subsView.title === '订阅主页' && subsView.cards === 2 && subsView.names.length === 2 && subsView.segHidden, JSON.stringify(subsView)));
+  // 点第一张订阅卡 → 过滤到该订阅的归档（顶栏关键词=订阅名）
+  await page.evaluate(() => document.querySelector('#libList .subgcard').click());
+  await page.waitForTimeout(260);
+  const subFiltered = await page.evaluate(() => ({ kw: document.getElementById('libKw').value, title: (document.getElementById('libTitle') || {}).textContent, cards: document.querySelectorAll('#libList .lcard').length }));
+  ok('点订阅卡 → 过滤到 TA 的归档（顶栏关键词=订阅名，UP主甲 2 条内容卡）', () => assert(subFiltered.kw === 'UP主甲' && subFiltered.title === '搜索结果' && subFiltered.cards === 2, JSON.stringify(subFiltered)));
+  // 清掉订阅卡过滤带来的关键词，避免污染后续视图测试
+  await page.evaluate(() => { document.getElementById('libKw').value = ''; setLibKw(''); });
+  await page.waitForTimeout(220);
   // 手动添加联动（第五批口径）：点侧栏手动保存 → libView=manual + 页头标题切换
   await page.evaluate(() => document.querySelector('.sidebar .nav[data-nav="manual"]').click());
   await page.waitForTimeout(260);
@@ -383,7 +401,7 @@ document.addEventListener('DOMContentLoaded', () => {
   console.log('\n=== I. 坑位静态计数 ===');
   // 91 基线 +1（renderSubs 映射重构）+6（第五批色板/站点标签映射行 weread/weixin 标识符与公众号标签，非新增入口）
   const occ = (src.match(/公众号|视频号|weread|weixin|Channels/g) || []).length;
-  ok('公众号/视频号坑位出现次数 = 98（基线 92 + 色板/站点标签映射行重复标识符）', () => assert(occ === 98, 'occ=' + occ));
+  ok('公众号/视频号坑位出现次数 = 102（基线 98 + 订阅主页视图 kind 映射行 weread/公众号 标识符重复）', () => assert(occ === 102, 'occ=' + occ));
 
   console.log('\n=== J. 运行时无 JS 报错 ===');
   ok('pageerror 为空', () => assert(errors.length === 0, errors.slice(0, 3).join(' | ')));
