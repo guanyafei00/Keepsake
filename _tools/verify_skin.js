@@ -63,7 +63,7 @@ document.addEventListener('DOMContentLoaded', () => {
   await page.goto(url, { waitUntil: 'domcontentloaded' });
   await page.waitForTimeout(700);
 
-  console.log('\n=== A. CSS 变量（暖纸/琥珀）===');
+  console.log('\n=== A. CSS 变量（融合版系统蓝）===');
   const css = await page.evaluate(() => {
     const cs = getComputedStyle(document.documentElement);
     return {
@@ -73,10 +73,10 @@ document.addEventListener('DOMContentLoaded', () => {
       acc: cs.getPropertyValue('--acc').trim(),
     };
   });
-  ok('暖纸底 --bg=#F0ECE5', () => assert(css.bg.toUpperCase() === '#F0ECE5', css.bg));
-  ok('暖白面板 --panel=#FBF9F5', () => assert(css.panel.toUpperCase() === '#FBF9F5', css.panel));
-  ok('墨色正文 --txt=#29241E', () => assert(css.txt.toUpperCase() === '#29241E', css.txt));
-  ok('琥珀强调 --acc=#B77A16', () => assert(css.acc.toUpperCase() === '#B77A16', css.acc));
+  ok('浅灰底 --bg=#F2F2F7', () => assert(css.bg.toUpperCase() === '#F2F2F7', css.bg));
+  ok('纯白面板 --panel=#FFFFFF', () => assert(css.panel.toUpperCase() === '#FFFFFF', css.panel));
+  ok('墨色正文 --txt=#1D1D1F', () => assert(css.txt.toUpperCase() === '#1D1D1F', css.txt));
+  ok('品牌蓝 --acc=#007AFF', () => assert(css.acc.toUpperCase() === '#007AFF', css.acc));
 
   console.log('\n=== B. 侧栏 SVG 图标 ===');
   const side = await page.evaluate(() => {
@@ -95,7 +95,7 @@ document.addEventListener('DOMContentLoaded', () => {
   ok('分组标签 2 个（工作台/系统）', () => assert(side.grpCount === 2, 'grp=' + side.grpCount));
   ok('底部状态区有 SVG', () => assert(side.footSvg >= 3, 'footSvg=' + side.footSvg));
   ok('品牌副标题存在', () => assert(side.brandSub, 'no logo-sub'));
-  ok('侧栏宽 224px', () => assert(side.width === '224px', side.width));
+  ok('侧栏宽 244px', () => assert(side.width === '244px', side.width));
 
   console.log('\n=== C. 顶栏标题条（CSS 伪元素）===');
   for (const [p, title] of [['tasks','"任务队列"'],['rss','"订阅归档"'],['lib','"媒体库"'],['strategy','"风控策略"'],['settings','"设置"']]) {
