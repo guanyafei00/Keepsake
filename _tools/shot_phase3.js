@@ -56,8 +56,9 @@ fs.mkdirSync(OUT, { recursive: true });
   await page.addInitScript(MOCK);
   await page.goto(url, { waitUntil: 'domcontentloaded' });
   await page.waitForTimeout(1200);
-  // 1 启动第一眼：默认媒体库 + 侧栏订阅列表（不点任何东西直接截）
-  await page.waitForTimeout(400);
+  // 1 启动第一眼：默认媒体库 + 侧栏订阅列表（先触发订阅加载，模拟真实应用的 onSubs 推送时序）
+  await page.evaluate(() => { try { loadSubs(); } catch (e) {} });
+  await page.waitForTimeout(500);
   await page.screenshot({ path: path.join(OUT, 'vf3-home-default.png') });
   // 2 侧栏点订阅 → 媒体库按该订阅过滤
   await page.evaluate(() => sideSubGo('s1'));
@@ -76,7 +77,7 @@ fs.mkdirSync(OUT, { recursive: true });
   await page.waitForTimeout(600);
   await page.screenshot({ path: path.join(OUT, 'vf3-manual.png') });
   // 6 深色默认页
-  await page.evaluate(() => { document.documentElement.dataset.theme = 'dark'; window.switchPage('lib'); libOriginFilter = 'all'; document.querySelectorAll('#libOriginSeg .libseg-item').forEach(x => { const on = x.dataset.origin === 'all'; x.classList.toggle('active', on); x.setAttribute('aria-selected', on); }); renderLibrary(); });
+  await page.evaluate(() => { document.documentElement.dataset.theme = 'dark'; window.switchPage('lib'); libOriginFilter = 'all'; syncKindSeg(); renderLibrary(); });
   await page.waitForTimeout(600);
   await page.screenshot({ path: path.join(OUT, 'vf3-dark.png') });
   await browser.close();

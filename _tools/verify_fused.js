@@ -92,7 +92,7 @@ document.addEventListener('DOMContentLoaded', () => {
     app: !!document.getElementById('app')
   }));
   ok('工具栏（应用名+搜索触发框+主题按钮+侧栏开关）', () => assert(base.toolbar && base.brand && base.search && base.themeBtn && base.sideToggle, JSON.stringify(base)));
-  ok('毛玻璃侧栏在 workspace 内，五页导航 + 三分组（媒体库/订阅主页/工具）', () => assert(base.sidebar && base.navs.length === 5 && base.grp === 3 && base.navs[0] === 'lib', JSON.stringify(base.navs)));
+  ok('毛玻璃侧栏在 workspace 内，四页导航 + 三分组（订阅归档不重复，管理入口收进订阅主页组）', () => assert(base.sidebar && base.navs.length === 4 && base.grp === 3 && base.navs[0] === 'lib' && !base.navs.includes('rss'), JSON.stringify(base.navs)));
   ok('侧栏底部状态区（登录/规则/引擎更新入口）', () => assert(base.foot, 'no side-foot'));
   ok('⌘K 面板容器在位', () => assert(base.cmdk, 'no cmdk'));
   ok('详情抽屉在位', () => assert(base.drawer, 'no drawer'));
@@ -101,6 +101,8 @@ document.addEventListener('DOMContentLoaded', () => {
   ok('第三阶段：默认页 = 媒体库（启动第一眼）', () => assert(onPageLib));
   const sideShell = await page.evaluate(() => !!document.querySelector('.sidebar .nav[data-nav="manual"]') && !!document.getElementById('sideSubList') && !!document.getElementById('sideSubCnt'));
   ok('第三阶段：侧栏手动添加入口 + 订阅列表容器在位', () => assert(sideShell));
+  const manageLink = await page.evaluate(() => !!document.querySelector('.side-manage') && ![...document.querySelectorAll('.sidebar .nav')].some(n => n.textContent.includes('订阅归档')));
+  ok('第四批：订阅管理入口在订阅主页组标题，工具组不再重复订阅归档 nav', () => assert(manageLink));
 
   console.log('\n=== B. backdrop-filter 只在 4 个固定面 ===');
   const bf = await page.evaluate(() => {
@@ -136,7 +138,7 @@ document.addEventListener('DOMContentLoaded', () => {
     cards: document.querySelectorAll('#libList .lcard').length,
     grid: !!document.querySelector('#libList .libgrid'),
     covers: document.querySelectorAll('#libList .lthumb').length,
-    seg: document.querySelectorAll('#libOriginSeg .libseg-item').length
+    seg: document.querySelectorAll('#libKindSeg .libseg-item').length
   }));
   ok('媒体库卡墙渲染（2 组卡 + 封面 + 分段控件）', () => assert(libRendered.cards === 2 && libRendered.grid && libRendered.covers === 2 && libRendered.seg === 3, JSON.stringify(libRendered)));
   const rssRendered = await page.evaluate(() => ({
@@ -151,10 +153,10 @@ document.addEventListener('DOMContentLoaded', () => {
   await page.evaluate(() => document.querySelector('.sidebar .nav[data-nav="manual"]').click());
   await page.waitForTimeout(260);
   const manualView = await page.evaluate(() => ({
-    seg: document.querySelector('#libOriginSeg .libseg-item.active').dataset.origin,
-    navOn: document.querySelector('.sidebar .nav.on[data-nav]') ? 'manual' : 'page'
+    manual: document.querySelector('.sidebar .nav.on[data-nav]') ? 'manual' : 'page',
+    clear: document.getElementById('libManualClear').style.display !== 'none'
   }));
-  ok('侧栏「手动添加」→ 媒体库手动视图 + 入口高亮', () => assert(manualView.seg === 'manual' && manualView.navOn === 'manual', JSON.stringify(manualView)));
+  ok('侧栏「手动添加」→ 手动视图 + 入口高亮 + 退出标签', () => assert(manualView.manual === 'manual' && manualView.clear, JSON.stringify(manualView)));
   await page.evaluate(() => { libOriginFilter = 'all'; document.querySelectorAll('#libOriginSeg .libseg-item').forEach(x => { const on = x.dataset.origin === 'all'; x.classList.toggle('active', on); x.setAttribute('aria-selected', on); }); });
 
   console.log('\n=== D. ⌘K 面板 ===');
@@ -320,21 +322,22 @@ document.addEventListener('DOMContentLoaded', () => {
   await page.waitForTimeout(400);
   st = await page.evaluate(() => ({ open: document.getElementById('downloadLayer').classList.contains('open'), page: (document.querySelector('.page.on') || {}).id, urls: document.getElementById('urls').value }));
   ok('下载模态提交：关模态 + 切任务页 + addUrls 已消费链接（#urls 清空）', () => assert(!st.open && st.page === 'page-tasks' && st.urls === '', JSON.stringify(st)));
-  // 手动保存视图（缺口①）：manual 过滤含单条来源的组
+  // 手动添加视图（缺口①）：侧栏入口 → manual 过滤含单条来源的组
   await page.evaluate(() => { window.__lib.groups[0].files[1].src = { via: 'single', url: 'https://e.com/b' }; document.getElementById('libKw').value = ''; setLibKw(''); window.switchPage('lib'); });
   await page.waitForTimeout(200);
-  await page.evaluate(() => document.querySelector('#libOriginSeg .libseg-item[data-origin="manual"]').click());
+  await page.evaluate(() => libOriginGo('manual'));
   await page.waitForTimeout(250);
-  st = await page.evaluate(() => ({ cards: document.querySelectorAll('#libList .lcard').length, pills: document.querySelectorAll('#libList .lpill.manual').length }));
-  ok('手动保存视图：过滤出含手动来源的组 + 蓝色手动角标', () => assert(st.cards === 1 && st.pills >= 1, JSON.stringify(st)));
-  await page.evaluate(() => document.querySelector('#libOriginSeg .libseg-item[data-origin="sub"]').click());
+  st = await page.evaluate(() => ({ cards: document.querySelectorAll('#libList .lcard').length, pills: document.querySelectorAll('#libList .lpill.manual').length, clear: document.getElementById('libManualClear').style.display !== 'none' }));
+  ok('手动添加视图：侧栏入口过滤出含手动来源的组 + 蓝色角标 + 退出标签', () => assert(st.cards === 1 && st.pills >= 1 && st.clear, JSON.stringify(st)));
+  // 页内类型分段：视频/图文
+  await page.evaluate(() => document.querySelector('#libKindSeg .libseg-item[data-kind="video"]').click());
   await page.waitForTimeout(250);
-  st = await page.evaluate(() => ({ cards: document.querySelectorAll('#libList .lcard').length, empty: document.getElementById('libList').textContent }));
-  ok('订阅视图：0 组且空态文案正确（mock 无订阅来源）', () => assert(st.cards === 0 && st.empty.includes('还没有订阅归档'), JSON.stringify(st.empty.slice(0, 40))));
-  await page.evaluate(() => document.querySelector('#libOriginSeg .libseg-item[data-origin="all"]').click());
-  await page.waitForTimeout(200);
   st = await page.evaluate(() => document.querySelectorAll('#libList .lcard').length);
-  ok('全部视图：回到 2 组卡', () => assert(st === 2, 'cards=' + st));
+  ok('视频分段：manual×video 交集仍含皮带组（mock g1 有视频）', () => assert(st === 1, 'cards=' + st));
+  await page.evaluate(() => { libOriginGo('all'); syncKindSeg(); });
+  await page.waitForTimeout(250);
+  st = await page.evaluate(() => ({ cards: document.querySelectorAll('#libList .lcard').length, clear: document.getElementById('libManualClear').style.display === 'none' }));
+  ok('退出手动视图：回全部 2 组卡 + 退出标签隐藏', () => assert(st.cards === 2 && st.clear, JSON.stringify(st)));
 
   console.log('\n=== G. 触控目标 ===');
   await page.setViewportSize({ width: 1440, height: 900 });
