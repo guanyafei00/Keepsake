@@ -443,7 +443,6 @@
     .toolbar { gap:8px; }
     .search > .tb-kbd { display:none; }
     .tb-brand .tb-name { display:none; }
-    .tb-sec-btn { padding:0 10px; }
     .topbar { padding:16px 18px 0; }
     #kpiHost { padding:12px 18px 0; }
     .page { padding:18px 18px 24px; }
@@ -454,14 +453,6 @@
     .setNavInner { position:static; max-height:none; }
   }
   /* ---------- 内容区组件（第二阶段真移植：卡墙/分段控件） ---------- */
-  .tb-sec-btn {
-    height:36px;padding:0 12px;border-radius:9px;display:inline-flex;align-items:center;gap:6px;
-    background:var(--panel2);color:var(--txt);font-size:13px;font-weight:500;white-space:nowrap;
-    transition:transform 140ms var(--ease-out),background 180ms var(--ease-out);
-  }
-  .tb-sec-btn:hover { background:var(--line); }
-  .tb-sec-btn:active { transform:scale(.97); }
-  .tb-sec-btn svg { width:15px;height:15px;color:var(--acc); }
   .libseg { position:relative;display:flex;background:var(--panel2);border-radius:9px;padding:3px;flex:none; }
   .libseg-thumb {
     position:absolute;top:3px;left:3px;height:calc(100% - 6px);width:64px;border-radius:7px;
@@ -583,7 +574,6 @@
   .side-manage { font-size:10.5px; font-weight:600; color:var(--acc); cursor:pointer; opacity:.85; }
   .side-manage:hover { opacity:1; text-decoration:underline; }
   @media (max-width:820px) {
-    .tb-sec-btn span.label { display:none; }
     .sc-actions .sx { width:26px; height:26px; font-size:12.5px; }
   }
   @media (prefers-reduced-motion:reduce) {
@@ -606,10 +596,6 @@
       <kbd class="tb-kbd">Ctrl K</kbd>
     </div>
     <div class="tb-spacer"></div>
-    <button class="tb-sec-btn" id="xhsWinBtn" onclick="openXhsWin()" title="打开小红书受控浏览器：浏览笔记页后点窗口内【📥 归档】一键保存图文/视频">
-      <svg viewBox="0 0 256 256" fill="currentColor"><path d="M208,40H48A16,16,0,0,0,32,56v144a16,16,0,0,0,16,16h160a16,16,0,0,0,16-16V56A16,16,0,0,0,208,40ZM48,200V56H208V200ZM80,88h64v16H80ZM80,120h96v16H80Z"/></svg>
-      <span class="label">小红书</span>
-    </button>
     <button class="tb-btn" id="themeToggleBtn" title="切换主题：浅色 / 深色 / 跟随系统" aria-label="切换主题">
       <span id="themeToggleIcon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8Z"/></svg></span>
     </button>
@@ -625,10 +611,11 @@
   <div class="nav" data-nav="subs" onclick="libViewGo('subs')" style="margin-top:16px" title="所有订阅主页收在这里，点击在右侧查看详细名称"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="fill:none"><rect x="3.5" y="3.5" width="17" height="17" rx="3"/><circle cx="12" cy="10" r="3"/><path d="M6.5 19a6 6 0 0 1 11 0"/></svg>订阅主页 <span class="cnt" id="sideSubCnt">0</span><span class="side-manage" style="margin-left:8px" onclick="event.stopPropagation();switchPage('rss')" title="订阅管理：检查频率/回溯/分组/批量操作">管理</span></div>
   <div class="side-sep"></div>
   <div class="nav" data-nav="manual" onclick="libViewGo('manual')" title="单独下载的内容都收在这里，没有订阅归属"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="fill:none"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M4 20h16"/></svg>手动保存 <span class="cnt" id="l-fileManual">0</span></div>
+  <div class="nav" id="xhsWinBtn" onclick="openXhsWin()" title="打开小红书受控浏览器：浏览笔记页后点窗口内【📥 归档】一键保存图文/视频"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="fill:none"><rect x="4" y="4" width="16" height="16" rx="4"/><path d="M9 15V9l6 6V9"/></svg>小红书</div>
   <div class="nav-grp">工具</div>
   <div class="nav" data-page="tasks" onclick="switchPage('tasks')"><svg viewBox="0 0 256 256" fill="currentColor"><path d="M32,64a8,8,0,0,1,8-8H216a8,8,0,0,1,0,16H40A8,8,0,0,1,32,64Zm104,56H40a8,8,0,0,0,0,16h96a8,8,0,0,0,0-16Zm0,64H40a8,8,0,0,0,0,16h96a8,8,0,0,0,0-16Zm112-24a8,8,0,0,1-3.76,6.78l-64,40A8,8,0,0,1,168,200V120a8,8,0,0,1,12.24-6.78l64,40A8,8,0,0,1,248,160Zm-23.09,0L184,134.43v51.14Z"/></svg>任务队列 <span class="cnt" id="q-cnt">0</span></div>
   <div class="nav" data-page="strategy" onclick="switchPage('strategy')"><svg viewBox="0 0 256 256" fill="currentColor"><path d="M208,40H48A16,16,0,0,0,32,56v56c0,52.72,25.52,84.67,46.93,102.19,23.06,18.86,46,25.27,47,25.53a8,8,0,0,0,4.2,0c1-.26,23.91-6.67,47-25.53C198.48,196.67,224,164.72,224,112V56A16,16,0,0,0,208,40Zm0,72c0,37.07-13.66,67.16-40.6,89.42A129.3,129.3,0,0,1,128,223.62a128.25,128.25,0,0,1-38.92-21.81C61.82,179.51,48,149.3,48,112l0-56,160,0Z"/></svg>限流策略</div>
-  <!-- 视频号入口暂时下架（2026-11-19 拍板）：受控窗/IPC 保留，恢复时解开本行（小红书入口已上移工具栏）
+  <!-- 视频号入口暂时下架（2026-11-19 拍板）：受控窗/IPC 保留，恢复时解开本行（小红书在上方收集簇中）
   <div class="nav" onclick="openChannelsWin()" title="打开微信视频号受控浏览器：官方页面正常登录浏览，播放后点窗口内【📥 归档】一键保存">📹 视频号</div> -->
   <div class="nav" data-page="settings" onclick="switchPage('settings')"><svg viewBox="0 0 256 256" fill="currentColor"><path d="M128,80a48,48,0,1,0,48,48A48.05,48.05,0,0,0,128,80Zm0,80a32,32,0,1,1,32-32A32,32,0,0,1,128,160Zm88-29.84q.06-2.16,0-4.32l14.92-18.64a8,8,0,0,0,1.48-7.06,107.21,107.21,0,0,0-10.88-26.25,8,8,0,0,0-6-3.93l-23.72-2.64q-1.48-1.56-3-3L186,40.54a8,8,0,0,0-3.94-6,107.71,107.71,0,0,0-26.25-10.87,8,8,0,0,0-7.06,1.49L130.16,40Q128,40,125.84,40L107.2,25.11a8,8,0,0,0-7.06-1.48A107.6,107.6,0,0,0,73.89,34.51a8,8,0,0,0-3.93,6L67.32,64.27q-1.56,1.49-3,3L40.54,70a8,8,0,0,0-6,3.94,107.71,107.71,0,0,0-10.87,26.25,8,8,0,0,0,1.49,7.06L40,125.84Q40,128,40,130.16L25.11,148.8a8,8,0,0,0-1.48,7.06,107.21,107.21,0,0,0,10.88,26.25,8,8,0,0,0,6,3.93l23.72,2.64q1.49,1.56,3,3L70,215.46a8,8,0,0,0,3.94,6,107.71,107.71,0,0,0,26.25,10.87,8,8,0,0,0,7.06-1.49L125.84,216q2.16.06,4.32,0l18.64,14.92a8,8,0,0,0,7.06,1.48,107.21,107.21,0,0,0,26.25-10.88,8,8,0,0,0,3.93-6l2.64-23.72q1.56-1.48,3-3L215.46,186a8,8,0,0,0,6-3.94,107.71,107.71,0,0,0,10.87-26.25,8,8,0,0,0-1.49-7.06Zm-16.1-6.5a73.93,73.93,0,0,1,0,8.68,8,8,0,0,0,1.74,5.48l14.19,17.73a91.57,91.57,0,0,1-6.23,15L187,173.11a8,8,0,0,0-5.1,2.64,74.11,74.11,0,0,1-6.14,6.14,8,8,0,0,0-2.64,5.1l-2.51,22.58a91.32,91.32,0,0,1-15,6.23l-17.74-14.19a8,8,0,0,0-5-1.75h-.48a73.93,73.93,0,0,1-8.68,0,8,8,0,0,0-5.48,1.74L100.45,215.8a91.57,91.57,0,0,1-15-6.23L82.89,187a8,8,0,0,0-2.64-5.1,74.11,74.11,0,0,1-6.14-6.14,8,8,0,0,0-5.1-2.64L46.43,170.6a91.32,91.32,0,0,1-6.23-15l14.19-17.74a8,8,0,0,0,1.74-5.48,73.93,73.93,0,0,1,0-8.68,8,8,0,0,0-1.74-5.48L40.2,100.45a91.57,91.57,0,0,1,6.23-15L69,82.89a8,8,0,0,0,5.1-2.64,74.11,74.11,0,0,1,6.14-6.14A8,8,0,0,0,82.89,69L85.4,46.43a91.32,91.32,0,0,1,15-6.23l17.74,14.19a8,8,0,0,0,5.48,1.74,73.93,73.93,0,0,1,8.68,0,8,8,0,0,0,5.48-1.74L155.55,40.2a91.57,91.57,0,0,1,15,6.23L173.11,69a8,8,0,0,0,2.64,5.1,74.11,74.11,0,0,1,6.14,6.14,8,8,0,0,0,5.1,2.64l22.58,2.51a91.32,91.32,0,0,1,6.23,15l-14.19,17.74A8,8,0,0,0,199.87,123.66Z"/></svg>设置</div>
   <div class="side-foot">

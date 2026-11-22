@@ -79,7 +79,9 @@ document.addEventListener('DOMContentLoaded', () => {
   const base = await page.evaluate(() => ({
     toolbar: !!document.querySelector('.toolbar'),
     brand: !!document.querySelector('.sidebar .logo .logo-name') && !document.querySelector('.tb-brand'),
-    xhsBtn: !!document.getElementById('xhsWinBtn'),
+    xhsSide: !!document.querySelector('.sidebar .nav#xhsWinBtn'),
+    xhsToolbar: !!document.querySelector('.toolbar #xhsWinBtn'),
+    xhsOrder: (() => { const ids = [...document.querySelectorAll('.sidebar > *')].map(n => n.id || n.dataset.nav || n.dataset.page || n.className.split(' ')[0]); const iSub = ids.indexOf('subs'), iMan = ids.indexOf('manual'), iXhs = ids.indexOf('xhsWinBtn'); return iXhs > iMan && iMan > iSub; })(),
     search: !!document.querySelector('.toolbar .search input#libKw'),
     themeBtn: !!document.getElementById('themeToggleBtn'),
     sideToggle: !!document.getElementById('sidebarToggle'),
@@ -92,7 +94,8 @@ document.addEventListener('DOMContentLoaded', () => {
     pages: [...document.querySelectorAll('.main .page')].map(p => p.id),
     app: !!document.getElementById('app')
   }));
-  ok('工具栏（真搜索框+小红书受控窗入口+主题按钮+侧栏开关；品牌标识只在侧栏，全局仅一个 Keepsake）', () => assert(base.toolbar && base.brand && base.search && base.themeBtn && base.sideToggle && base.xhsBtn, JSON.stringify(base)));
+  ok('工具栏（真搜索框+主题按钮+侧栏开关；品牌标识只在侧栏，全局仅一个 Keepsake；无小红书按钮）', () => assert(base.toolbar && base.brand && base.search && base.themeBtn && base.sideToggle && !base.xhsToolbar, JSON.stringify(base)));
+  ok('侧栏排序：小红书在「订阅主页→手动保存」收集簇下方、工具组上方', () => assert(base.xhsSide && base.xhsOrder, JSON.stringify({ xhsSide: base.xhsSide, xhsOrder: base.xhsOrder })));
   ok('毛玻璃侧栏在 workspace 内，四页导航 + 两组标签（智能相簿/工具；订阅主页/手动保存为无标签单入口）', () => assert(base.sidebar && base.navs.length === 4 && base.grp === 2 && base.navs[0] === 'lib' && !base.navs.includes('rss'), JSON.stringify({ navs: base.navs, grp: base.grp })));
   ok('侧栏底部状态区（登录/规则/引擎更新入口）', () => assert(base.foot, 'no side-foot'));
   ok('⌘K 面板容器在位', () => assert(base.cmdk, 'no cmdk'));
