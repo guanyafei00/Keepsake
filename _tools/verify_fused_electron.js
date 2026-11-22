@@ -32,6 +32,12 @@ function assert(c, m) { if (!c) throw new Error(m || 'assertion failed'); }
   win.on('pageerror', e => errors.push(e.message));
   await win.waitForLoadState('domcontentloaded');
 
+  // 隔离用户目录首启会有引导遮罩拦点击：标记已引导并移除（仅本 E2E 临时目录）
+  await win.evaluate(() => {
+    try { localStorage.setItem('keepsake-onboarded', '1'); } catch (e) {}
+    document.getElementById('onboardMask')?.remove();
+  });
+
   // —— 限时段：capture 流程 ~9.5s 后退出，以下交互必须在此前完成 ——
   console.log('\n=== A. 真实 app 骨架 + 真实 preload IPC 桥 ===');
   let st = await win.evaluate(() => ({
@@ -54,8 +60,12 @@ function assert(c, m) { if (!c) throw new Error(m || 'assertion failed'); }
   await win.waitForTimeout(100);
   await win.keyboard.press('Enter');
   await win.waitForTimeout(250);
-  st = await win.evaluate(() => ({ page: (document.querySelector('.page.on') || {}).id, focused: document.activeElement === document.getElementById('urls'), closed: !isCmdkOpen() }));
-  ok('>粘贴链接 → 任务页聚焦输入框', () => assert(st.page === 'page-tasks' && st.focused && st.closed, JSON.stringify(st)));
+  st = await win.evaluate(() => ({ dl: document.getElementById('downloadLayer').classList.contains('open'), closed: !isCmdkOpen() }));
+  ok('>粘贴链接 → 打开下载模态且面板关闭', () => assert(st.dl && st.closed, JSON.stringify(st)));
+  await win.evaluate(() => closeLayerModal('downloadLayer'));
+  await win.evaluate(() => window.switchPage('tasks'));
+  await win.waitForTimeout(200);
+  await win.click('#urls');
   await win.keyboard.insertText('https://www.bilibili.com/video/BVe2eSmoke');
   st = await win.evaluate(() => document.getElementById('urls').value);
   ok('任务页粘贴框可输入', () => assert(st.includes('BVe2eSmoke'), st));

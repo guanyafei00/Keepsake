@@ -434,9 +434,12 @@
   }
   @media (max-width:820px) {
     .toolbar { gap:10px; padding:0 14px; }
-    .search { flex-basis:200px; }
+    .search { flex-basis:110px; min-width:110px; }
+    .toolbar { gap:8px; }
     .search-trigger .tb-kbd { display:none; }
     .tb-brand .tb-name { display:none; }
+    .tb-acc-btn { padding:0 10px; }
+    .tb-sec-btn { padding:0 10px; }
     .topbar { padding:16px 18px 0; }
     #kpiHost { padding:12px 18px 0; }
     .page { padding:18px 18px 24px; }
@@ -445,6 +448,116 @@
     .setWrap { flex-direction:column; }
     .setNav { width:100%; }
     .setNavInner { position:static; max-height:none; }
+  }
+  /* ---------- 内容区组件（第二阶段真移植：卡墙/分段控件/模态） ---------- */
+  .tb-acc-btn {
+    height:36px;padding:0 14px;border-radius:9px;display:inline-flex;align-items:center;gap:7px;
+    background:var(--acc);color:#fff;font-size:13px;font-weight:600;white-space:nowrap;
+    box-shadow:0 1px 2px rgba(0,0,0,.18), 0 3px 10px var(--accbg);
+    transition:transform 140ms var(--ease-out),filter 180ms var(--ease-out);
+  }
+  .tb-acc-btn:hover { filter:brightness(1.06); }
+  .tb-acc-btn:active { transform:scale(.97); }
+  .tb-sec-btn {
+    height:36px;padding:0 12px;border-radius:9px;display:inline-flex;align-items:center;gap:6px;
+    background:var(--panel2);color:var(--txt);font-size:13px;font-weight:500;white-space:nowrap;
+    transition:transform 140ms var(--ease-out),background 180ms var(--ease-out);
+  }
+  .tb-sec-btn:hover { background:var(--line); }
+  .tb-sec-btn:active { transform:scale(.97); }
+  .tb-sec-btn svg { width:15px;height:15px;color:var(--acc); }
+  .libseg { position:relative;display:flex;background:var(--panel2);border-radius:9px;padding:3px;flex:none; }
+  .libseg-thumb {
+    position:absolute;top:3px;left:3px;height:calc(100% - 6px);width:64px;border-radius:7px;
+    background:var(--panel);box-shadow:0 1px 3px rgba(0,0,0,.12);
+    transition:transform 320ms var(--ease-spring),width 320ms var(--ease-spring);
+  }
+  .libseg-item {
+    position:relative;z-index:1;height:28px;min-width:58px;padding:0 12px;border-radius:7px;border:0;background:none;cursor:pointer;
+    font-size:12.5px;font-weight:500;font-family:inherit;color:var(--txt2);display:grid;place-items:center;
+    transition:color 200ms var(--ease-out),transform 140ms var(--ease-out);
+  }
+  .libseg-item.active { color:var(--acc);font-weight:600; }
+  .libseg-item:active { transform:scale(.97); }
+  .libgrid { display:grid;grid-template-columns:repeat(auto-fill,minmax(196px,1fr));gap:20px 18px; }
+  .lcard {
+    min-width:0;cursor:pointer;border-radius:14px;background:var(--panel);box-shadow:var(--shadow);overflow:hidden;
+    transition:transform 260ms var(--ease-out),box-shadow 260ms var(--ease-out);
+    animation:libCardIn 420ms var(--ease-out) both;
+  }
+  @keyframes libCardIn { from { opacity:0;transform:translateY(10px); } to { opacity:1;transform:translateY(0); } }
+  @media (hover:hover) and (pointer:fine) {
+    .lcard:hover { transform:translateY(-4px);box-shadow:var(--shadow-lg); }
+    .lcard:hover .lthumb img { transform:scale(1.03); }
+  }
+  .lcard:active { transform:scale(.98); }
+  .lcard.open { border:1px solid var(--acc); }
+  .lthumb { position:relative;aspect-ratio:4/3;background:var(--thumb-bg,#e8e8ed);overflow:hidden; }
+  .lthumb img { width:100%;height:100%;object-fit:cover;display:block;transition:transform 500ms var(--ease-out);box-shadow:inset 0 0 0 1px var(--img-outline,rgba(0,0,0,.10)); }
+  .lthumb::after { content:"";position:absolute;inset:auto 0 0 0;height:46%;background:linear-gradient(to top,rgba(0,0,0,.42),transparent);pointer-events:none; }
+  .lthumb .lthumb-fallback {
+    position:absolute;inset:0;display:grid;place-items:center;font-size:44px;
+    background:linear-gradient(135deg,var(--panel2),var(--panel));
+  }
+  .lbadge-tl { position:absolute;top:8px;left:8px;right:8px;z-index:2;display:flex;gap:6px;flex-wrap:wrap; }
+  .lpill {
+    height:22px;padding:0 8px;border-radius:7px;display:inline-flex;align-items:center;gap:4px;
+    font-size:11px;font-weight:600;color:#fff;background:rgba(0,0,0,.42);
+    -webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);
+    max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  }
+  .lpill.manual { background:var(--acc); }
+  .lpill.only { background:var(--yellow,#FF9500); }
+  .lcard-body { padding:10px 12px 12px; }
+  .lcard-title { font-size:15px;font-weight:600;line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis; }
+  .lcard-meta { font-size:12px;color:var(--txt2);margin-top:4px;display:flex;align-items:center;gap:6px;white-space:nowrap;overflow:hidden;font-variant-numeric:tabular-nums; }
+  .lcard-meta .sep { opacity:.45; }
+  .modal-layer {
+    position:fixed;inset:0;z-index:100;display:grid;place-items:center;padding:24px;
+    background:rgba(0,0,0,.32);
+    -webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px);
+    opacity:0;pointer-events:none;transition:opacity 220ms var(--ease-out);
+  }
+  .modal-layer.open { opacity:1;pointer-events:auto; }
+  .pmodal {
+    width:100%;max-width:470px;border-radius:18px;overflow:hidden;
+    background:var(--panel);box-shadow:var(--shadow-lg);
+    transform:scale(.95) translateY(8px);opacity:0;
+    transition:transform 340ms var(--ease-spring),opacity 240ms var(--ease-out);
+  }
+  .modal-layer.open .pmodal { transform:scale(1) translateY(0);opacity:1; }
+  .pmodal-head { padding:22px 24px 4px;display:flex;align-items:flex-start;gap:14px; }
+  .pmodal-ic {
+    width:42px;height:42px;border-radius:12px;flex:none;display:grid;place-items:center;
+    background:var(--accbg);color:var(--acc);
+  }
+  .pmodal-ic svg { width:22px;height:22px; }
+  .pmodal-head h2 { font-size:18px;font-weight:700;letter-spacing:-.01em;margin:0; }
+  .pmodal-head p { font-size:13px;color:var(--txt2);margin:2px 0 0;line-height:1.5; }
+  .pmodal-x { margin-left:auto;width:32px;height:32px;border-radius:8px;display:grid;place-items:center;color:var(--txt3);border:0;background:none;cursor:pointer;transition:background 160ms; }
+  .pmodal-x:hover { background:var(--panel2); }
+  .pmodal-body { padding:18px 24px 4px; }
+  .pfield label { display:block;font-size:13px;font-weight:600;margin-bottom:7px;color:var(--txt); }
+  .pfield input,.pfield textarea {
+    width:100%;border:1px solid var(--line);border-radius:10px;background:var(--panel2);
+    padding:11px 12px;font-size:14px;font-family:inherit;color:var(--txt);resize:none;
+    transition:border-color 180ms,box-shadow 180ms,background 180ms;
+  }
+  .pfield input { height:44px;box-sizing:border-box; }
+  .pfield textarea { min-height:118px;line-height:1.5;box-sizing:border-box; }
+  .pfield input::placeholder,.pfield textarea::placeholder { color:var(--txt3); }
+  .pfield input:focus,.pfield textarea:focus { outline:none;border-color:var(--acc);box-shadow:0 0 0 3px var(--accbg);background:var(--panel); }
+  .pfield-hint { font-size:12px;color:var(--txt3);margin-top:7px; }
+  .pmodal-foot { display:flex;justify-content:flex-end;gap:10px;padding:18px 24px 24px; }
+  .pbtn-plain {
+    height:40px;padding:0 18px;border-radius:10px;font-size:14px;font-weight:600;color:var(--acc);
+    border:0;background:none;cursor:pointer;transition:background 160ms,transform 140ms;
+  }
+  .pbtn-plain:hover { background:var(--accbg); }
+  .pbtn-plain:active { transform:scale(.97); }
+  @media (max-width:820px) {
+    .tb-sec-btn span.label { display:none; }
+    .tb-acc-btn span.label { display:none; }
   }
   @media (prefers-reduced-motion:reduce) {
     * { animation-duration:.01ms !important; transition-duration:.01ms !important; }
@@ -469,6 +582,14 @@
       </button>
     </div>
     <div class="tb-spacer"></div>
+    <button class="tb-sec-btn" id="openDlModalBtn" title="粘贴单条或多条内容链接，下载到本地后可在媒体库「手动保存」里找到" aria-haspopup="dialog">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+      <span class="label">粘贴链接下载</span>
+    </button>
+    <button class="tb-acc-btn" id="openSubModalBtn" title="粘贴创作者主页地址，自动追更归档" aria-haspopup="dialog">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="width:15px;height:15px"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      <span class="label">添加订阅</span>
+    </button>
     <button class="tb-btn" id="themeToggleBtn" title="切换主题：浅色 / 深色 / 跟随系统" aria-label="切换主题">
       <span id="themeToggleIcon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8Z"/></svg></span>
     </button>
@@ -579,7 +700,15 @@
       <input id="libKw" placeholder="搜索 UP主 / 站点 / 文件名…" style="flex:1;border:none;outline:none;font:inherit;font-size:13.5px;background:transparent;color:var(--txt)" oninput="setLibKw(this.value)">
       <span class="act" id="libKwClear" style="display:none;cursor:pointer;font-size:12px" onclick="setLibKw('');$('libKw').value=''">✕ 清除</span>
     </div>
-    <div class="sec-t">📚 已收藏媒体 <span class="cnt" id="l-sum">0 个文件</span> <span class="act" style="cursor:pointer;font-size:12px;margin-left:auto" onclick="loadLibrary(true)">⟳ 重新扫描</span></div>
+    <div class="sec-t" style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">📚 已收藏媒体 <span class="cnt" id="l-sum">0 个文件</span>
+      <div class="libseg" id="libOriginSeg" role="tablist" aria-label="按来源筛选">
+        <span class="libseg-thumb" id="libSegThumb"></span>
+        <button class="libseg-item active" data-origin="all" role="tab" aria-selected="true">全部</button>
+        <button class="libseg-item" data-origin="sub" role="tab" aria-selected="false">订阅</button>
+        <button class="libseg-item" data-origin="manual" role="tab" aria-selected="false">手动保存</button>
+      </div>
+      <span class="act" style="cursor:pointer;font-size:12px;margin-left:auto" onclick="loadLibrary(true)">⟳ 重新扫描</span>
+    </div>
     <div id="libList"><div class="empty">还没有下载任何媒体——去任务队列贴个链接吧</div></div>
   </div>
 
@@ -916,6 +1045,49 @@
     </div>
     <div class="cmdk-list" id="cmdkList" role="listbox" aria-label="结果列表"></div>
     <div class="cmdk-foot"><span><b>↑↓</b> 选择</span><span><b>↵</b> 执行</span><span><b>esc</b> 关闭</span><span><b>&gt;</b> 指令模式</span></div>
+  </div>
+</div>
+
+<!-- ============ 模态：添加订阅 / 粘贴链接下载（缺口②，原型 p17-a 标准模态）============ -->
+<div class="modal-layer" id="subscribeLayer" role="dialog" aria-modal="true" aria-label="添加订阅">
+  <div class="pmodal">
+    <div class="pmodal-head">
+      <div class="pmodal-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></div>
+      <div><h2>添加订阅</h2><p>粘贴创作者主页地址，Keepsake 会自动追更并归档到「订阅归档」。</p></div>
+      <button class="pmodal-x" data-close aria-label="关闭"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="width:16px;height:16px"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg></button>
+    </div>
+    <div class="pmodal-body">
+      <div class="pfield">
+        <label for="subUrlModal">主页地址</label>
+        <input id="subUrlModal" type="text" placeholder="https://space.bilibili.com/… 或小红书 / RSS 主页链接" autocomplete="off">
+        <div class="pfield-hint">支持 B站UP主 / YouTube频道 / X用户 / RSS·Atom / Pixiv·微博·Reddit·Instagram 等图站主页</div>
+      </div>
+    </div>
+    <div class="pmodal-foot">
+      <button class="pbtn-plain" data-close>取消</button>
+      <button class="tb-acc-btn" id="submitSubscribeBtn">添加订阅</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-layer" id="downloadLayer" role="dialog" aria-modal="true" aria-label="粘贴链接下载">
+  <div class="pmodal">
+    <div class="pmodal-head">
+      <div class="pmodal-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg></div>
+      <div><h2>粘贴链接下载</h2><p>粘贴单条或多条内容链接，下载到本地后在媒体库「手动保存」里能找到。</p></div>
+      <button class="pmodal-x" data-close aria-label="关闭"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="width:16px;height:16px"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg></button>
+    </div>
+    <div class="pmodal-body">
+      <div class="pfield">
+        <label for="linkBoxModal">内容链接</label>
+        <textarea id="linkBoxModal" placeholder="每行粘贴一条链接，例如：&#10;https://www.bilibili.com/video/BV…&#10;https://www.xiaohongshu.com/explore/…"></textarea>
+        <div class="pfield-hint">一行一条，自动识别视频 / 图文 / 文章；单条链接会先弹确认卡片</div>
+      </div>
+    </div>
+    <div class="pmodal-foot">
+      <button class="pbtn-plain" data-close>取消</button>
+      <button class="tb-acc-btn" id="submitDownloadBtn">开始下载</button>
+    </div>
   </div>
 </div>
 
@@ -2673,59 +2845,92 @@ function setLibKw(v) {
   }, 400);
 }
 
+// 本地图片 file:// 直链（sandbox 下 <img> 子资源允许 file://，主进程零改动）
+function localImgUrl(p) {
+  try { return encodeURI('file:///' + String(p).replace(/\\/g, '/')).replace(/#/g, '%23'); } catch (e) { return ''; }
+}
+// 来源分段筛选：all / sub / manual（手动保存视图 = 缺口①）
+let libOriginFilter = 'all';
 function renderLibrary() {
   const el = $('libList');
   if (!libData) return;
   const kw = libKw.toLowerCase();
   // 关键词过滤：UP主 / 站点 / 任一文件名命中 / 文稿内容命中（#70③）即保留该组
-  const groups = kw ? libData.groups.filter(g =>
+  let groups = kw ? libData.groups.filter(g =>
     g.uploader.toLowerCase().includes(kw) || g.site.toLowerCase().includes(kw) ||
-    g.files.some(f => f.name.toLowerCase().includes(kw)) || g.files.some(f => txtHit(f))) : libData.groups;
-  $('l-cnt').textContent = kw ? `${groups.length}/${libData.groups.length}` : libData.groups.length;
-  $('l-sum').textContent = `${libData.totalFiles} 个文件 · ${fmtBytes(libData.totalSize)}`;
+    g.files.some(f => f.name.toLowerCase().includes(kw)) || g.files.some(f => txtHit(f))) : libData.groups.slice();
+  // 手动保存视图：文件带来源索引且非订阅才算；老文件无索引记录不冒充手动（诚实边界）
+  if (libOriginFilter === 'manual') groups = groups.filter(g => g.files.some(f => f.src && f.src.via && f.src.via !== 'sub'));
+  else if (libOriginFilter === 'sub') groups = groups.filter(g => g.files.some(f => f.src && f.src.via === 'sub'));
+  $('l-cnt').textContent = (kw || libOriginFilter !== 'all') ? groups.length + '/' + libData.groups.length : libData.groups.length;
+  $('l-sum').textContent = libData.totalFiles + ' 个文件 · ' + fmtBytes(libData.totalSize);
   if (!libData.groups.length) {
-    el.innerHTML = `<div class="empty">还没有下载任何媒体——去任务队列贴个链接吧</div>`;
+    el.innerHTML = '<div class="empty">还没有下载任何媒体——去任务队列贴个链接吧</div>';
     return;
   }
   if (!groups.length) {
-    el.innerHTML = `<div class="empty">没有匹配「${esc(libKw)}」的媒体</div>`;
+    const emptyByView = {
+      manual: '还没有手动保存的内容——用工具栏「粘贴链接下载」单独收一条试试',
+      sub: '还没有订阅归档的内容——订阅后更新的内容会带「订阅」角标',
+      all: '没有匹配「' + esc(libKw) + '」的媒体'
+    };
+    el.innerHTML = '<div class="empty">' + emptyByView[libOriginFilter] + '</div>';
     return;
   }
   // 大库提示——文件多时引导用搜索定位，避免用户翻几千个文件的卡片
-  const bigNote = !kw && libData.totalFiles > 3000
-    ? `<div class="hint" style="margin:0 2px 10px">📦 媒体文件较多（${libData.totalFiles} 个）：用上方搜索框按 UP主 / 站点 / 文件名 快速定位</div>` : '';
-  el.innerHTML = bigNote + groups.map(g => {
+  const bigNote = (!kw && libOriginFilter === 'all' && libData.totalFiles > 3000)
+    ? '<div class="hint" style="margin:0 2px 10px">📦 媒体文件较多（' + libData.totalFiles + ' 个）：用上方搜索框按 UP主 / 站点 / 文件名 快速定位</div>' : '';
+  const cards = groups.map((g, gi) => {
     const open = g.key === expandedKey;
     const matched = kw ? g.files.filter(f => f.name.toLowerCase().includes(kw)).length : 0;
     const txtMatched = kw ? g.files.filter(f => txtHit(f)).length : 0;
-    const kwNote = (kw && (matched || txtMatched)) ? ` · <span style="color:var(--acc2)">命中 ${matched ? matched + ' 个文件' : ''}${matched && txtMatched ? ' + ' : ''}${txtMatched ? txtMatched + ' 篇文稿' : ''}</span>` : '';
-    return `
-    <div class="task" style="cursor:pointer;${open ? 'border-color:var(--acc);background:var(--accbg)' : ''}" onclick="toggleGroup('${escAttr(g.key)}')">
-      <div class="t-thumb" style="font-size:22px">${siteIcon(g.site)}</div>
-      <div class="t-info">
-        <div class="name">${esc(g.uploader)} <span style="font-size:11px;color:var(--txt2);background:var(--panel2);border-radius:var(--r-xs);padding:1px 6px">${esc(g.site)}</span></div>
-        <div class="meta">${g.fileCount} 个文件（🎥 ${g.videoCount} · 🖼️ ${g.imageCount}${g.articleCount ? ' · 📄 ' + g.articleCount : ''}）· ${g.sizeText} · 最近更新 ${timeAgo(g.lastMtime)}${kwNote}</div>
-      </div>
-      <div class="x" onclick="event.stopPropagation();openLibDrawer('${escAttr(g.key)}')" title="档案详情">ⓘ</div>
-      <div class="x" onclick="event.stopPropagation();openPath('${escAttr(g.files[0] ? g.files[0].path : g.key)}')" title="打开文件夹">📁</div>
-      <div class="st flat">${open ? '收起 ▲' : '展开 ▼'}</div>
-    </div>${open ? (g.files.length > 200 ? `<div class="hint" style="margin:0 0 6px 44px">该组共 ${g.files.length} 个文件，仅展示最近的 200 个（按发布时间排序）</div>` : '') + `<div style="margin:0 0 6px 44px;display:flex;gap:8px">${g.files.some(f => /\.(mp4|mkv|webm|mov|avi|flv|m4a|mp3|wav)$/i.test(f.name)) ? `<button type="button" class="btn-mini" style="color:var(--acc2)" onclick="transcribeGroup('${escAttr(g.key)}')" title="把组内还没有字幕的音视频全部排队转写（串行处理）">📝 全组转写</button>` : ''}<button type="button" class="btn-mini" style="color:var(--acc2)" onclick="summarizeGroup('${escAttr(g.key)}')" title="把组内可总结文本（转写稿/笔记/文章正文）交给 AI 做专题综述（需设置页配置 AI）">✨ 专题总结</button></div>` + g.files.slice(0, 200).map(f => `
-      <div class="task" style="margin:0 0 6px 44px;padding:8px 12px">
-        <div class="t-thumb" style="width:36px;height:28px;font-size:14px">${kindIcon(f.kind)}</div>
-        <div class="t-info">
-          <div class="name" title="${esc(f.path)}">${esc(f.name)}</div>
-          <div class="meta">${f.kind === 'article' ? '文章存档 · ' + f.sizeText + ' · ' : f.sizeText + ' · '}${timeAgo(f.mtime)}${articleBadge(f)}${txtHit(f) ? (txtHit(f).kind === 'filename' ? ' · 📛 <span title="' + escAttr(txtHit(f).snippet || '') + '" style="color:var(--acc2)">仅文件名</span>' : ' · 📄 <span title="' + escAttr(txtHit(f).snippet || '') + '" style="color:var(--acc2)">文稿匹配</span>') : ''}${asrStates[f.path] ? ' · 📝 ' + (asrStates[f.path].state === 'preparing' ? '准备中…' : asrStates[f.path].state === 'running' ? '转写中 ' + (asrStates[f.path].pct != null ? asrStates[f.path].pct + '%' : '…') : asrStates[f.path].state === 'done' ? '已转写' : '转写失败') : ''}${jobStatus(f)}${srcBadge(f)}</div>
-          ${asrStates[f.path] && asrStates[f.path].state === 'running' && asrStates[f.path].pct != null ? `<div class="bar"><i style="width:${asrStates[f.path].pct}%"></i></div>` : (asrStates[f.path] && asrStates[f.path].state === 'preparing' ? `<div class="bar indet"><i></i></div>` : '')}
-        </div>
-        ${f.kind === 'article' ? `<div class="x" onclick="event.stopPropagation();openArticle('${escAttr(f.path)}')" title="阅读（浏览器打开本地存档，离线可看）">📖</div><div class="x" onclick="event.stopPropagation();recheckArticle('${escAttr(f.path)}')" title="重新检查原文：是否被删除或编辑">⟳</div><div class="x" onclick="event.stopPropagation();aiPanel('${escAttr(f.path)}')" title="AI 摘要（对归档正文 article.md）">✨</div>` : ''}
-        ${/\.(mp4|mkv|webm|mov|avi|flv|m4a|mp3|wav)$/i.test(f.name) ? `<div class="x" onclick="event.stopPropagation();transcribeFile('${escAttr(f.path)}')" title="本地转写出 SRT 字幕">📝</div><div class="x" onclick="event.stopPropagation();translateFile('${escAttr(f.path)}')" title="生成中英双语字幕（无字幕会先自动转写；需在设置页配置 AI）">🌐</div><div class="x" onclick="event.stopPropagation();burnFile('${escAttr(f.path)}')" title="把字幕硬烧进视频（生成新视频文件）">🎬</div><div class="x" onclick="event.stopPropagation();aiPanel('${escAttr(f.path)}')" title="AI 文稿助理（摘要/翻译）">✨</div>` : ''}
-        ${f.kind === 'image' ? `<div class="x" onclick="event.stopPropagation();makeCbz('${escAttr(f.path)}')" title="把该图片所在目录的散图打包成 .cbz 漫画册（含 ComicInfo 元数据）">📖</div>` : ''}
-        ${f.kind === 'image' && f.hasText ? `<div class="x" onclick="event.stopPropagation();aiPanel('${escAttr(f.path)}')" title="AI 摘要（对笔记正文 note.md）">✨</div>` : ''}
-        <div class="x" onclick="event.stopPropagation();openLibSource('${escAttr(f.path)}')" title="打开来源链接（浏览器）">🔗</div>
-        <div class="x" onclick="openPath('${escAttr(f.path)}')" title="打开所在文件夹">📁</div>
-        <div class="x" onclick="event.stopPropagation();trashFile('${escAttr(f.path)}')" title="删除（移入回收站，可恢复）" style="color:var(--red)">🗑</div>
-      </div>`).join('') : ''}`;
+    const kwNote = (kw && (matched || txtMatched)) ? ' · 命中 ' + (matched ? matched + ' 个文件' : '') + (matched && txtMatched ? ' + ' : '') + (txtMatched ? txtMatched + ' 篇文稿' : '') : '';
+    const hasSub = g.files.some(f => f.src && f.src.via === 'sub');
+    const hasManual = g.files.some(f => f.src && f.src.via && f.src.via !== 'sub');
+    const originPill = hasManual
+      ? '<span class="lpill manual">手动保存</span>'
+      : (hasSub ? '<span class="lpill">订阅</span>' : '');
+    const img = g.files.find(f => f.kind === 'image' && /\.(jpe?g|png|webp|gif|avif|bmp)$/i.test(f.name));
+    const cover = img ? '<img src="' + localImgUrl(img.path) + '" alt="" loading="lazy">'
+      : '<div class="lthumb-fallback">' + siteIcon(g.site) + '</div>';
+    const card = '<article class="lcard' + (open ? ' open' : '') + '" style="animation-delay:' + Math.min(gi, 12) * 32 + 'ms" onclick="toggleGroup(\'' + escAttr(g.key) + '\')">' +
+      '<div class="lthumb">' + cover +
+        '<div class="lbadge-tl">' + originPill + '</div>' +
+      '</div>' +
+      '<div class="lcard-body">' +
+        '<div class="lcard-title" title="' + escAttr(g.uploader) + '">' + esc(g.uploader) + '</div>' +
+        '<div class="lcard-meta"><span class="lpill" style="position:static;height:18px;padding:0 7px;max-width:110px">' + esc(g.site) + '</span><span class="sep">·</span>' + g.fileCount + ' 个文件' + kwNote + '</div>' +
+        '<div class="lcard-meta">' + esc(g.sizeText) + ' <span class="sep">·</span> 最近更新 ' + timeAgo(g.lastMtime) + '</div>' +
+      '</div>' +
+    '</article>';
+    // 展开文件列表：占满整行（grid-column:1/-1），紧跟所属卡片之后
+    const detail = !open ? '' : '<div style="grid-column:1/-1;margin:2px 0 8px">' +
+      (g.files.length > 200 ? '<div class="hint" style="margin:0 0 6px">该组共 ' + g.files.length + ' 个文件，仅展示最近的 200 个（按发布时间排序）</div>' : '') +
+      '<div style="display:flex;gap:8px;margin:0 0 8px;flex-wrap:wrap">' +
+        (g.files.some(f => /\.(mp4|mkv|webm|mov|avi|flv|m4a|mp3|wav)$/i.test(f.name)) ? '<button type="button" class="btn-mini" style="color:var(--acc2)" onclick="transcribeGroup(\'' + escAttr(g.key) + '\')" title="把组内还没有字幕的音视频全部排队转写（串行处理）">📝 全组转写</button>' : '') +
+        '<button type="button" class="btn-mini" style="color:var(--acc2)" onclick="summarizeGroup(\'' + escAttr(g.key) + '\')" title="把组内可总结文本（转写稿/笔记/文章正文）交给 AI 做专题综述（需设置页配置 AI）">✨ 专题总结</button>' +
+        '<button type="button" class="btn-mini" style="color:var(--acc2)" onclick="openLibDrawer(\'' + escAttr(g.key) + '\')" title="档案详情">ⓘ 详情</button>' +
+        '<button type="button" class="btn-mini" style="color:var(--acc2)" onclick="openPath(\'' + escAttr(g.files[0] ? g.files[0].path : g.key) + '\')" title="打开文件夹">📂 文件夹</button>' +
+      '</div>' +
+      g.files.slice(0, 200).map(f => '<div class="task" style="margin:0 0 6px;padding:8px 12px">' +
+        '<div class="t-thumb" style="width:36px;height:28px;font-size:14px">' + kindIcon(f.kind) + '</div>' +
+        '<div class="t-info">' +
+          '<div class="name" title="' + esc(f.path) + '">' + esc(f.name) + '</div>' +
+          '<div class="meta">' + (f.kind === 'article' ? '文章存档 · ' + f.sizeText + ' · ' : f.sizeText + ' · ') + timeAgo(f.mtime) + articleBadge(f) + (txtHit(f) ? (txtHit(f).kind === 'filename' ? ' · 📛 <span title="' + escAttr(txtHit(f).snippet || '') + '" style="color:var(--acc2)">仅文件名</span>' : ' · 📄 <span title="' + escAttr(txtHit(f).snippet || '') + '" style="color:var(--acc2)">文稿匹配</span>') : '') + (asrStates[f.path] ? ' · 📝 ' + (asrStates[f.path].state === 'preparing' ? '准备中…' : asrStates[f.path].state === 'running' ? '转写中 ' + (asrStates[f.path].pct != null ? asrStates[f.path].pct + '%' : '…') : asrStates[f.path].state === 'done' ? '已转写' : '转写失败') : '') + jobStatus(f) + srcBadge(f) + '</div>' +
+          (asrStates[f.path] && asrStates[f.path].state === 'running' && asrStates[f.path].pct != null ? '<div class="bar"><i style="width:' + asrStates[f.path].pct + '%"></i></div>' : (asrStates[f.path] && asrStates[f.path].state === 'preparing' ? '<div class="bar indet"><i></i></div>' : '')) +
+        '</div>' +
+        (f.kind === 'article' ? '<div class="x" onclick="event.stopPropagation();openArticle(\'' + escAttr(f.path) + '\')" title="阅读（浏览器打开本地存档，离线可看）">📖</div><div class="x" onclick="event.stopPropagation();recheckArticle(\'' + escAttr(f.path) + '\')" title="重新检查原文：是否被删除或编辑">⟳</div><div class="x" onclick="event.stopPropagation();aiPanel(\'' + escAttr(f.path) + '\')" title="AI 摘要（对归档正文 article.md）">✨</div>' : '') +
+        (/\.(mp4|mkv|webm|mov|avi|flv|m4a|mp3|wav)$/i.test(f.name) ? '<div class="x" onclick="event.stopPropagation();transcribeFile(\'' + escAttr(f.path) + '\')" title="本地转写出 SRT 字幕">📝</div><div class="x" onclick="event.stopPropagation();translateFile(\'' + escAttr(f.path) + '\')" title="生成中英双语字幕（无字幕会先自动转写；需在设置页配置 AI）">🌐</div><div class="x" onclick="event.stopPropagation();burnFile(\'' + escAttr(f.path) + '\')" title="把字幕硬烧进视频（生成新视频文件）">🎬</div><div class="x" onclick="event.stopPropagation();aiPanel(\'' + escAttr(f.path) + '\')" title="AI 文稿助理（摘要/翻译）">✨</div>' : '') +
+        (f.kind === 'image' ? '<div class="x" onclick="event.stopPropagation();makeCbz(\'' + escAttr(f.path) + '\')" title="把该图片所在目录的散图打包成 .cbz 漫画册（含 ComicInfo 元数据）">📖</div>' : '') +
+        (f.kind === 'image' && f.hasText ? '<div class="x" onclick="event.stopPropagation();aiPanel(\'' + escAttr(f.path) + '\')" title="AI 摘要（对笔记正文 note.md）">✨</div>' : '') +
+        '<div class="x" onclick="event.stopPropagation();openLibSource(\'' + escAttr(f.path) + '\')" title="打开来源链接（浏览器）">🔗</div>' +
+        '<div class="x" onclick="openPath(\'' + escAttr(f.path) + '\')" title="打开所在文件夹">📁</div>' +
+        '<div class="x" onclick="event.stopPropagation();trashFile(\'' + escAttr(f.path) + '\')" title="删除（移入回收站，可恢复）" style="color:var(--red)">🗑</div>' +
+      '</div>').join('') +
+    '</div>';
+    return card + detail;
   }).join('');
+  el.innerHTML = bigNote + '<div class="libgrid">' + cards + '</div>';
   try { if (typeof renderP2 === 'function') renderP2(); } catch (e) {}   // 期2：媒体库数据到位后刷 KPI
 }
 
@@ -3181,8 +3386,8 @@ const CK_ACTIONS = [
   { ic: 'lib',      label: '媒体库',       hint: '浏览本地已归档媒体',        run: () => { closeCmdk(); switchPage('lib'); } },
   { ic: 'strategy', label: '风控策略',     hint: '查看限流与学习状态',        run: () => { closeCmdk(); switchPage('strategy'); } },
   { ic: 'settings', label: '设置',         hint: '打开设置页',                run: () => { closeCmdk(); switchPage('settings'); } },
-  { ic: 'paste',    label: '粘贴链接下载', hint: '打开任务页并聚焦输入框',    run: () => { closeCmdk(); switchPage('tasks'); p2FocusUrls(); } },
-  { ic: 'sub',      label: '添加订阅',     hint: '打开订阅页并聚焦订阅输入框', run: () => { closeCmdk(); switchPage('rss'); p2FocusSub(); } },
+  { ic: 'paste',    label: '粘贴链接下载', hint: '单条或多条链接，归档到手动保存', run: () => { closeCmdk(); openDlModal(); } },
+  { ic: 'sub',      label: '添加订阅',     hint: '粘贴创作者主页地址，自动追更', run: () => { closeCmdk(); openSubModal(); } },
   { ic: 'sun',      label: '切浅色',       hint: '外观 · 浅色主题',           run: () => { closeCmdk(); setUiTheme('light'); } },
   { ic: 'moon',     label: '切深色',       hint: '外观 · 深色主题',           run: () => { closeCmdk(); setUiTheme('dark'); } },
   { ic: 'auto',     label: '跟随系统',     hint: '外观 · 深浅跟随系统',       run: () => { closeCmdk(); setUiTheme('auto'); } },
@@ -3345,6 +3550,61 @@ ckSyncThemeIcon();
 
 // 窄屏默认折叠侧栏（390px 等小窗不横向溢出；用户可点工具栏按钮展开）
 if (window.innerWidth <= 820) document.getElementById('app').classList.add('sidebar-collapsed');
+
+// ===== 第二阶段真移植：模态层（添加订阅 / 粘贴链接下载 = 缺口②）+ 媒体库来源分段 =====
+function openLayerModal(id) { document.getElementById(id).classList.add('open'); }
+function closeLayerModal(layer) { (typeof layer === 'string' ? document.getElementById(layer) : layer).classList.remove('open'); }
+function openSubModal() { openLayerModal('subscribeLayer'); setTimeout(() => { const i = document.getElementById('subUrlModal'); if (i) i.focus(); }, 120); }
+function openDlModal() { openLayerModal('downloadLayer'); setTimeout(() => { const i = document.getElementById('linkBoxModal'); if (i) i.focus(); }, 120); }
+$('openSubModalBtn').addEventListener('click', openSubModal);
+$('openDlModalBtn').addEventListener('click', openDlModal);
+['subscribeLayer', 'downloadLayer'].forEach(id => {
+  const layer = document.getElementById(id);
+  layer.querySelectorAll('[data-close]').forEach(b => b.addEventListener('click', () => closeLayerModal(layer)));
+  layer.addEventListener('mousedown', e => { if (e.target === layer) closeLayerModal(layer); });
+});
+$('submitSubscribeBtn').addEventListener('click', () => {
+  const v = $('subUrlModal').value.trim();
+  if (!v) { toast('先粘贴一个主页地址'); return; }
+  closeLayerModal('subscribeLayer');
+  $('subUrlModal').value = '';
+  $('subUrl').value = v;   // 复用现有订阅入列逻辑（回溯条数沿用订阅页下拉）
+  switchPage('rss');
+  addSub();
+});
+$('submitDownloadBtn').addEventListener('click', () => {
+  const lines = $('linkBoxModal').value.split('\n').map(s => s.trim()).filter(Boolean);
+  if (!lines.length) { toast('先粘贴至少一条链接'); return; }
+  closeLayerModal('downloadLayer');
+  $('linkBoxModal').value = '';
+  $('urls').value = lines.join('\n');   // 复用现有入队逻辑（单条弹确认卡片，多条直通）
+  switchPage('tasks');
+  addUrls();
+});
+// Esc 分层：新模态层插在通用模态之前（⌘K > 新模态 > 通用模态 > 抽屉），capture 前置拦截不重复绑定
+window.addEventListener('keydown', e => {
+  if (e.key !== 'Escape') return;
+  const ml = document.querySelector('.modal-layer.open');
+  if (ml) { closeLayerModal(ml); e.stopImmediatePropagation(); }
+}, true);
+// 媒体库来源分段控件（全部 / 订阅 / 手动保存视图）
+function moveLibSegThumb() {
+  const act = document.querySelector('#libOriginSeg .libseg-item.active');
+  const th = $('libSegThumb');
+  if (!act || !th) return;
+  th.style.width = act.offsetWidth + 'px';
+  th.style.transform = 'translateX(' + (act.offsetLeft - 3) + 'px)';
+}
+$('libOriginSeg').addEventListener('click', e => {
+  const b = e.target.closest('.libseg-item');
+  if (!b) return;
+  libOriginFilter = b.dataset.origin;
+  document.querySelectorAll('#libOriginSeg .libseg-item').forEach(x => { const on = x === b; x.classList.toggle('active', on); x.setAttribute('aria-selected', on); });
+  moveLibSegThumb();
+  try { renderLibrary(); } catch (err) {}
+});
+window.addEventListener('resize', moveLibSegThumb);
+requestAnimationFrame(() => requestAnimationFrame(moveLibSegThumb));
 
 </script>
 </body>
