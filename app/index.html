@@ -557,6 +557,20 @@
   .lib-title { font-size:26px; font-weight:700; letter-spacing:-.02em; line-height:1.15; text-wrap:balance; color:var(--txt); }
   .lib-sub { font-size:13px; color:var(--txt2); margin-top:3px; }
   .lib-more { grid-column:1/-1; text-align:center; font-size:12px; color:var(--txt3); padding:10px 0 4px; }
+  /* 所有归档分组视图（2026-11-23 拍板：按主页/来源分类，不再混排） */
+  .libgrp { margin:0 0 26px; }
+  .libgrp-head { display:flex; align-items:center; gap:12px; padding:10px 14px; margin:0 2px 12px; border-radius:14px; background:var(--panel); border:1px solid var(--line); cursor:pointer; user-select:none; transition:border-color 180ms var(--ease-out),transform 140ms var(--ease-out); animation:libCardIn 380ms var(--ease-out) both; }
+  .libgrp-head:hover { border-color:var(--acc); transform:translateY(-1px); }
+  .libgrp-head:active { transform:scale(.985); }
+  .libgrp-head .sub-avatar { width:38px; height:38px; border-radius:50%; font-size:15px; font-weight:700; flex:none; display:grid; place-items:center; color:#fff; }
+  .lg-main { flex:1; min-width:0; }
+  .lg-name { font-size:14.5px; font-weight:700; color:var(--txt); display:flex; align-items:center; gap:8px; min-width:0; }
+  .lg-name .lpill { flex:none; }
+  .lg-meta { font-size:12px; color:var(--txt2); margin-top:2px; display:flex; align-items:center; gap:5px; font-variant-numeric:tabular-nums; white-space:nowrap; overflow:hidden; }
+  .lg-go { color:var(--txt3); font-size:12.5px; flex:none; white-space:nowrap; }
+  .libgrp-head:hover .lg-go { color:var(--acc); }
+  .libgrp-more { font-size:12px; color:var(--txt2); margin:10px 2px 0; cursor:pointer; padding:6px 12px; border-radius:8px; display:inline-block; transition:background 160ms,color 160ms; }
+  .libgrp-more:hover { background:var(--panel2); color:var(--acc); }
   .lpill.origin {
     background:rgba(255,255,255,.92); color:#1d1d1f;
     max-width:112px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
@@ -2928,20 +2942,8 @@ function renderLibrary() {
     el.innerHTML = '<div class="empty">还没有下载任何媒体——到「任务队列」粘贴链接单独收一条，或添加订阅自动追更</div>';
     return;
   }
-  if (!shown.length) {
-    let msg;
-    if (kw) msg = '没有匹配「' + esc(libKw) + '」的媒体';
-    else if (libView === 'manual' && libKind === 'video') msg = '手动保存的内容里还没有视频';
-    else if (libView === 'manual' && libKind === 'image') msg = '手动保存的内容里还没有图文';
-    else if (libView === 'manual') msg = '还没有手动保存的内容——到「任务队列」粘贴链接单独收一条试试';
-    else if (libView === 'only') msg = '没有仅文件名的内容——每条内容都有可预览的封面';
-    else if (libKind === 'video') msg = '没有视频';
-    else if (libKind === 'image') msg = '没有图文';
-    else msg = '没有匹配的媒体';
-    el.innerHTML = '<div class="empty">' + msg + '</div>';
-    return;
-  }
-  const cards = shown.map((it, i) => {
+  // 卡片 HTML（平铺/分组两个分支共用）
+  const cardHTML = (it, i) => {
     const { g, f, only, manual } = it;
     const kindPill = f.kind === 'video'
       ? '<span class="lpill kind-video">▶ 视频</span>'
@@ -2968,7 +2970,48 @@ function renderLibrary() {
         '<div class="lcard-meta"><span class="platform-dot" style="background:' + platColor(g.site) + '"></span>' + esc(g.uploader) + '<span class="sep">·</span>' + date + '</div>' +
       '</div>' +
     '</article>';
-  }).join('');
+  };
+  // 分组渲染（2026-11-23 拍板：所有归档按主页/来源分类，每组组头+最新 8 条，不再混排）
+  if (libView === 'all' && !kw && libKind === 'all') {
+    let out = '', budget = 400;
+    for (const g of libData.groups) {
+      const gItems = items.filter(it => it.g === g);
+      if (!gItems.length) continue;
+      const manualAll = gItems.every(it => it.manual);
+      const head = '<div class="libgrp-head" onclick="openLibDrawer(\'' + escAttr(g.key) + '\')" title="查看「' + escAttr(g.uploader) + '」的全部归档">' +
+        '<span class="sub-avatar" style="background:' + subColor(g.uploader) + '">' + esc(String(g.uploader).trim().slice(0, 1).toUpperCase()) + '</span>' +
+        '<div class="lg-main">' +
+          '<div class="lg-name">' + esc(g.uploader) + (manualAll ? '<span class="lpill origin manual">⤓ 手动</span>' : '') + '</div>' +
+          '<div class="lg-meta"><span class="platform-dot" style="background:' + platColor(g.site) + '"></span><span>' + esc(siteLabel(g.site)) + '</span><span class="sep">·</span><span>' + gItems.length + ' 条' + (g.sizeText ? ' · ' + esc(g.sizeText) : '') + '</span></div>' +
+        '</div>' +
+        '<span class="lg-go">查看全部 ›</span>' +
+      '</div>';
+      const shownG = gItems.slice(0, 8);
+      out += '<section class="libgrp" style="animation-delay:' + Math.min(out.length, 3) * 40 + 'ms">' + head +
+        '<div class="libgrid">' + shownG.map((it, i) => cardHTML(it, i)).join('') + '</div>' +
+        (gItems.length > 8 ? '<div class="libgrp-more" onclick="openLibDrawer(\'' + escAttr(g.key) + '\')">还有 ' + (gItems.length - 8) + ' 条更早的内容，点组头查看全部</div>' : '') +
+      '</section>';
+      budget -= shownG.length;
+      if (budget <= 0) break;
+    }
+    el.innerHTML = out || '<div class="empty">没有匹配的媒体</div>';
+    try { if (typeof renderP2 === 'function') renderP2(); } catch (e) {}
+    return;
+  }
+  if (!shown.length) {
+    let msg;
+    if (kw) msg = '没有匹配「' + esc(libKw) + '」的媒体';
+    else if (libView === 'manual' && libKind === 'video') msg = '手动保存的内容里还没有视频';
+    else if (libView === 'manual' && libKind === 'image') msg = '手动保存的内容里还没有图文';
+    else if (libView === 'manual') msg = '还没有手动保存的内容——到「任务队列」粘贴链接收一条；更早版本下载的内容没有来源标记，按主页在「所有归档」里分组显示';
+    else if (libView === 'only') msg = '没有仅文件名的内容——每条内容都有可预览的封面';
+    else if (libKind === 'video') msg = '没有视频';
+    else if (libKind === 'image') msg = '没有图文';
+    else msg = '没有匹配的媒体';
+    el.innerHTML = '<div class="empty">' + msg + '</div>';
+    return;
+  }
+  const cards = shown.map((it, i) => cardHTML(it, i)).join('');
   el.innerHTML = '<div class="libgrid">' + cards + '</div>' + (truncated ? '<div class="lib-more">还有 ' + (list.length - LIMIT) + ' 个更早的内容——用顶栏搜索快速定位</div>' : '');
   try { if (typeof renderP2 === 'function') renderP2(); } catch (e) {}
 }
@@ -2984,7 +3027,7 @@ function syncLibHead() {
   else if (libView === 'only') { t.textContent = '仅文件名'; s2.textContent = '没有可预览封面的内容'; }
   else if (libKind === 'video') { t.textContent = '视频'; s2.textContent = '本地已归档的视频内容'; }
   else if (libKind === 'image') { t.textContent = '图文'; s2.textContent = '图片与文章存档'; }
-  else { t.textContent = '所有归档'; s2.textContent = '订阅追更与手动添加，收在一处'; }
+  else { t.textContent = '所有归档'; s2.textContent = '按主页分类 · 每组显示最新内容，点组头看全部'; }
 }
 
 
@@ -3641,6 +3684,8 @@ $('libKindSeg').addEventListener('click', e => {
 function libViewGo(v) {
   switchPage('lib');
   libView = v === 'manual' ? 'manual' : v === 'only' ? 'only' : v === 'subs' ? 'subs' : 'all';
+  // 修 bug（用户 2026-11-23 反馈）：切视图清顶栏搜索词——残留关键词会把订阅主页/手动视图过滤到只剩 1 个/0 个
+  if (libKw) { libKw = ''; const kwBox = $('libKw'); if (kwBox) kwBox.value = ''; }
   // 侧栏视图高亮（视图项 data-nav / 归档项 data-page）
   document.querySelectorAll('.sidebar .nav').forEach(n => {
     const on = (libView === 'manual' && n.dataset.nav === 'manual') ||

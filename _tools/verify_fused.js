@@ -153,11 +153,14 @@ document.addEventListener('DOMContentLoaded', () => {
   const libRendered = await page.evaluate(() => ({
     cards: document.querySelectorAll('#libList .lcard').length,
     grid: !!document.querySelector('#libList .libgrid'),
+    grps: document.querySelectorAll('#libList .libgrp').length,
+    grpHeads: document.querySelectorAll('#libList .libgrp-head').length,
+    headNames: [...document.querySelectorAll('#libList .lg-name')].map(x => x.textContent.trim().split('\n')[0]),
     covers: document.querySelectorAll('#libList .lthumb').length,
     seg: document.querySelectorAll('#libKindSeg .libseg-item').length
   }));
   const libTitleTxt = await page.evaluate(() => (document.getElementById('libTitle') || {}).textContent);
-  ok('媒体库内容级卡墙渲染（4 条内容卡 + 封面 + 分段 + 大标题「所有归档」）', () => assert(libRendered.cards === 4 && libRendered.grid && libRendered.covers === 4 && libRendered.seg === 3 && libTitleTxt === '所有归档', JSON.stringify({ ...libRendered, title: libTitleTxt })));
+  ok('所有归档分组视图（2 个主页组 + 4 条内容卡 + 组头带名称/平台/条数 + 分段 + 大标题「所有归档」）', () => assert(libRendered.cards === 4 && libRendered.grid && libRendered.grps === 2 && libRendered.grpHeads === 2 && libRendered.headNames.join(',') === 'UP主甲,UP主乙' && libRendered.covers === 4 && libRendered.seg === 3 && libTitleTxt === '所有归档', JSON.stringify({ ...libRendered, title: libTitleTxt })));
   const rssRendered = await page.evaluate(() => ({
     cards: document.querySelectorAll('#subList .subcard').length,
     detail: document.querySelectorAll('#subList .sc-detail').length,
@@ -181,9 +184,11 @@ document.addEventListener('DOMContentLoaded', () => {
   await page.waitForTimeout(260);
   const subFiltered = await page.evaluate(() => ({ kw: document.getElementById('libKw').value, title: (document.getElementById('libTitle') || {}).textContent, cards: document.querySelectorAll('#libList .lcard').length }));
   ok('点订阅卡 → 过滤到 TA 的归档（顶栏关键词=订阅名，UP主甲 2 条内容卡）', () => assert(subFiltered.kw === 'UP主甲' && subFiltered.title === '搜索结果' && subFiltered.cards === 2, JSON.stringify(subFiltered)));
-  // 清掉订阅卡过滤带来的关键词，避免污染后续视图测试
-  await page.evaluate(() => { document.getElementById('libKw').value = ''; setLibKw(''); });
-  await page.waitForTimeout(220);
+  // 修 bug 断言：带着残留关键词切视图必须自动清词（否则订阅主页只剩 1 个/手动视图空——用户 2026-11-23 反馈根因）
+  await page.evaluate(() => libViewGo('subs'));
+  await page.waitForTimeout(260);
+  const kwCleared = await page.evaluate(() => ({ kw: document.getElementById('libKw').value, cards: document.querySelectorAll('#libList .subgcard').length }));
+  ok('残留关键词自动清除：点过订阅卡后切订阅主页视图，订阅卡全量（非残留过滤到 1 个）', () => assert(kwCleared.kw === '' && kwCleared.cards === 2, JSON.stringify(kwCleared)));
   // 订阅主页视图自带粘贴订阅框（2026-11-23 拍板：加订阅不用绕订阅管理页）
   await page.evaluate(() => libViewGo('subs'));
   await page.waitForTimeout(260);

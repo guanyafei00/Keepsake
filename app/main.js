@@ -426,6 +426,7 @@ app.whenReady().then(() => {
   applyClipboardWatch(!!settings.get().clipboardWatch);
   library.configure({ outDir, sourceGet: p => source.get(p) });
   textindex.configure({ file: path.join(userData, 'text-index.json') });   // #70③：文稿全文检索索引
+  source.configure({ file: path.join(userData, 'source-index.json') });   // 来源索引持久化（此前从未接线：重启清零导致手动下载判定全丢、订阅角标消失）
   asr.configure({
     binDir: binDir(), modelsDir: path.join(userData, 'asr-models'),
     onPersist: patch => settings.set(patch)   // 默认模型持久化到 settings.json
