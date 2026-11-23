@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Keepsake 侧栏排序原型 · 任务队列优先</title>
+<style>
+  :root {
+    --acc: #3b82f6; --accbg: rgba(59,130,246,.12);
+    --bg: #f4f5f7; --panel: #ffffff; --panel2: #f0f1f4;
+    --txt: #1a1d23; --txt2: #5b6472; --txt3: #9aa3b0;
+    --line: #e5e8ee; --red: #ef4444;
+    --r-md: 12px; --shadow-sm: 0 1px 2px rgba(0,0,0,.05), 0 2px 8px rgba(0,0,0,.04);
+    --ease-out: cubic-bezier(.22,1,.36,1);
+  }
+  .dark {
+    --acc: #60a5fa; --accbg: rgba(96,165,250,.14);
+    --bg: #14161a; --panel: #1d2026; --panel2: #262a32;
+    --txt: #e8eaf0; --txt2: #a3abba; --txt3: #6b7382;
+    --line: #2c313a; --shadow-sm: 0 1px 2px rgba(0,0,0,.3), 0 2px 8px rgba(0,0,0,.2);
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family:-apple-system,'Segoe UI','Microsoft YaHei',sans-serif; background:var(--bg); color:var(--txt); font-size:14px; height:100vh; overflow:hidden; transition:background .3s; }
+
+  /* ===== 工具栏 ===== */
+  .toolbar { height:56px; display:flex; align-items:center; gap:10px; padding:0 16px; background:var(--panel); border-bottom:1px solid var(--line); }
+  .search { flex:0 0 420px; display:flex; align-items:center; gap:8px; height:36px; padding:0 10px; border-radius:10px; background:var(--panel2); border:1px solid var(--line); color:var(--txt3); }
+  .search input { flex:1; border:0; background:none; outline:none; font-size:13px; color:var(--txt); }
+  .kbd { font-size:11px; padding:2px 7px; border-radius:6px; border:1px solid var(--line); background:var(--panel); color:var(--txt3); font-variant-numeric:tabular-nums; }
+  .tb-spacer { flex:1; }
+  .tb-btn { width:36px; height:36px; border-radius:10px; border:0; background:var(--panel2); color:var(--txt2); cursor:pointer; display:grid; place-items:center; font-size:16px; transition:transform .14s var(--ease-out), background .18s; }
+  .tb-btn:hover { background:var(--line); } .tb-btn:active { transform:scale(.94); }
+
+  /* ===== 布局 ===== */
+  .workspace { display:flex; height:calc(100vh - 56px); }
+  .sidebar { width:232px; flex:none; background:var(--panel); border-right:1px solid var(--line); padding:14px 12px 12px; display:flex; flex-direction:column; overflow-y:auto; }
+  .main { flex:1; min-width:0; padding:26px 30px; overflow-y:auto; }
+  .logo { display:flex; align-items:center; gap:10px; padding:2px 10px 16px; }
+  .gem { width:34px; height:34px; border-radius:10px; background:var(--acc); color:#fff; display:grid; place-items:center; font-weight:800; font-size:17px; }
+  .logo-name { font-weight:750; font-size:15px; letter-spacing:-.01em; }
+  .logo-sub { font-size:10.5px; color:var(--txt3); }
+
+  /* ===== 侧栏导航（★ 本次原型核心：排序） ===== */
+  .nav-grp { font-size:11.5px; font-weight:600; letter-spacing:.05em; color:var(--txt3); padding:16px 10px 7px; }
+  .nav { display:flex; align-items:center; gap:10px; height:38px; padding:0 10px; border-radius:10px; cursor:pointer; color:var(--txt2); user-select:none; font-size:13.5px; transition:background .16s, color .16s, transform .12s var(--ease-out); }
+  .nav:hover { background:var(--panel2); color:var(--txt); }
+  .nav:active { transform:scale(.985); }
+  .nav.on { background:var(--accbg); color:var(--acc); font-weight:600; }
+  .nav svg { width:17px; height:17px; flex:none; }
+  .nav .cnt { margin-left:auto; font-size:10.5px; font-weight:650; color:var(--txt3); background:var(--panel2); border-radius:8px; padding:1px 7px; font-variant-numeric:tabular-nums; }
+  .nav.on .cnt { background:rgba(59,130,246,.18); color:var(--acc); }
+  .nav .cnt.hot { background:var(--red); color:#fff; }
+  .nav.action svg { color:var(--acc); }
+  .side-sep { height:1px; background:var(--line); margin:14px 10px 0; }
+  .side-foot { margin-top:auto; padding-top:14px; font-size:11.5px; color:var(--txt3); }
+  .frow { display:flex; align-items:center; gap:7px; padding:5px 10px; }
+  .frow .act { color:var(--acc); cursor:pointer; }
+
+  /* ===== 主内容 mock ===== */
+  .page { display:none; }
+  .page.on { display:block; animation:fadeUp .34s var(--ease-out) both; }
+  @keyframes fadeUp { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:none; } }
+  .page-title { font-size:24px; font-weight:750; letter-spacing:-.02em; }
+  .page-sub { font-size:12.5px; color:var(--txt2); margin:5px 0 22px; }
+  .stats { display:grid; grid-template-columns:repeat(3, 200px); gap:14px; margin-bottom:22px; }
+  .stat { background:var(--panel); border:1px solid var(--line); border-radius:var(--r-md); padding:14px 18px; box-shadow:var(--shadow-sm); }
+  .stat b { font-size:22px; font-variant-numeric:tabular-nums; }
+  .stat span { display:block; font-size:11.5px; color:var(--txt3); margin-top:2px; }
+  .paste { background:var(--panel); border:1px solid var(--line); border-radius:var(--r-md); padding:14px; display:flex; gap:10px; box-shadow:var(--shadow-sm); margin-bottom:22px; }
+  .paste textarea { flex:1; height:56px; border:1px solid var(--line); border-radius:10px; background:var(--panel2); resize:none; padding:10px 12px; font-size:13px; color:var(--txt); font-family:inherit; outline:none; }
+  .paste textarea:focus { border-color:var(--acc); box-shadow:0 0 0 3px var(--accbg); }
+  .btn-acc { align-self:flex-end; height:36px; padding:0 16px; border-radius:9px; border:0; background:var(--acc); color:#fff; font-size:13px; font-weight:600; cursor:pointer; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(220px,1fr)); gap:14px; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:14px; overflow:hidden; box-shadow:var(--shadow-sm); cursor:pointer; transition:transform .14s var(--ease-out), border-color .18s; }
+  .card:hover { transform:translateY(-2px); border-color:var(--acc); }
+  .thumb { height:110px; display:grid; place-items:center; font-size:30px; color:#fff; }
+  .cbody { padding:11px 13px; }
+  .cname { font-size:13.5px; font-weight:650; }
+  .cmeta { font-size:11.5px; color:var(--txt3); margin-top:3px; }
+  .badge { display:inline-block; font-size:10px; font-weight:650; padding:2px 7px; border-radius:6px; background:var(--accbg); color:var(--acc); margin-top:7px; }
+  .rows { display:flex; flex-direction:column; gap:10px; }
+  .rowcard { display:flex; align-items:center; gap:12px; background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:13px 16px; box-shadow:var(--shadow-sm); }
+  .avatar { width:38px; height:38px; border-radius:50%; display:grid; place-items:center; color:#fff; font-weight:700; font-size:15px; flex:none; }
+  .go { margin-left:auto; color:var(--txt3); font-size:18px; }
+  .note { margin-top:26px; font-size:12px; color:var(--txt3); background:var(--panel); border:1px dashed var(--line); border-radius:10px; padding:12px 16px; line-height:1.8; }
+</style>
+</head>
+<body>
+
+<header class="toolbar">
+  <div class="search">🔍<input placeholder="搜索媒体，或按 Ctrl K 调出命令面板"><span class="kbd">Ctrl K</span></div>
+  <div class="tb-spacer"></div>
+  <button class="tb-btn" id="themeBtn" title="切换主题">🌙</button>
+</header>
+
+<div class="workspace">
+  <!-- ★ 侧栏新排序：任务队列 → 订阅主页 → 小红书 → 媒体库 → 工具 -->
+  <aside class="sidebar">
+    <div class="logo"><span class="gem">K</span><span><div class="logo-name">Keepsake</div><div class="logo-sub">个人媒体归档台</div></span></div>
+
+    <div class="nav on" data-page="tasks">
+      <svg viewBox="0 0 256 256" fill="currentColor"><path d="M32,64a8,8,0,0,1,8-8H216a8,8,0,0,1,0,16H40A8,8,0,0,1,32,64Zm104,56H40a8,8,0,0,0,0,16h96a8,8,0,0,0,0-16Zm0,64H40a8,8,0,0,0,0,16h96a8,8,0,0,0,0-16Zm112-24a8,8,0,0,1-3.76,6.78l-64,40A8,8,0,0,1,168,200V120a8,8,0,0,1,12.24-6.78l64,40A8,8,0,0,1,248,160Z"/></svg>
+      任务队列 <span class="cnt hot" id="c-tasks">2</span>
+    </div>
+    <div class="nav" data-page="subs">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="fill:none"><rect x="3.5" y="3.5" width="17" height="17" rx="3"/><circle cx="12" cy="10" r="3"/><path d="M6.5 19a6 6 0 0 1 11 0"/></svg>
+      订阅主页 <span class="cnt">5</span>
+    </div>
+    <div class="nav action" data-page="xhs">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="fill:none"><rect x="4" y="4" width="16" height="16" rx="4"/><path d="M9 15V9l6 6V9"/></svg>
+      小红书
+    </div>
+
+    <div class="side-sep"></div>
+    <div class="nav-grp">媒体库</div>
+    <div class="nav" data-page="lib">
+      <svg viewBox="0 0 256 256" fill="currentColor"><path d="M216,72H131.31L104,44.69A15.86,15.86,0,0,0,92.69,40H40A16,16,0,0,0,24,56V200.62A15.4,15.4,0,0,0,39.38,216H216.89A15.13,15.13,0,0,0,232,200.89V88A16,16,0,0,0,216,72ZM40,56H92.69l16,16H40ZM216,200H40V88H216Z"/></svg>
+      所有归档 <span class="cnt">4</span>
+    </div>
+    <div class="nav" data-page="lib">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="fill:none"><path d="M12 3 2.5 20h19L12 3Z"/><line x1="12" y1="9" x2="12" y2="14"/><circle cx="12" cy="17" r=".6" fill="currentColor"/></svg>
+      仅文件名 <span class="cnt">1</span>
+    </div>
+    <div class="nav" data-page="lib">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="fill:none"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M4 20h16"/></svg>
+      手动保存 <span class="cnt">1</span>
+    </div>
+
+    <div class="nav-grp">工具</div>
+    <div class="nav" data-page="strategy">
+      <svg viewBox="0 0 256 256" fill="currentColor"><path d="M208,40H48A16,16,0,0,0,32,56v56c0,52.72,25.52,84.67,46.93,102.19,23.06,18.86,46,25.27,47,25.53a8,8,0,0,0,4.2,0c1-.26,23.91-6.67,47-25.53C198.48,196.67,224,164.72,224,112V56A16,16,0,0,0,208,40Zm0,72c0,37.07-13.66,67.16-40.6,89.42A129.3,129.3,0,0,1,128,223.62a128.25,128.25,0,0,1-38.92-21.81C61.82,179.51,48,149.3,48,112l0-56,160,0Z"/></svg>
+      限流策略
+    </div>
+    <div class="nav" data-page="settings">
+      <svg viewBox="0 0 256 256" fill="currentColor"><path d="M128,80a48,48,0,1,0,48,48A48.05,48.05,0,0,0,128,80Zm0,80a32,32,0,1,1,32-32A32,32,0,0,1,128,160Z"/></svg>
+      设置
+    </div>
+
+    <div class="side-foot">
+      <div class="frow">🔑 <span class="act">登录 B 站</span></div>
+      <div class="frow">🛡 限流规则 <span class="act">自动更新</span></div>
+      <div class="frow">⟳ <span class="act">检查引擎更新</span></div>
+    </div>
+  </aside>
+
+  <!-- 主内容（mock） -->
+  <main class="main">
+    <section class="page on" id="pg-tasks">
+      <div class="page-title">任务队列</div>
+      <div class="page-sub">粘贴链接下载 — 首页即达，下载中 2 条</div>
+      <div class="stats">
+        <div class="stat"><b>2</b><span>下载中</span></div>
+        <div class="stat"><b>1</b><span>已完成</span></div>
+        <div class="stat"><b>0</b><span>失败</span></div>
+      </div>
+      <div class="paste">
+        <textarea placeholder="粘贴视频 / 图片 / 文章链接（B站、YouTube、小红书…每行一个），自动识别并加入下载队列"></textarea>
+        <button class="btn-acc">＋ 加入队列</button>
+      </div>
+      <div class="rows">
+        <div class="rowcard"><div class="avatar" style="background:#fb7299">B</div><div><div class="cname">【4K】城市夜景延时摄影.mp4</div><div class="cmeta">bilibili · 2160P · 已下载 62%</div></div><span class="go">›</span></div>
+        <div class="rowcard"><div class="avatar" style="background:#ff2442">红</div><div><div class="cname">秋日穿搭合集（图文）</div><div class="cmeta">小红书 · 9 图 · 排队中</div></div><span class="go">›</span></div>
+      </div>
+    </section>
+
+    <section class="page" id="pg-subs">
+      <div class="page-title">订阅主页</div>
+      <div class="page-sub">5 个订阅主页 · 点击卡片查看 TA 的归档</div>
+      <div class="rows">
+        <div class="rowcard"><div class="avatar" style="background:#6c5ce7">影</div><div><div class="cname">影视飓风</div><div class="cmeta">B站 · 已跟踪 128 条</div></div><span class="go">›</span></div>
+        <div class="rowcard"><div class="avatar" style="background:#00b894">何</div><div><div class="cname">何同学</div><div class="cmeta">B站 · 已跟踪 42 条</div></div><span class="go">›</span></div>
+        <div class="rowcard"><div class="avatar" style="background:#e17055">设</div><div><div class="cname">设计师日常</div><div class="cmeta">小红书 · 已跟踪 96 条</div></div><span class="go">›</span></div>
+        <div class="rowcard"><div class="avatar" style="background:#0984e3">少</div><div><div class="cname">少数派</div><div class="cmeta">公众号 · 已跟踪 210 条</div></div><span class="go">›</span></div>
+        <div class="rowcard" style="opacity:.6"><div class="avatar" style="background:#636e72">一</div><div><div class="cname">一人公司 <span class="badge">⏸ 已暂停</span></div><div class="cmeta">RSS · 已跟踪 15 条</div></div><span class="go">›</span></div>
+      </div>
+    </section>
+
+    <section class="page" id="pg-xhs">
+      <div class="page-title">小红书</div>
+      <div class="page-sub">打开受控浏览器 — 浏览笔记页后点窗口内【📥 归档】一键保存图文/视频</div>
+      <div class="note">点击侧栏「小红书」会拉起独立受控窗口。此处示意入口位置（第三位）：紧跟订阅主页之后、媒体库之前，收集动作聚在一起。</div>
+    </section>
+
+    <section class="page" id="pg-lib">
+      <div class="page-title">所有归档</div>
+      <div class="page-sub">订阅追更与手动添加，收在一处</div>
+      <div class="grid">
+        <div class="card"><div class="thumb" style="background:linear-gradient(135deg,#1a1a2e,#16213e)">▶</div><div class="cbody"><div class="cname">a</div><div class="cmeta">何同学 · 2026-11-22</div><span class="badge">▶ 视频 · B站</span></div></div>
+        <div class="card"><div class="thumb" style="background:linear-gradient(135deg,#a29bfe,#6c5ce7)">🖼</div><div class="cbody"><div class="cname">c</div><div class="cmeta">何同学 · 2026-11-22</div><span class="badge">📄 文件名 · B站</span></div></div>
+        <div class="card"><div class="thumb" style="background:linear-gradient(135deg,#fd79a8,#e84393)">📝</div><div class="cbody"><div class="cname">b</div><div class="cmeta">何同学 · 2026-11-22</div><span class="badge">＋ 手动添加 · B站</span></div></div>
+        <div class="card"><div class="thumb" style="background:linear-gradient(135deg,#2d3436,#636e72)">▶</div><div class="cbody"><div class="cname">d</div><div class="cmeta">影视飓风 · 2026-11-22</div><span class="badge">▶ 视频 · YouTube</span></div></div>
+      </div>
+    </section>
+
+    <section class="page" id="pg-strategy">
+      <div class="page-title">限流策略</div>
+      <div class="page-sub">各站点请求间隔与并发上限（mock）</div>
+      <div class="rows">
+        <div class="rowcard"><div class="avatar" style="background:#fb7299">B</div><div><div class="cname">bilibili</div><div class="cmeta">间隔 3.0s · 并发 2</div></div><span class="go">›</span></div>
+        <div class="rowcard"><div class="avatar" style="background:#ff2442">红</div><div><div class="cname">小红书</div><div class="cmeta">间隔 5.0s · 并发 1</div></div><span class="go">›</span></div>
+      </div>
+    </section>
+
+    <section class="page" id="pg-settings">
+      <div class="page-title">设置</div>
+      <div class="page-sub">主题 / 强调色 / 外观（mock）</div>
+      <div class="note">深浅主题已在本原型内联动：右上角 🌙 可切换，侧栏与内容区同步变色。</div>
+    </section>
+
+    <div class="note" style="margin-top:8px">
+      <b>★ 原型要点</b>：侧栏排序改为「任务队列 → 订阅主页 → 小红书 →（分隔线）媒体库组：所有归档/仅文件名/手动保存 →（组标签）工具：限流策略/设置」。三个高频收集入口置顶，媒体库后退为第二簇，纯工具类垫底。此文件为纯静态 mock，未动 Keepsake 源码；拍板后再移植。
+    </div>
+  </main>
+</div>
+
+<script>
+  // 侧栏切换：点击高亮 + 页面切换
+  document.querySelectorAll('.nav[data-page]').forEach(n => {
+    n.addEventListener('click', () => {
+      document.querySelectorAll('.sidebar .nav').forEach(x => x.classList.remove('on'));
+      n.classList.add('on');
+      document.querySelectorAll('.page').forEach(p => p.classList.remove('on'));
+      const pg = document.getElementById('pg-' + n.dataset.page);
+      if (pg) pg.classList.add('on');
+    });
+  });
+  // 主题切换
+  let dark = false;
+  document.getElementById('themeBtn').addEventListener('click', function () {
+    dark = !dark;
+    document.body.classList.toggle('dark', dark);
+    this.textContent = dark ? '☀️' : '🌙';
+  });
+  // Ctrl+K 聚焦搜索
+  document.addEventListener('keydown', e => {
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); document.querySelector('.search input').focus(); }
+  });
+</script>
+</body>
+</html>

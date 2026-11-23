@@ -39,6 +39,7 @@ const obj = () => Promise.resolve({});
 window.keepsake = {
   snapshot: () => Promise.resolve(window.__snap), tasks: arr, queue: arr, done: arr,
   subsList: () => Promise.resolve(window.__subs), subs: arr,
+  subsAdd: u => { const s = { id: 's-' + Date.now(), kind: 'rss', name: '新订阅', knownCount: 0 }; window.__subs = [...window.__subs, s]; return Promise.resolve({ ok: true, sub: s }); },
   libraryScan: () => Promise.resolve(window.__lib), libraryList: arr,
   wereadState: obj, cookieInfo: () => Promise.resolve({}), pixivState: obj, asr: obj, engines: arr,
   strategySnapshot: () => Promise.resolve({ defaults: [], learned: {} }), strategyVersion: () => Promise.resolve('test'),
@@ -81,7 +82,7 @@ document.addEventListener('DOMContentLoaded', () => {
     brand: !!document.querySelector('.sidebar .logo .logo-name') && !document.querySelector('.tb-brand'),
     xhsSide: !!document.querySelector('.sidebar .nav#xhsWinBtn'),
     xhsToolbar: !!document.querySelector('.toolbar #xhsWinBtn'),
-    xhsOrder: (() => { const ids = [...document.querySelectorAll('.sidebar > *')].map(n => n.id || n.dataset.nav || n.dataset.page || n.className.split(' ')[0]); const iSub = ids.indexOf('subs'), iMan = ids.indexOf('manual'), iXhs = ids.indexOf('xhsWinBtn'); return iXhs > iMan && iMan > iSub; })(),
+    sideOrder: (() => { const ids = [...document.querySelectorAll('.sidebar .nav')].map(n => n.id || n.dataset.nav || n.dataset.page); return ids.join(','); })(),
     search: !!document.querySelector('.toolbar .search input#libKw'),
     themeBtn: !!document.getElementById('themeToggleBtn'),
     sideToggle: !!document.getElementById('sidebarToggle'),
@@ -95,8 +96,8 @@ document.addEventListener('DOMContentLoaded', () => {
     app: !!document.getElementById('app')
   }));
   ok('工具栏（真搜索框+主题按钮+侧栏开关；品牌标识只在侧栏，全局仅一个 Keepsake；无小红书按钮）', () => assert(base.toolbar && base.brand && base.search && base.themeBtn && base.sideToggle && !base.xhsToolbar, JSON.stringify(base)));
-  ok('侧栏排序：小红书在「订阅主页→手动保存」收集簇下方、工具组上方', () => assert(base.xhsSide && base.xhsOrder, JSON.stringify({ xhsSide: base.xhsSide, xhsOrder: base.xhsOrder })));
-  ok('毛玻璃侧栏在 workspace 内，四页导航 + 两组标签（智能相簿/工具；订阅主页/手动保存为无标签单入口）', () => assert(base.sidebar && base.navs.length === 4 && base.grp === 2 && base.navs[0] === 'lib' && !base.navs.includes('rss'), JSON.stringify({ navs: base.navs, grp: base.grp })));
+  ok('侧栏排序（2026-11-23 拍板）：任务队列→订阅主页→小红书→媒体库(所有归档/仅文件名/手动保存)→工具', () => assert(base.xhsSide && base.sideOrder === 'tasks,subs,xhsWinBtn,lib,only,manual,strategy,settings', JSON.stringify(base.sideOrder)));
+  ok('毛玻璃侧栏在 workspace 内，四页导航 + 两组标签（媒体库/工具；前三项为无标签高频入口）', () => assert(base.sidebar && base.navs.length === 4 && base.grp === 2 && base.navs[0] === 'tasks' && !base.navs.includes('rss'), JSON.stringify({ navs: base.navs, grp: base.grp })));
   ok('侧栏底部状态区（登录/规则/引擎更新入口）', () => assert(base.foot, 'no side-foot'));
   ok('⌘K 面板容器在位', () => assert(base.cmdk, 'no cmdk'));
   ok('详情抽屉在位', () => assert(base.drawer, 'no drawer'));
@@ -105,7 +106,7 @@ document.addEventListener('DOMContentLoaded', () => {
   ok('第三阶段：默认页 = 媒体库（启动第一眼）', () => assert(onPageLib));
   const sideShell = await page.evaluate(() => !!document.querySelector('.sidebar .nav[data-nav="manual"]') && !!document.querySelector('.sidebar .nav[data-nav="subs"]') && !!document.getElementById('sideSubCnt') && !document.getElementById('sideSubList'));
   const smartGroup = await page.evaluate(() => [...document.querySelectorAll('.sidebar .nav')].some(n => n.textContent.includes('仅文件名')) && [...document.querySelectorAll('.sidebar .nav')].some(n => n.textContent.includes('手动保存')) && !!document.getElementById('l-fileAll') && !!document.getElementById('l-fileOnly') && !!document.getElementById('l-fileManual'));
-  ok('第五批：智能相簿组带「所有归档/仅文件名」，手动保存为无标签单入口', () => assert(smartGroup));
+  ok('第五批：「所有归档/仅文件名/手动保存」在媒体库组内', () => assert(smartGroup));
   const manageLink = await page.evaluate(() => !!document.querySelector('.side-manage') && ![...document.querySelectorAll('.sidebar .nav')].some(n => n.textContent.includes('订阅归档')));
   ok('第四批：订阅管理入口在订阅主页组标题，工具组不再重复订阅归档 nav', () => assert(manageLink));
 
@@ -172,6 +173,18 @@ document.addEventListener('DOMContentLoaded', () => {
   // 清掉订阅卡过滤带来的关键词，避免污染后续视图测试
   await page.evaluate(() => { document.getElementById('libKw').value = ''; setLibKw(''); });
   await page.waitForTimeout(220);
+  // 订阅主页视图自带粘贴订阅框（2026-11-23 拍板：加订阅不用绕订阅管理页）
+  await page.evaluate(() => libViewGo('subs'));
+  await page.waitForTimeout(260);
+  let boxSt = await page.evaluate(() => ({ input: !!document.getElementById('subUrlBox'), btn: !!document.querySelector('#libList .paste-box .btn-dl') }));
+  ok('订阅主页视图自带粘贴订阅框（输入框+添加订阅按钮在卡墙上方）', () => assert(boxSt.input && boxSt.btn, JSON.stringify(boxSt)));
+  await page.evaluate(() => { document.getElementById('subUrlBox').value = 'https://example.com/new-creator'; document.querySelector('#libList .paste-box .btn-dl').click(); });
+  await page.waitForTimeout(700);
+  boxSt = await page.evaluate(() => ({ cnt: document.getElementById('sideSubCnt').textContent, cards: document.querySelectorAll('#libList .subgcard').length, cleared: document.getElementById('subUrlBox').value === '' }));
+  ok('粘贴框提交：走完整 addSub 链路（新订阅卡入列 3 张 + 侧栏计数 3 + 输入框清空）', () => assert(boxSt.cnt === '3' && boxSt.cards === 3 && boxSt.cleared, JSON.stringify(boxSt)));
+  // 回退 mock 状态，避免污染后续订阅相关测试
+  await page.evaluate(() => { window.__subs = window.__subs.slice(0, 2); window.keepsake.subsList && loadSubs(); });
+  await page.waitForTimeout(300);
   // 手动添加联动（第五批口径）：点侧栏手动保存 → libView=manual + 页头标题切换
   await page.evaluate(() => document.querySelector('.sidebar .nav[data-nav="manual"]').click());
   await page.waitForTimeout(260);

@@ -196,6 +196,7 @@
   .paste-box span { font-size:20px; }
   textarea { border:none; outline:none; resize:none; font:inherit; color:var(--txt); background:transparent; }
   .paste-box textarea { flex:1; font-size:14px; min-height:44px; }
+  .paste-box input[type="text"] { flex:1; min-width:0; border:none; outline:none; font:inherit; font-size:14px; color:var(--txt); background:transparent; }
   .btn-dl { background:var(--acc); border:none; color:#fff; font-weight:700; font-size:13.5px; padding:12px 24px; border-radius:10px; cursor:pointer; white-space:nowrap; box-shadow:0 4px 14px var(--accbg); }
   .btn-dl:hover { filter:brightness(1.06); }
   .btn-dl:disabled { opacity:.55; cursor:not-allowed; filter:none; }
@@ -605,15 +606,16 @@
   <div class="workspace">
 <aside class="sidebar">
   <div class="logo"><span class="gem">K</span><span class="logo-txt"><span class="logo-name">Keepsake</span><span class="logo-sub">个人媒体归档台</span></span></div>
-  <div class="nav-grp">智能相簿</div>
+  <!-- ★ 侧栏排序（2026-11-23 拍板）：任务队列 → 订阅主页 → 小红书 →（分隔线）媒体库 →（组标签）工具 -->
+  <div class="nav" data-page="tasks" onclick="switchPage('tasks')"><svg viewBox="0 0 256 256" fill="currentColor"><path d="M32,64a8,8,0,0,1,8-8H216a8,8,0,0,1,0,16H40A8,8,0,0,1,32,64Zm104,56H40a8,8,0,0,0,0,16h96a8,8,0,0,0,0-16Zm0,64H40a8,8,0,0,0,0,16h96a8,8,0,0,0,0-16Zm112-24a8,8,0,0,1-3.76,6.78l-64,40A8,8,0,0,1,168,200V120a8,8,0,0,1,12.24-6.78l64,40A8,8,0,0,1,248,160Zm-23.09,0L184,134.43v51.14Z"/></svg>任务队列 <span class="cnt" id="q-cnt">0</span></div>
+  <div class="nav" data-nav="subs" onclick="libViewGo('subs')" title="所有订阅主页收在这里，点击在右侧查看详细名称并可直接粘贴添加"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="fill:none"><rect x="3.5" y="3.5" width="17" height="17" rx="3"/><circle cx="12" cy="10" r="3"/><path d="M6.5 19a6 6 0 0 1 11 0"/></svg>订阅主页 <span class="cnt" id="sideSubCnt">0</span><span class="side-manage" style="margin-left:8px" onclick="event.stopPropagation();switchPage('rss')" title="订阅管理：检查频率/回溯/分组/批量操作">管理</span></div>
+  <div class="nav" id="xhsWinBtn" onclick="openXhsWin()" title="打开小红书受控浏览器：浏览笔记页后点窗口内【📥 归档】一键保存图文/视频"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="fill:none"><rect x="4" y="4" width="16" height="16" rx="4"/><path d="M9 15V9l6 6V9"/></svg>小红书</div>
+  <div class="side-sep"></div>
+  <div class="nav-grp">媒体库</div>
   <div class="nav on" data-page="lib" onclick="libViewGo('all')"><svg viewBox="0 0 256 256" fill="currentColor"><path d="M216,72H131.31L104,44.69A15.86,15.86,0,0,0,92.69,40H40A16,16,0,0,0,24,56V200.62A15.4,15.4,0,0,0,39.38,216H216.89A15.13,15.13,0,0,0,232,200.89V88A16,16,0,0,0,216,72ZM40,56H92.69l16,16H40ZM216,200H40V88H216Z"/></svg>所有归档 <span class="cnt" id="l-fileAll">0</span></div>
   <div class="nav" data-nav="only" onclick="libViewGo('only')" title="没有可预览封面、只有文件名的内容"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="fill:none"><path d="M12 3 2.5 20h19L12 3Z"/><line x1="12" y1="9" x2="12" y2="14"/><circle cx="12" cy="17" r=".6" fill="currentColor"/></svg>仅文件名 <span class="cnt" id="l-fileOnly">0</span></div>
-  <div class="nav" data-nav="subs" onclick="libViewGo('subs')" style="margin-top:16px" title="所有订阅主页收在这里，点击在右侧查看详细名称"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="fill:none"><rect x="3.5" y="3.5" width="17" height="17" rx="3"/><circle cx="12" cy="10" r="3"/><path d="M6.5 19a6 6 0 0 1 11 0"/></svg>订阅主页 <span class="cnt" id="sideSubCnt">0</span><span class="side-manage" style="margin-left:8px" onclick="event.stopPropagation();switchPage('rss')" title="订阅管理：检查频率/回溯/分组/批量操作">管理</span></div>
-  <div class="side-sep"></div>
   <div class="nav" data-nav="manual" onclick="libViewGo('manual')" title="单独下载的内容都收在这里，没有订阅归属"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="fill:none"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M4 20h16"/></svg>手动保存 <span class="cnt" id="l-fileManual">0</span></div>
-  <div class="nav" id="xhsWinBtn" onclick="openXhsWin()" title="打开小红书受控浏览器：浏览笔记页后点窗口内【📥 归档】一键保存图文/视频"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="fill:none"><rect x="4" y="4" width="16" height="16" rx="4"/><path d="M9 15V9l6 6V9"/></svg>小红书</div>
   <div class="nav-grp">工具</div>
-  <div class="nav" data-page="tasks" onclick="switchPage('tasks')"><svg viewBox="0 0 256 256" fill="currentColor"><path d="M32,64a8,8,0,0,1,8-8H216a8,8,0,0,1,0,16H40A8,8,0,0,1,32,64Zm104,56H40a8,8,0,0,0,0,16h96a8,8,0,0,0,0-16Zm0,64H40a8,8,0,0,0,0,16h96a8,8,0,0,0,0-16Zm112-24a8,8,0,0,1-3.76,6.78l-64,40A8,8,0,0,1,168,200V120a8,8,0,0,1,12.24-6.78l64,40A8,8,0,0,1,248,160Zm-23.09,0L184,134.43v51.14Z"/></svg>任务队列 <span class="cnt" id="q-cnt">0</span></div>
   <div class="nav" data-page="strategy" onclick="switchPage('strategy')"><svg viewBox="0 0 256 256" fill="currentColor"><path d="M208,40H48A16,16,0,0,0,32,56v56c0,52.72,25.52,84.67,46.93,102.19,23.06,18.86,46,25.27,47,25.53a8,8,0,0,0,4.2,0c1-.26,23.91-6.67,47-25.53C198.48,196.67,224,164.72,224,112V56A16,16,0,0,0,208,40Zm0,72c0,37.07-13.66,67.16-40.6,89.42A129.3,129.3,0,0,1,128,223.62a128.25,128.25,0,0,1-38.92-21.81C61.82,179.51,48,149.3,48,112l0-56,160,0Z"/></svg>限流策略</div>
   <!-- 视频号入口暂时下架（2026-11-19 拍板）：受控窗/IPC 保留，恢复时解开本行（小红书在上方收集簇中）
   <div class="nav" onclick="openChannelsWin()" title="打开微信视频号受控浏览器：官方页面正常登录浏览，播放后点窗口内【📥 归档】一键保存">📹 视频号</div> -->
@@ -2834,13 +2836,24 @@ const siteLabel = s2 => SITE_LABEL[String(s2).toLowerCase()] || s2;
 const SUB_KIND_LABEL = { bilibili: 'B站', 'bili-collection': '合集', x: 'X', youtube: 'YouTube', rss: 'RSS', weread: '公众号', 'xhs-user': '小红书', gdl: '图站' };
 const subKindLabel = k => SUB_KIND_LABEL[String(k).toLowerCase()] || '订阅';
 const subKindPlat = k => ({ 'xhs-user': 'xiaohongshu', 'bili-collection': 'bilibili', weread: 'weread' })[k] || k;
+const SUB_SUBBOX = '<div class="paste-box" style="margin:0 0 18px"><span>🔗</span><input id="subUrlBox" type="text" placeholder="粘贴创作者主页地址（B站UP主 / YouTube频道 / 小红书 / RSS…），回车或点按钮订阅" autocomplete="off"><button class="btn-dl" onclick="addSubFromBox()">＋ 添加订阅</button></div>';
+async function addSubFromBox() {
+  const box = $('subUrlBox'); if (!box) return;
+  const v = box.value.trim();
+  if (!v) return toast('先粘贴 UP 主页、频道或 RSS feed 链接');
+  $('subUrl').value = v;   // 复用订阅页完整链路（subsAdd 预检/登录态提醒/首轮检查/回溯询问），回溯条数沿用订阅页下拉默认
+  await addSub();
+  box.value = '';
+  renderSideSubs();
+  try { renderLibrary(); } catch (e) {}
+}
 function renderSubsGallery() {
   const el = $('libList'); if (!el) return;
   const subs = (subsItems || []).slice().sort((a, b) => (b.lastCheck || 0) - (a.lastCheck || 0));
-  if (!subs.length) { el.innerHTML = '<div class="empty">还没有订阅主页——点上方「管理」到订阅页粘贴主页地址添加</div>'; return; }
+  if (!subs.length) { el.innerHTML = SUB_SUBBOX + '<div class="empty">还没有订阅主页——粘贴主页地址，追更一位创作者试试</div>'; return; }
   const kw = libKw.toLowerCase();
   const list = kw ? subs.filter(s => String(s.name).toLowerCase().includes(kw)) : subs;
-  if (!list.length) { el.innerHTML = '<div class="empty">没有匹配「' + esc(libKw) + '」的订阅主页</div>'; return; }
+  if (!list.length) { el.innerHTML = SUB_SUBBOX + '<div class="empty">没有匹配「' + esc(libKw) + '」的订阅主页</div>'; return; }
   const cards = list.map((s, i) => {
     const bad = s.lastError && (!s.lastCheck || (s.lastFailAt || 0) > (s.lastCheck || 0)) && !(s.userPaused || s.paused);
     const paused = !!(s.userPaused || s.paused);
@@ -2853,7 +2866,7 @@ function renderSubsGallery() {
       '<span class="sg-go">›</span>' +
     '</article>';
   }).join('');
-  el.innerHTML = '<div class="subsgrid">' + cards + '</div>';
+  el.innerHTML = SUB_SUBBOX + '<div class="subsgrid">' + cards + '</div>';
 }
 function renderLibrary() {
   const el = $('libList');
