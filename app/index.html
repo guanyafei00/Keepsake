@@ -170,6 +170,12 @@
   .topbar { display:flex; align-items:center; gap:14px; flex:0 0 auto; padding:20px 26px 0; flex-wrap:wrap; }
   .topbar .tb-t { font-size:23px; font-weight:800; letter-spacing:.01em; color:var(--txt); line-height:1.2; }
   .topbar .tb-c { font-size:12.5px; color:var(--txt2); margin-top:4px; }
+  /* 任务页：粘贴栏内嵌顶栏（2026-11-23 拍板：与「＋加入队列」按钮二合一，不再有第二个粘贴栏） */
+  .topbar .tb-paste { flex:1 1 340px; min-width:240px; display:flex; align-items:center; gap:8px; height:44px; padding:0 5px 0 14px; background:var(--panel); border:1.5px solid var(--line); border-radius:12px; box-shadow:var(--shadow-sm); transition:border-color .2s, box-shadow .2s; }
+  .topbar .tb-paste:focus-within { border-color:var(--acc); box-shadow:0 0 0 3px var(--accbg); }
+  .topbar .tb-paste > span { font-size:17px; flex:none; }
+  .topbar .tb-paste textarea { flex:1; min-width:0; height:30px; line-height:30px; padding:0; border:none; outline:none; background:transparent; font:inherit; font-size:13.5px; color:var(--txt); resize:none; overflow-y:auto; white-space:pre; }
+  .topbar .tb-paste textarea::placeholder { color:var(--txt3); }
   .topbar .tb-sp { flex:1; }
   .topbar .tb-act { display:inline-flex; align-items:center; gap:7px; min-height:40px; background:var(--panel); border:1px solid var(--line-strong);
     color:var(--txt); font-size:12.5px; font-weight:600; padding:9px 16px; border-radius:var(--r-md); cursor:pointer; box-shadow:var(--shadow-sm); white-space:nowrap; }
@@ -179,13 +185,13 @@
   .topbar .tb-act svg { width:16px; height:16px; flex:none; }
   #kpiHost { padding:14px 26px 0; flex:0 0 auto; }
   #kpiHost:empty { display:none; }
-  .kpi2 { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:14px; }
-  .kpi2 .kc { background:var(--panel); border:1px solid var(--line); border-radius:var(--r); padding:14px 17px; box-shadow:var(--shadow-sm); min-width:0; }
-  .kpi2 .kc .k { font-size:12.5px; color:var(--txt2); display:flex; align-items:center; gap:8px; }
-  .kpi2 .kc .k svg { width:15px; height:15px; flex:none; color:var(--acc); }
-  .kpi2 .kc .v { font-size:27px; font-weight:800; line-height:1.2; margin-top:5px; color:var(--txt); font-variant-numeric:tabular-nums; display:flex; align-items:baseline; gap:6px; }
-  .kpi2 .kc .v em { font-size:13px; font-weight:400; color:var(--txt2); font-style:normal; }
-  .kpi2 .kc .foot { font-size:12px; color:var(--txt2); margin-top:7px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .kpi2 { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:10px; }
+  .kpi2 .kc { background:var(--panel); border:1px solid var(--line); border-radius:var(--r); padding:6px 13px; box-shadow:var(--shadow-sm); min-width:0; }
+  .kpi2 .kc .k { font-size:11.5px; color:var(--txt2); display:flex; align-items:center; gap:6px; }
+  .kpi2 .kc .k svg { width:13px; height:13px; flex:none; color:var(--acc); }
+  .kpi2 .kc .v { font-size:16px; font-weight:750; line-height:1.2; margin-top:1px; color:var(--txt); font-variant-numeric:tabular-nums; display:flex; align-items:baseline; gap:5px; }
+  .kpi2 .kc .v em { font-size:11px; font-weight:400; color:var(--txt2); font-style:normal; }
+  .kpi2 .kc .foot { font-size:11px; color:var(--txt2); margin-top:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   .kpi2 .kc.warn .v, .kpi2 .kc.warn .k svg { color:var(--yellow); }
   .kpi2 .kc.err .v, .kpi2 .kc.err .k svg { color:var(--red); }
   .kpi2 .kc.ok .v, .kpi2 .kc.ok .k svg { color:var(--green); }
@@ -631,11 +637,7 @@
 <main class="main">
   <!-- 任务页 -->
   <div class="page" id="page-tasks">
-    <div class="paste-box">
-      <span>🔗</span>
-      <textarea id="urls" rows="2" placeholder="粘贴视频 / 图片 / 文章链接（B站、YouTube、Pixiv、公众号、知乎…每行一个），自动识别并加入下载队列"></textarea>
-      <button class="btn-dl" id="btnAdd" onclick="addUrls()">＋ 加入队列</button>
-    </div>
+    <!-- 粘贴栏已上移内嵌顶栏（#urls/#btnAdd 由 renderP2 注入），此处不再有第二个加入队列 -->
     <div id="probeStrip" style="display:none;margin:8px 2px 0;font-size:12.5px;color:var(--txt2);padding:7px 11px;background:var(--panel);border:1px dashed var(--line);border-radius:var(--r-md)"></div>
     <div class="opts">
       <span class="pick" id="pickSubs" onclick="togglePick('pickSubs')"><span class="box">✓</span>⬇ 带字幕 <span class="n">自动抓中文字幕</span></span>
@@ -1706,10 +1708,23 @@ function renderP2() {
   // 媒体库页有自己的设计稿页头（lib-head 大标题+分段），期2 注入页头在此页隐藏避免叠加
   top.style.display = page === 'lib' ? 'none' : '';
   const m = P2_META[page] || P2_META.tasks;
-  const topHTML = `<div><div class="tb-t">${m.t}</div><div class="tb-c">${m.c}</div></div><div class="tb-sp"></div>` +
-    (m.act ? `<div class="tb-act ${m.pri ? 'pri' : ''}" onclick="${m.fn}">${m.act}</div>` : '');
+  // 任务页特殊：粘贴栏内嵌顶栏，粘贴 + 加入队列二合一（2026-11-23 拍板，不再有第二个粘贴栏/按钮）
+  let topHTML;
+  if (page === 'tasks') {
+    topHTML = `<div><div class="tb-t">${m.t}</div><div class="tb-c">${m.c}</div></div>` +
+      `<div class="tb-paste"><span>🔗</span><textarea id="urls" rows="1" placeholder="粘贴视频 / 图片 / 文章链接（B站、YouTube、公众号、知乎…每行一个），自动识别并加入下载队列" autocomplete="off"></textarea>` +
+      `<button class="btn-dl" id="btnAdd" onclick="addUrls()">＋ 加入队列</button></div>`;
+  } else {
+    topHTML = `<div><div class="tb-t">${m.t}</div><div class="tb-c">${m.c}</div></div><div class="tb-sp"></div>` +
+      (m.act ? `<div class="tb-act ${m.pri ? 'pri' : ''}" onclick="${m.fn}">${m.act}</div>` : '');
+  }
   // 15s 定时器会反复调本函数：内容没变就不重建 DOM，避免吞掉用户正在点的按钮/hover
-  if (top.dataset.p2html !== topHTML) { top.innerHTML = topHTML; top.dataset.p2html = topHTML; }
+  if (top.dataset.p2html !== topHTML) {
+    const prevVal = ($('urls') || {}).value || '';          // 重建时保留正在输入的内容
+    top.innerHTML = topHTML; top.dataset.p2html = topHTML;
+    if (prevVal) { const u = $('urls'); if (u) u.value = prevVal; }
+  }
+  if (page === 'tasks') bindUrlsProbe();
   const host = $('kpiHost'); if (!host) return;
   const num = id => { const n = $(id); return n ? parseInt((n.textContent||'0').replace(/[^\d-]/g,''),10) || 0 : 0; };
   let html = '';
@@ -2060,7 +2075,12 @@ window.keepsake.onClipboardUrl(({ url }) => {
   toast('📋 检测到剪贴板链接，已填入——确认后点「加入队列」');
 });
 // ★★#6 输入框探测：停止输入 600ms 后识别首条链接亮预览
-$('urls').addEventListener('input', probeUrls);
+function bindUrlsProbe() {
+  const u = $('urls'); if (!u || u.dataset.probeBound) return;
+  u.dataset.probeBound = '1';
+  u.addEventListener('input', probeUrls);
+}
+bindUrlsProbe();
 // 浏览器登录态来源：引擎 --cookies-from-browser 直读，改完即时生效。
 // 主进程会顺带检测浏览器状态（未安装/正在运行会被 Windows 锁 Cookie），有警告优先展示警告
 async function saveCookieBrowser() {

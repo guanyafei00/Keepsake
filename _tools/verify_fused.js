@@ -139,6 +139,17 @@ document.addEventListener('DOMContentLoaded', () => {
     const on = await page.evaluate(pg => document.getElementById('page-' + pg).classList.contains('on'), p);
     ok(`切换到 ${p} 页`, () => assert(on, 'not on'));
   }
+  // 任务页粘贴入口二合一（2026-11-23 拍板）：粘贴栏内嵌顶栏，全页仅一个「加入队列」
+  await page.evaluate(() => window.switchPage('tasks'));
+  await page.waitForTimeout(250);
+  let tasksTop = await page.evaluate(() => ({
+    topPaste: !!document.querySelector('#p2Top .tb-paste textarea#urls'),
+    topBtn: !!document.querySelector('#p2Top .tb-paste #btnAdd'),
+    joinCnt: [...document.querySelectorAll('#page-tasks button, #p2Top button')].filter(b => (b.textContent || '').includes('加入队列')).length,
+    noTbAct: !document.querySelector('#p2Top .tb-act'),
+    kpis: document.querySelectorAll('#kpiHost .kc').length
+  }));
+  ok('任务页粘贴入口二合一：粘贴栏内嵌顶栏 + 全页仅一个「加入队列」按钮 + 4 张 KPI', () => assert(tasksTop.topPaste && tasksTop.topBtn && tasksTop.joinCnt === 1 && tasksTop.noTbAct && tasksTop.kpis === 4, JSON.stringify(tasksTop)));
   const libRendered = await page.evaluate(() => ({
     cards: document.querySelectorAll('#libList .lcard').length,
     grid: !!document.querySelector('#libList .libgrid'),
@@ -391,9 +402,9 @@ document.addEventListener('DOMContentLoaded', () => {
   await page.waitForTimeout(250);
   const touch = await page.evaluate(() => {
     const h = sel => { const el = document.querySelector(sel); return el ? el.getBoundingClientRect().height : 0; };
-    return { btnDl: h('.btn-dl'), tbAct: h('#p2Top .tb-act') };
+    return { pasteBtn: h('#p2Top .tb-paste .btn-dl'), kpi: h('#kpiHost .kc') };
   });
-  ok('主操作按钮 ≥40px（加入队列 / 顶栏主操作）', () => assert(touch.btnDl >= 40 && touch.tbAct >= 40, JSON.stringify(touch)));
+  ok('主操作按钮 ≥40px（顶栏粘贴栏加入队列）；KPI 卡瘦身（高 ≤72px）', () => assert(touch.pasteBtn >= 40 && touch.kpi > 0 && touch.kpi <= 72, JSON.stringify(touch)));
 
   console.log('\n=== H. 响应式无横向溢出（1440/1024/390）===');
   for (const w of [1440, 1024, 390]) {
