@@ -109,8 +109,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const sideShell = await page.evaluate(() => !!document.querySelector('.sidebar .nav[data-nav="manual"]') && !!document.querySelector('.sidebar .nav[data-nav="subs"]') && !!document.getElementById('sideSubCnt') && !document.getElementById('sideSubList'));
   const smartGroup = await page.evaluate(() => [...document.querySelectorAll('.sidebar .nav')].some(n => n.textContent.includes('仅文件名')) && [...document.querySelectorAll('.sidebar .nav')].some(n => n.textContent.includes('手动保存')) && !!document.getElementById('l-fileAll') && !!document.getElementById('l-fileOnly') && !!document.getElementById('l-fileManual'));
   ok('第五批：「所有归档/仅文件名/手动保存」在媒体库组内', () => assert(smartGroup));
-  const manageLink = await page.evaluate(() => !!document.querySelector('.side-manage') && ![...document.querySelectorAll('.sidebar .nav')].some(n => n.textContent.includes('订阅归档')));
-  ok('第四批：订阅管理入口在订阅主页组标题，工具组不再重复订阅归档 nav', () => assert(manageLink));
+  const manageLink = await page.evaluate(() => !document.querySelector('.side-manage') && !!document.getElementById('subsMgmtBtn') && document.getElementById('subsMgmtBtn').style.display === 'none');
+  ok('侧栏不再带「管理」二字；管理入口收进订阅主页视图页头（非 subs 视图隐藏）', () => assert(manageLink));
 
   console.log('\n=== B. backdrop-filter 只在 4 个固定面 ===');
   const bf = await page.evaluate(() => {
@@ -141,17 +141,19 @@ document.addEventListener('DOMContentLoaded', () => {
     const on = await page.evaluate(pg => document.getElementById('page-' + pg).classList.contains('on'), p);
     ok(`切换到 ${p} 页`, () => assert(on, 'not on'));
   }
-  // 任务页粘贴入口二合一（2026-11-23 拍板）：粘贴栏内嵌顶栏，全页仅一个「加入队列」
+  // 任务页粘贴投递台（2026-11-23 拍板）：收在 4 个状态卡下方，全页仅一个「加入队列」
   await page.evaluate(() => window.switchPage('tasks'));
   await page.waitForTimeout(250);
   let tasksTop = await page.evaluate(() => ({
-    topPaste: !!document.querySelector('#p2Top .tb-paste textarea#urls'),
-    topBtn: !!document.querySelector('#p2Top .tb-paste #btnAdd'),
-    joinCnt: [...document.querySelectorAll('#page-tasks button, #p2Top button')].filter(b => (b.textContent || '').includes('加入队列')).length,
+    topPaste: !!document.querySelector('#kpiHost .kpi-paste textarea#urls'),
+    topBtn: !!document.querySelector('#kpiHost .kpi-paste #btnAdd'),
+    pasteAfterKpi: (() => { const p = document.querySelector('#kpiHost .kpi-paste'); return !!p && !!p.previousElementSibling && p.previousElementSibling.classList.contains('kpi2'); })(),
+    noTopPaste: !document.querySelector('#p2Top .tb-paste'),
+    joinCnt: [...document.querySelectorAll('#page-tasks button, #p2Top button, #kpiHost button')].filter(b => (b.textContent || '').includes('加入队列')).length,
     noTbAct: !document.querySelector('#p2Top .tb-act'),
     kpis: document.querySelectorAll('#kpiHost .kc').length
   }));
-  ok('任务页粘贴入口二合一：粘贴栏内嵌顶栏 + 全页仅一个「加入队列」按钮 + 4 张 KPI', () => assert(tasksTop.topPaste && tasksTop.topBtn && tasksTop.joinCnt === 1 && tasksTop.noTbAct && tasksTop.kpis === 4, JSON.stringify(tasksTop)));
+  ok('任务页粘贴投递台在 4 状态卡下方 + 全页仅一个「加入队列」按钮 + 4 张 KPI', () => assert(tasksTop.topPaste && tasksTop.topBtn && tasksTop.pasteAfterKpi && tasksTop.noTopPaste && tasksTop.joinCnt === 1 && tasksTop.noTbAct && tasksTop.kpis === 4, JSON.stringify(tasksTop)));
   const libRendered = await page.evaluate(() => ({
     cards: document.querySelectorAll('#libList .lcard').length,
     grpCards: document.querySelectorAll('#libList .subgcard').length,
@@ -190,6 +192,38 @@ document.addEventListener('DOMContentLoaded', () => {
   await page.waitForTimeout(220);
   const backTop = await page.evaluate(() => ({ cards: document.querySelectorAll('#libList .subgcard').length, backHidden: document.getElementById('libBackBtn').style.display === 'none' }));
   ok('返回钮回组卡顶层', () => assert(backTop.cards === 2 && backTop.backHidden, JSON.stringify(backTop)));
+  // ℹ 真实命中测试（2026-11-23 反馈「ℹ 点不开」根因：lbadge-tl 隐形角标条吞热区）
+  await page.evaluate(() => switchPage('lib'));   // 命中测试要求真实可见：前面的断言只读字符串/直调函数，lib 页可能处于隐藏态
+  await page.waitForTimeout(250);
+  await page.evaluate(() => enterLibGroup(libData.groups[0].key));
+  await page.waitForTimeout(220);
+  const hit = await page.evaluate(() => {
+    const btn = document.querySelector('#libList .lcard-info');
+    btn.scrollIntoView({ block: 'center' });
+    const r = btn.getBoundingClientRect();
+    const el = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+    return { hit: el === btn, pe: getComputedStyle(document.querySelector('.lbadge-tl')).pointerEvents,
+      what: el ? el.tagName + '.' + String(el.className).split(' ')[0] + '#' + (el.id || '') : null,
+      rect: { x: Math.round(r.left), y: Math.round(r.top), w: Math.round(r.width), h: Math.round(r.height) },
+      disp: getComputedStyle(btn).display, lcards: document.querySelectorAll('#libList .lcard').length,
+      pageOn: (document.querySelector('.page.on') || {}).id };
+  });
+  ok('ℹ 真实命中：lbadge-tl pointer-events:none，elementFromPoint 落在 ℹ 本体（非 evaluate 直调）', () => assert(hit.hit && hit.pe === 'none', JSON.stringify(hit)));
+  await page.evaluate(() => backLibGroup());
+  await page.waitForTimeout(220);
+  const grpInfo = await page.evaluate(() => {
+    const cards = [...document.querySelectorAll('#libList .subgcard')];
+    return { all: cards.every(c => !!c.querySelector('.sg-info')) };
+  });
+  ok('组卡 ℹ 详情挂点：每张主页卡右上角一个（2026-11-23 反馈「文件夹没有详情按钮」）', () => assert(grpInfo.all, JSON.stringify(grpInfo)));
+  await page.evaluate(() => document.querySelector('#libList .subgcard .sg-info').click());
+  await page.waitForTimeout(220);
+  const grpInfoDrawer = await page.evaluate(() => ({
+    open: document.getElementById('libDrawer').classList.contains('open'),
+    notInGroup: document.getElementById('libBackBtn').style.display === 'none'
+  }));
+  ok('点组卡 ℹ：开档案抽屉且不进组内视图', () => assert(grpInfoDrawer.open && grpInfoDrawer.notInGroup, JSON.stringify(grpInfoDrawer)));
+  await page.evaluate(() => closeLibDrawer());
   const rssRendered = await page.evaluate(() => ({
     cards: document.querySelectorAll('#subList .subcard').length,
     detail: document.querySelectorAll('#subList .sc-detail').length,
@@ -205,15 +239,18 @@ document.addEventListener('DOMContentLoaded', () => {
     title: (document.getElementById('libTitle') || {}).textContent,
     cards: document.querySelectorAll('#libList .subgcard').length,
     names: [...document.querySelectorAll('#libList .sg-name')].map(x => x.textContent),
-    segHidden: (document.getElementById('libKindSeg') || {}).style.display === 'none'
+    segHidden: (document.getElementById('libKindSeg') || {}).style.display === 'none',
+    mgmtShown: document.getElementById('subsMgmtBtn').style.display !== 'none'
   }));
-  ok('订阅主页视图：右侧出详细名称（2 张订阅卡 + 页头标题 + 类型分段隐藏）', () => assert(subsView.title === '订阅主页' && subsView.cards === 2 && subsView.names.length === 2 && subsView.segHidden, JSON.stringify(subsView)));
+  ok('订阅主页视图：右侧出详细名称（2 张订阅卡 + 页头标题 + 类型分段隐藏 + ⚙管理入口出现）', () => assert(subsView.title === '订阅主页' && subsView.cards === 2 && subsView.names.length === 2 && subsView.segHidden && subsView.mgmtShown, JSON.stringify(subsView)));
   // 订阅卡操作行：检查/下载/暂停-恢复三件套（2026-11-23 拍板功能补齐）
   const subOps = await page.evaluate(() => ({
     ops: [...document.querySelectorAll('#libList .subgcard .sg-ops')].map(g => [...g.querySelectorAll('.op')].map(b => b.textContent.trim()).join('|')),
     cnt: document.querySelectorAll('#libList .subgcard .sg-ops .op').length
   }));
   ok('订阅卡操作行：每卡 ⟳检查/⤓下载/⏸暂停（UP主乙已暂停则 ▶恢复），操作不触发卡跳转', () => assert(subOps.ops.length === 2 && subOps.cnt === 6 && subOps.ops[1].includes('恢复') && subOps.ops[0].includes('暂停'), JSON.stringify(subOps)));
+  const subInfoBtns = await page.evaluate(() => [...document.querySelectorAll('#libList .subgcard')].map(c => !!c.querySelector('.sg-info')));
+  ok('订阅卡 ℹ 详情挂点：有归档的订阅每卡一个', () => assert(subInfoBtns.length === 2 && subInfoBtns.every(Boolean), JSON.stringify(subInfoBtns)));
   // 点暂停按钮 → userPaused 生效（mock subsUpdate）
   await page.evaluate(() => document.querySelector('#libList .subgcard .sg-ops .op.ghost').click());
   await page.waitForTimeout(400);
@@ -453,9 +490,10 @@ document.addEventListener('DOMContentLoaded', () => {
   await page.waitForTimeout(250);
   const touch = await page.evaluate(() => {
     const h = sel => { const el = document.querySelector(sel); return el ? el.getBoundingClientRect().height : 0; };
-    return { pasteBtn: h('#p2Top .tb-paste .btn-dl'), kpi: h('#kpiHost .kc') };
+    const kpiCols = getComputedStyle(document.querySelector('.kpi2')).gridTemplateColumns.split(' ').length;
+    return { pasteBtn: h('#kpiHost .kpi-paste .btn-dl'), kpi: h('#kpiHost .kc'), kpiCols };
   });
-  ok('主操作按钮 ≥40px（顶栏粘贴栏加入队列）；KPI 卡瘦身（高 ≤72px）', () => assert(touch.pasteBtn >= 40 && touch.kpi > 0 && touch.kpi <= 72, JSON.stringify(touch)));
+  ok('主操作按钮 ≥40px；KPI 卡恒 4 列一行且高 ≤60px（瘦身+不随窗口折行）', () => assert(touch.pasteBtn >= 40 && touch.kpi > 0 && touch.kpi <= 60 && touch.kpiCols === 4, JSON.stringify(touch)));
 
   console.log('\n=== H. 响应式无横向溢出（1440/1024/390）===');
   for (const w of [1440, 1024, 390]) {
