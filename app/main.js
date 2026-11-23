@@ -1531,6 +1531,16 @@ app.whenReady().then(() => {
     return shell.openPath(resolved).then(err => err ? { ok: false, reason: err } : { ok: true });
   });
 
+  // 直接打开本地文件（视频/图片用系统默认程序播放/查看；媒体库点卡即看，不在信息层多绕一步）
+  ipcMain.handle('app:openFile', (e, p) => {
+    const resolved = insideAllowedDir(p);
+    if (!resolved) return { ok: false, reason: '只允许打开下载目录内的文件' };
+    let st = null;
+    try { st = fs.statSync(resolved); } catch { return { ok: false, reason: '文件不存在' }; }
+    if (!st.isFile()) return { ok: false, reason: '不是文件' };
+    return shell.openPath(resolved).then(err => err ? { ok: false, reason: err } : { ok: true });
+  });
+
   // ===== 订阅（RSS）=====
   // 串行化队列——定时轮/手动检查/添加订阅触发的首检全部排队执行，不再互相吞掉。
   // 原实现用 _checkingSubs 布尔互斥，冲突时静默 return []：订阅添加触发的首检被吞，基线建立延迟到下个 10 分钟轮

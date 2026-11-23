@@ -539,6 +539,7 @@
   .sc-detail-body { font-size:12px; color:var(--txt2); line-height:1.95; padding:6px 2px 2px; overflow-wrap:anywhere; font-variant-numeric:tabular-nums; }
   /* 订阅主页视图（侧栏单入口 → 右侧详细名称列表） */
   .subsgrid { display:grid; grid-template-columns:repeat(auto-fill,minmax(240px,1fr)); gap:14px; }
+  .subsgrid-wide { grid-template-columns:repeat(auto-fill,minmax(300px,1fr)); }
   .subgcard { display:flex; align-items:center; gap:12px; padding:14px 16px; background:var(--panel); border:1px solid var(--line); border-radius:14px; box-shadow:var(--shadow-sm); cursor:pointer; user-select:none; transition:border-color 180ms var(--ease-out),transform 140ms var(--ease-out); animation:libCardIn 380ms var(--ease-out) both; }
   .subgcard:hover { border-color:var(--acc); transform:translateY(-1px); }
   .subgcard:active { transform:scale(.98); }
@@ -571,6 +572,37 @@
   .libgrp-head:hover .lg-go { color:var(--acc); }
   .libgrp-more { font-size:12px; color:var(--txt2); margin:10px 2px 0; cursor:pointer; padding:6px 12px; border-radius:8px; display:inline-block; transition:background 160ms,color 160ms; }
   .libgrp-more:hover { background:var(--panel2); color:var(--acc); }
+  /* 组卡操作行（订阅主页卡上直接检查/下载/暂停恢复——2026-11-23 拍板功能补齐） */
+  .sg-ops { display:flex; align-items:center; gap:5px; margin-top:7px; flex-wrap:wrap; }
+  .sg-ops .op {
+    display:inline-flex; align-items:center; gap:3px; height:24px; padding:0 9px;
+    font-size:11.5px; font-weight:600; color:var(--acc); background:var(--accbg);
+    border:0; border-radius:7px; cursor:pointer; white-space:nowrap;
+    transition:transform 140ms var(--ease-out),filter 160ms;
+  }
+  .sg-ops .op:hover { filter:brightness(.94); }
+  .sg-ops .op:active { transform:scale(.94); }
+  .sg-ops .op.ghost { color:var(--txt2); background:var(--panel2); }
+  /* 内容卡 ℹ 信息挂点（点卡直接打开文件，信息层主动索取才出现——2026-11-23 拍板） */
+  .lcard-info {
+    position:absolute; top:8px; right:8px; width:26px; height:26px; border-radius:8px;
+    display:none; place-items:center; font-size:13px; font-weight:700;
+    color:#fff; background:rgba(0,0,0,.5); border:0; cursor:pointer;
+    backdrop-filter:blur(4px); -webkit-backdrop-filter:blur(4px); z-index:2;
+    transition:transform 140ms var(--ease-out),background 160ms;
+  }
+  .lcard:hover .lcard-info { display:grid; }
+  .lcard-info:hover { background:var(--acc); }
+  .lcard-info:active { transform:scale(.9); }
+  /* 组内视图返回按钮 */
+  .lib-back {
+    display:inline-flex; align-items:center; gap:5px; height:30px; padding:0 13px; margin-right:12px;
+    font-size:13px; font-weight:600; color:var(--txt2); background:var(--panel);
+    border:1px solid var(--line); border-radius:9px; cursor:pointer; flex:none; align-self:center;
+    transition:transform 140ms var(--ease-out),border-color 160ms,color 160ms;
+  }
+  .lib-back:hover { color:var(--acc); border-color:var(--acc); }
+  .lib-back:active { transform:scale(.95); }
   .lpill.origin {
     background:rgba(255,255,255,.92); color:#1d1d1f;
     max-width:112px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
@@ -722,6 +754,7 @@
   <!-- 媒体库页（默认页：设计图的主视图，内容级卡片墙） -->
   <div class="page on" id="page-lib">
     <div class="lib-head">
+      <button class="lib-back" id="libBackBtn" onclick="backLibGroup()" style="display:none" title="返回所有归档">‹ 返回</button>
       <div class="lib-title-wrap">
         <div class="lib-title" id="libTitle">所有归档</div>
         <div class="lib-sub" id="libSub">订阅追更与手动添加，收在一处</div>
@@ -734,7 +767,7 @@
       </div>
     </div>
     <div id="libList"><div class="empty">还没有下载任何媒体——用工具栏「粘贴链接下载」单独收一条，或添加订阅自动追更</div></div>
-    <div class="lib-footnote">只读展示，任何情况下都不会自动删除你的文件 · 点击卡片查看档案与操作</div>
+    <div class="lib-footnote">只读展示，任何情况下都不会自动删除你的文件 · 点卡片直接打开内容，悬停右上角 ℹ 看档案与操作</div>
   </div>
 
   <!-- 策略页 -->
@@ -2836,6 +2869,7 @@ function txtHit(f) {
 }
 function setLibKw(v) {
   libKw = String(v || '').trim();
+  if (libKw) libGroup = null;   // 搜索是全库行为，退出组内视图
   clearTimeout(_txtSearchTimer);
   if (!libKw) { _txtHits = {}; renderLibrary(); return; }
   // 标题过滤立即反馈；文稿内容检索防抖 400ms（避免每敲一键扫索引）
@@ -2859,6 +2893,7 @@ function localImgUrl(p) {
 // 来源视图筛选：all / manual（手动添加视图 = 缺口①，入口在侧栏；页内另有 libKind 类型分段）
 let libView = 'all';           // 侧栏视图：all / only（仅文件名）/ manual（手动添加）/ subs（订阅主页单入口）
 let libKind = 'all';           // 页内类型分段：all / video / image（与侧栏视图正交）
+let libGroup = null;           // 所有归档组内视图：null=组卡网格；=组 key 时显示该组全部内容（点组卡进入，2026-11-23 拍板）
 // 设计稿色板：订阅头像色（按名哈希）+ 平台色点
 const SUB_COLORS = ['#FF6699', '#5AC8FA', '#34C759', '#AF52DE', '#FF9500', '#64D2FF', '#FF375F', '#30D158'];
 const subColor = name => SUB_COLORS[[...String(name)].reduce((a, c) => a + (c.codePointAt(0) || 0), 0) % SUB_COLORS.length];
@@ -2891,16 +2926,31 @@ function renderSubsGallery() {
   const cards = list.map((s, i) => {
     const bad = s.lastError && (!s.lastCheck || (s.lastFailAt || 0) > (s.lastCheck || 0)) && !(s.userPaused || s.paused);
     const paused = !!(s.userPaused || s.paused);
+    const ops = '<div class="sg-ops" onclick="event.stopPropagation()">' +
+      '<button type="button" class="op" onclick="checkSub(\'' + escAttr(s.id) + '\')" title="立即检查 TA 有没有新内容">⟳ 检查</button>' +
+      '<button type="button" class="op" onclick="backfillSub(\'' + escAttr(s.id) + '\')" title="把 TA 已发布的内容全部加入下载队列">⤓ 下载</button>' +
+      (paused
+        ? '<button type="button" class="op ghost" onclick="resumeSub(\'' + escAttr(s.id) + '\')" title="恢复自动检查与下载">▶ 恢复</button>'
+        : '<button type="button" class="op ghost" onclick="pauseSub(\'' + escAttr(s.id) + '\')" title="暂停自动检查与下载（已下载文件保留）">⏸ 暂停</button>') +
+    '</div>';
     return '<article class="subgcard' + (bad ? ' err' : '') + (paused ? ' dim' : '') + '" style="animation-delay:' + Math.min(i, 12) * 32 + 'ms" onclick="sideSubGo(\'' + escAttr(s.id) + '\')" title="查看「' + escAttr(s.name) + '」的归档">' +
       '<span class="sub-avatar" style="background:' + subColor(s.name) + '">' + esc(String(s.name).trim().slice(0, 1).toUpperCase()) + '</span>' +
       '<div class="sg-main">' +
         '<div class="sg-name"><span class="nm">' + esc(s.name) + '</span>' + (paused ? '<span class="sg-pause">⏸ 已暂停</span>' : '') + '</div>' +
         '<div class="sg-meta"><span class="platform-dot" style="background:' + platColor(subKindPlat(s.kind)) + '"></span><span>' + esc(subKindLabel(s.kind)) + '</span><span class="sep">·</span><span>已跟踪 ' + (s.knownCount || 0) + ' 条</span></div>' +
+        ops +
       '</div>' +
       '<span class="sg-go">›</span>' +
     '</article>';
   }).join('');
   el.innerHTML = SUB_SUBBOX + '<div class="subsgrid">' + cards + '</div>';
+}
+// 暂停订阅（订阅主页卡上操作行用；恢复走 resumeSub）
+async function pauseSub(id) {
+  const r = await window.keepsake.subsUpdate(id, { userPaused: true });
+  if (r && r.ok === false) return toast(r.reason || '暂停失败');
+  toast('已暂停自动检查与下载');
+  loadSubs();
 }
 function renderLibrary() {
   const el = $('libList');
@@ -2942,7 +2992,7 @@ function renderLibrary() {
     el.innerHTML = '<div class="empty">还没有下载任何媒体——到「任务队列」粘贴链接单独收一条，或添加订阅自动追更</div>';
     return;
   }
-  // 卡片 HTML（平铺/分组两个分支共用）
+  // 卡片 HTML（平铺/组内两个分支共用）：点卡直接打开内容（2026-11-23 拍板），ℹ 主动索取才出信息层
   const cardHTML = (it, i) => {
     const { g, f, only, manual } = it;
     const kindPill = f.kind === 'video'
@@ -2960,8 +3010,10 @@ function renderLibrary() {
     const stem = f.name.replace(/\.[^.]+$/, '');
     const d = new Date(f.mtime || Date.now());
     const date = isNaN(d) ? '' : d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
-    return '<article class="lcard" style="animation-delay:' + Math.min(i, 12) * 32 + 'ms" onclick="openLibDrawer(\'' + escAttr(g.key) + '\')">' +
+    const openTip = f.kind === 'article' ? '阅读这篇存档' : '用系统默认程序打开';
+    return '<article class="lcard" style="animation-delay:' + Math.min(i, 12) * 32 + 'ms" onclick="openMediaFile(\'' + escAttr(f.path) + '\',\'' + f.kind + '\')" title="' + escAttr(stem) + ' · ' + openTip + '">' +
       '<div class="lthumb">' + cover +
+        '<button type="button" class="lcard-info" onclick="event.stopPropagation();openLibDrawer(\'' + escAttr(g.key) + '\')" title="档案与操作（来源/转写/AI/删除检测）">ℹ</button>' +
         '<div class="lbadge-tl">' + kindPill + onlyPill + '</div>' +
         '<div class="lbadge-bl">' + originPill + plat + '</div>' +
       '</div>' +
@@ -2971,30 +3023,32 @@ function renderLibrary() {
       '</div>' +
     '</article>';
   };
-  // 分组渲染（2026-11-23 拍板：所有归档按主页/来源分类，每组组头+最新 8 条，不再混排）
+  // 组内视图：点组卡进入，平铺该组全部内容（仍保留 400 上限防超大组卡死）
+  if (libView === 'all' && !kw && libKind === 'all' && libGroup) {
+    const g = libData.groups.find(x => x.key === libGroup);
+    if (!g) { libGroup = null; renderLibrary(); return; }
+    const gItems = items.filter(it => it.g === g);
+    const truncated = gItems.length > LIMIT;
+    const shownG = truncated ? gItems.slice(0, LIMIT) : gItems;
+    el.innerHTML = '<div class="libgrid">' + shownG.map((it, i) => cardHTML(it, i)).join('') + '</div>' +
+      (truncated ? '<div class="lib-more">还有 ' + (gItems.length - LIMIT) + ' 条更早的内容——用顶栏搜索快速定位</div>' : '');
+    try { if (typeof renderP2 === 'function') renderP2(); } catch (e) {}
+    return;
+  }
+  // 组卡网格（2026-11-23 拍板：所有归档与订阅主页同构，每个主页/文件夹一张卡，点卡进入）
   if (libView === 'all' && !kw && libKind === 'all') {
-    let out = '', budget = 400;
-    for (const g of libData.groups) {
-      const gItems = items.filter(it => it.g === g);
-      if (!gItems.length) continue;
-      const manualAll = gItems.every(it => it.manual);
-      const head = '<div class="libgrp-head" onclick="openLibDrawer(\'' + escAttr(g.key) + '\')" title="查看「' + escAttr(g.uploader) + '」的全部归档">' +
+    const cards = libData.groups.map((g, i) => {
+      const mAll = g.files.length > 0 && g.files.every(f => f.src && f.src.via && f.src.via !== 'sub');
+      return '<article class="subgcard" style="animation-delay:' + Math.min(i, 12) * 32 + 'ms" onclick="enterLibGroup(\'' + escAttr(g.key) + '\')" title="进入「' + escAttr(g.uploader) + '」的归档">' +
         '<span class="sub-avatar" style="background:' + subColor(g.uploader) + '">' + esc(String(g.uploader).trim().slice(0, 1).toUpperCase()) + '</span>' +
-        '<div class="lg-main">' +
-          '<div class="lg-name">' + esc(g.uploader) + (manualAll ? '<span class="lpill origin manual">⤓ 手动</span>' : '') + '</div>' +
-          '<div class="lg-meta"><span class="platform-dot" style="background:' + platColor(g.site) + '"></span><span>' + esc(siteLabel(g.site)) + '</span><span class="sep">·</span><span>' + gItems.length + ' 条' + (g.sizeText ? ' · ' + esc(g.sizeText) : '') + '</span></div>' +
+        '<div class="sg-main">' +
+          '<div class="sg-name"><span class="nm">' + esc(g.uploader) + '</span>' + (mAll ? '<span class="sg-pause">⤓ 手动</span>' : '') + '</div>' +
+          '<div class="sg-meta"><span class="platform-dot" style="background:' + platColor(g.site) + '"></span><span>' + esc(siteLabel(g.site)) + '</span><span class="sep">·</span><span>' + g.fileCount + ' 条 · ' + esc(g.sizeText || '') + ' · ' + timeAgo(g.lastMtime) + '</span></div>' +
         '</div>' +
-        '<span class="lg-go">查看全部 ›</span>' +
-      '</div>';
-      const shownG = gItems.slice(0, 8);
-      out += '<section class="libgrp" style="animation-delay:' + Math.min(out.length, 3) * 40 + 'ms">' + head +
-        '<div class="libgrid">' + shownG.map((it, i) => cardHTML(it, i)).join('') + '</div>' +
-        (gItems.length > 8 ? '<div class="libgrp-more" onclick="openLibDrawer(\'' + escAttr(g.key) + '\')">还有 ' + (gItems.length - 8) + ' 条更早的内容，点组头查看全部</div>' : '') +
-      '</section>';
-      budget -= shownG.length;
-      if (budget <= 0) break;
-    }
-    el.innerHTML = out || '<div class="empty">没有匹配的媒体</div>';
+        '<span class="sg-go">›</span>' +
+      '</article>';
+    }).join('');
+    el.innerHTML = libData.groups.length ? '<div class="subsgrid subsgrid-wide">' + cards + '</div>' : '<div class="empty">没有匹配的媒体</div>';
     try { if (typeof renderP2 === 'function') renderP2(); } catch (e) {}
     return;
   }
@@ -3021,13 +3075,27 @@ function syncLibHead() {
   const t = $('libTitle'), s2 = $('libSub');
   if (!t || !s2) return;
   const seg = $('libKindSeg'); if (seg) seg.style.display = libView === 'subs' ? 'none' : '';
+  const bk = $('libBackBtn'); if (bk) bk.style.display = (libView === 'all' && libGroup && !libKw && libKind === 'all') ? '' : 'none';
   if (libView === 'subs') { t.textContent = '订阅主页'; s2.textContent = (subsItems || []).length + ' 个订阅主页 · 点击卡片查看 TA 的归档'; return; }
+  // 组内视图：页头切组名 + 统计副标题
+  if (libView === 'all' && libGroup && !libKw && libKind === 'all' && libData && Array.isArray(libData.groups)) {
+    const g = libData.groups.find(x => x.key === libGroup);
+    if (g) { t.textContent = g.uploader; s2.textContent = siteLabel(g.site) + ' · ' + g.fileCount + ' 条 · ' + (g.sizeText || '') + ' · 最近更新 ' + timeAgo(g.lastMtime); return; }
+  }
   if (libKw) { t.textContent = '搜索结果'; s2.textContent = '关键词「' + libKw + '」的命中内容'; return; }
   if (libView === 'manual') { t.textContent = '手动添加'; s2.textContent = '单独保存的内容，收在这里'; }
   else if (libView === 'only') { t.textContent = '仅文件名'; s2.textContent = '没有可预览封面的内容'; }
   else if (libKind === 'video') { t.textContent = '视频'; s2.textContent = '本地已归档的视频内容'; }
   else if (libKind === 'image') { t.textContent = '图文'; s2.textContent = '图片与文章存档'; }
-  else { t.textContent = '所有归档'; s2.textContent = '按主页分类 · 每组显示最新内容，点组头看全部'; }
+  else { t.textContent = '所有归档'; s2.textContent = '按主页分类 · 点卡片进入文件夹，再点内容直接打开'; }
+}
+// ===== 组内视图导航 + 点卡直接打开（2026-11-23 拍板）=====
+function enterLibGroup(key) { libGroup = key; try { renderLibrary(); } catch (e) {} window.scrollTo(0, 0); const mc = document.querySelector('.main'); if (mc) mc.scrollTop = 0; }
+function backLibGroup() { libGroup = null; try { renderLibrary(); } catch (e) {} }
+async function openMediaFile(p, kind) {
+  if (kind === 'article') { openArticle(p); return; }
+  const r = await window.keepsake.openFileLocal(p);
+  if (r && !r.ok) toast('打开失败：' + (r.reason || '未知原因') + '——可点卡片右上角 ℹ 找到文件后再打开');
 }
 
 
@@ -3677,6 +3745,7 @@ $('libKindSeg').addEventListener('click', e => {
   const b = e.target.closest('.libseg-item');
   if (!b) return;
   libKind = b.dataset.kind;
+  if (libKind !== 'all') libGroup = null;   // 切类型分段 = 跨主页看类型，退出组内视图避免视图叠加
   syncKindSeg();
   try { renderLibrary(); } catch (err) {}
 });
@@ -3686,6 +3755,7 @@ function libViewGo(v) {
   libView = v === 'manual' ? 'manual' : v === 'only' ? 'only' : v === 'subs' ? 'subs' : 'all';
   // 修 bug（用户 2026-11-23 反馈）：切视图清顶栏搜索词——残留关键词会把订阅主页/手动视图过滤到只剩 1 个/0 个
   if (libKw) { libKw = ''; const kwBox = $('libKw'); if (kwBox) kwBox.value = ''; }
+  libGroup = null;   // 侧栏切视图回顶层，不残留组内视图
   // 侧栏视图高亮（视图项 data-nav / 归档项 data-page）
   document.querySelectorAll('.sidebar .nav').forEach(n => {
     const on = (libView === 'manual' && n.dataset.nav === 'manual') ||

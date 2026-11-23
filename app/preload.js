@@ -48,6 +48,7 @@ contextBridge.exposeInMainWorld('keepsake', {
   articleOpen: (filePath) => ipcRenderer.invoke('article:open', { filePath }),     // 文章引擎：浏览器打开本地存档
   articleRecheck: (filePath) => ipcRenderer.invoke('article:recheck', { filePath }), // 文章引擎：重新检查原文（删帖/编辑检测）
   openFolder: (p) => ipcRenderer.invoke('app:openFolder', p),
+  openFileLocal: (p) => ipcRenderer.invoke('app:openFile', p),   // 直接打开本地文件（媒体库点卡即看）
   openExternal: (url) => ipcRenderer.invoke('app:openExternal', url),
   aiGetConfig: () => ipcRenderer.invoke('ai:getConfig'),
   aiSaveConfig: (cfg) => ipcRenderer.invoke('ai:saveConfig', cfg),

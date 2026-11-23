@@ -40,6 +40,8 @@ window.keepsake = {
   snapshot: () => Promise.resolve(window.__snap), tasks: arr, queue: arr, done: arr,
   subsList: () => Promise.resolve(window.__subs), subs: arr,
   subsAdd: u => { const s = { id: 's-' + Date.now(), kind: 'rss', name: '新订阅', knownCount: 0 }; window.__subs = [...window.__subs, s]; return Promise.resolve({ ok: true, sub: s }); },
+  subsUpdate: (id, patch) => { const s = window.__subs.find(x => x.id === id); if (s) Object.assign(s, patch); return Promise.resolve({ ok: true }); },
+  openFileLocal: p => { window.__openFileCalls = [...(window.__openFileCalls || []), p]; return Promise.resolve({ ok: true }); },
   libraryScan: () => Promise.resolve(window.__lib), libraryList: arr,
   wereadState: obj, cookieInfo: () => Promise.resolve({}), pixivState: obj, asr: obj, engines: arr,
   strategySnapshot: () => Promise.resolve({ defaults: [], learned: {} }), strategyVersion: () => Promise.resolve('test'),
@@ -152,15 +154,42 @@ document.addEventListener('DOMContentLoaded', () => {
   ok('任务页粘贴入口二合一：粘贴栏内嵌顶栏 + 全页仅一个「加入队列」按钮 + 4 张 KPI', () => assert(tasksTop.topPaste && tasksTop.topBtn && tasksTop.joinCnt === 1 && tasksTop.noTbAct && tasksTop.kpis === 4, JSON.stringify(tasksTop)));
   const libRendered = await page.evaluate(() => ({
     cards: document.querySelectorAll('#libList .lcard').length,
-    grid: !!document.querySelector('#libList .libgrid'),
-    grps: document.querySelectorAll('#libList .libgrp').length,
-    grpHeads: document.querySelectorAll('#libList .libgrp-head').length,
-    headNames: [...document.querySelectorAll('#libList .lg-name')].map(x => x.textContent.trim().split('\n')[0]),
-    covers: document.querySelectorAll('#libList .lthumb').length,
+    grpCards: document.querySelectorAll('#libList .subgcard').length,
+    grpNames: [...document.querySelectorAll('#libList .sg-name .nm')].map(x => x.textContent),
+    grpGrid: !!document.querySelector('#libList .subsgrid-wide'),
+    backHidden: document.getElementById('libBackBtn').style.display === 'none',
     seg: document.querySelectorAll('#libKindSeg .libseg-item').length
   }));
   const libTitleTxt = await page.evaluate(() => (document.getElementById('libTitle') || {}).textContent);
-  ok('所有归档分组视图（2 个主页组 + 4 条内容卡 + 组头带名称/平台/条数 + 分段 + 大标题「所有归档」）', () => assert(libRendered.cards === 4 && libRendered.grid && libRendered.grps === 2 && libRendered.grpHeads === 2 && libRendered.headNames.join(',') === 'UP主甲,UP主乙' && libRendered.covers === 4 && libRendered.seg === 3 && libTitleTxt === '所有归档', JSON.stringify({ ...libRendered, title: libTitleTxt })));
+  ok('所有归档组卡网格（订阅主页同构：2 张主页卡 + 大标题 + 返回钮隐藏 + 类型分段）', () => assert(libRendered.cards === 0 && libRendered.grpCards === 2 && libRendered.grpNames.join(',') === 'UP主甲,UP主乙' && libRendered.grpGrid && libRendered.backHidden && libRendered.seg === 3 && libTitleTxt === '所有归档', JSON.stringify({ ...libRendered, title: libTitleTxt })));
+  // 点组卡进入组内视图：页头组名 + 返回钮出现 + 该组全部内容卡
+  await page.evaluate(() => document.querySelector('#libList .subgcard').click());
+  await page.waitForTimeout(260);
+  const grpInner = await page.evaluate(() => ({
+    title: (document.getElementById('libTitle') || {}).textContent,
+    sub: (document.getElementById('libSub') || {}).textContent,
+    backShown: document.getElementById('libBackBtn').style.display !== 'none',
+    cards: document.querySelectorAll('#libList .lcard').length,
+    infoBtns: document.querySelectorAll('#libList .lcard-info').length
+  }));
+  ok('组内视图：页头组名+统计副标题+返回钮出现+该组内容卡+每卡带 ℹ 信息挂点', () => assert(grpInner.title === 'UP主甲' && /B站/.test(grpInner.sub) && grpInner.backShown && grpInner.cards === 2 && grpInner.infoBtns === 2, JSON.stringify(grpInner)));
+  // 点内容卡直接打开文件（不再弹信息层）；ℹ 仍开抽屉
+  await page.evaluate(() => document.querySelector('#libList .lcard').click());
+  await page.waitForTimeout(220);
+  const opened = await page.evaluate(() => ({
+    opened: (window.__openFileCalls || []).pop(),
+    drawerOpen: document.getElementById('libDrawer').classList.contains('open')
+  }));
+  ok('点内容卡直接打开文件（a.mp4 → openFileLocal，不弹信息层）', () => assert(opened.opened && opened.opened.includes('a.mp4') && !opened.drawerOpen, JSON.stringify(opened)));
+  await page.evaluate(() => { document.querySelector('#libList .lcard-info').click(); });
+  await page.waitForTimeout(220);
+  const drawerViaInfo = await page.evaluate(() => document.getElementById('libDrawer').classList.contains('open'));
+  ok('ℹ 挂点主动开抽屉（信息层不消失，只是不再霸占点击）', () => assert(drawerViaInfo));
+  await page.evaluate(() => closeLibDrawer());
+  await page.evaluate(() => backLibGroup());
+  await page.waitForTimeout(220);
+  const backTop = await page.evaluate(() => ({ cards: document.querySelectorAll('#libList .subgcard').length, backHidden: document.getElementById('libBackBtn').style.display === 'none' }));
+  ok('返回钮回组卡顶层', () => assert(backTop.cards === 2 && backTop.backHidden, JSON.stringify(backTop)));
   const rssRendered = await page.evaluate(() => ({
     cards: document.querySelectorAll('#subList .subcard').length,
     detail: document.querySelectorAll('#subList .sc-detail').length,
@@ -179,6 +208,18 @@ document.addEventListener('DOMContentLoaded', () => {
     segHidden: (document.getElementById('libKindSeg') || {}).style.display === 'none'
   }));
   ok('订阅主页视图：右侧出详细名称（2 张订阅卡 + 页头标题 + 类型分段隐藏）', () => assert(subsView.title === '订阅主页' && subsView.cards === 2 && subsView.names.length === 2 && subsView.segHidden, JSON.stringify(subsView)));
+  // 订阅卡操作行：检查/下载/暂停-恢复三件套（2026-11-23 拍板功能补齐）
+  const subOps = await page.evaluate(() => ({
+    ops: [...document.querySelectorAll('#libList .subgcard .sg-ops')].map(g => [...g.querySelectorAll('.op')].map(b => b.textContent.trim()).join('|')),
+    cnt: document.querySelectorAll('#libList .subgcard .sg-ops .op').length
+  }));
+  ok('订阅卡操作行：每卡 ⟳检查/⤓下载/⏸暂停（UP主乙已暂停则 ▶恢复），操作不触发卡跳转', () => assert(subOps.ops.length === 2 && subOps.cnt === 6 && subOps.ops[1].includes('恢复') && subOps.ops[0].includes('暂停'), JSON.stringify(subOps)));
+  // 点暂停按钮 → userPaused 生效（mock subsUpdate）
+  await page.evaluate(() => document.querySelector('#libList .subgcard .sg-ops .op.ghost').click());
+  await page.waitForTimeout(400);
+  const pausedNow = await page.evaluate(() => window.__subs[0].userPaused === true);
+  ok('订阅卡暂停操作：userPaused 生效', () => assert(pausedNow));
+  await page.evaluate(() => { window.__subs[0].userPaused = false; });
   // 点第一张订阅卡 → 过滤到该订阅的归档（顶栏关键词=订阅名）
   await page.evaluate(() => document.querySelector('#libList .subgcard').click());
   await page.waitForTimeout(260);
@@ -217,8 +258,8 @@ document.addEventListener('DOMContentLoaded', () => {
   ok('仅文件名视图：标题切换 + only 角标卡（mock g1 mp4+g2 附件）', () => assert(onlyView.title === '仅文件名' && onlyView.pills >= 1, JSON.stringify(onlyView)));
   await page.evaluate(() => libViewGo('all'));
   await page.waitForTimeout(220);
-  const backAll = await page.evaluate(() => ({ title: (document.getElementById('libTitle') || {}).textContent, cards: document.querySelectorAll('#libList .lcard').length }));
-  ok('回所有归档：标题恢复 + 4 张内容卡', () => assert(backAll.title === '所有归档' && backAll.cards === 4, JSON.stringify(backAll)));
+  const backAll = await page.evaluate(() => ({ title: (document.getElementById('libTitle') || {}).textContent, grpCards: document.querySelectorAll('#libList .subgcard').length }));
+  ok('回所有归档：标题恢复 + 组卡网格（顶层形态）', () => assert(backAll.title === '所有归档' && backAll.grpCards === 2, JSON.stringify(backAll)));
 
   console.log('\n=== D. ⌘K 面板 ===');
   await page.keyboard.press('Control+k');
@@ -311,7 +352,10 @@ document.addEventListener('DOMContentLoaded', () => {
   console.log('\n=== E. 媒体库抽屉 / CBZ / AI 挂点 ===');
   await page.evaluate(() => { document.getElementById('libKw').value = ''; setLibKw(''); window.switchPage('lib'); });
   await page.waitForTimeout(300);
-  await page.evaluate(() => { document.querySelector('#libList [onclick*="openLibDrawer"]').click(); });
+  // 顶层是组卡网格（点卡进入组内），抽屉入口 = 组内内容卡右上角 ℹ
+  await page.evaluate(() => { enterLibGroup('g1'); });
+  await page.waitForTimeout(200);
+  await page.evaluate(() => { document.querySelector('#libList .lcard-info').click(); });
   await page.waitForTimeout(200);
   st = await page.evaluate(() => ({
     open: isLibDrawerOpen(),
@@ -349,10 +393,12 @@ document.addEventListener('DOMContentLoaded', () => {
   ok('工具栏主题按钮循环切换（light→dark→auto）', () => assert(t1 === 'dark' && t2 === 'auto', t1 + '/' + t2));
 
   console.log('\n=== F2. 入口去重 + 手动保存视图 ===');
-  // 内容级卡墙：点卡开抽屉 + 封面 file:// + 平台 pill
+  // 内容级卡墙：点 ℹ 开抽屉（点卡本体直接打开文件，2026-11-23 拍板）+ 封面 file:// + 平台 pill
   await page.evaluate(() => { document.getElementById('libKw').value = ''; setLibKw(''); libView = 'all'; renderLibrary(); window.switchPage('lib'); });
   await page.waitForTimeout(300);
-  await page.evaluate(() => { document.querySelector('#libList .lcard').click(); });
+  await page.evaluate(() => { enterLibGroup('g1'); });
+  await page.waitForTimeout(200);
+  await page.evaluate(() => { document.querySelector('#libList .lcard-info').click(); });
   await page.waitForTimeout(200);
   st = await page.evaluate(() => ({
     drawer: document.getElementById('libDrawer').classList.contains('open'),
@@ -361,7 +407,7 @@ document.addEventListener('DOMContentLoaded', () => {
     platPill: document.querySelectorAll('#libList .lbadge-bl .lpill').length,
     kindPill: document.querySelectorAll('#libList .lbadge-tl .lpill').length
   }));
-  ok('点内容卡开详情抽屉 + 封面 file:// + 角标齐（b.jpg 双 pill，c.srt 带「仅文件名」角标）', () => assert(st.drawer && st.title === 'UP主甲' && st.coverImg && st.platPill === 5 && st.kindPill === 5, JSON.stringify(st)));
+  ok('ℹ 开详情抽屉 + 封面 file:// + 角标齐（b.jpg 双 pill，a.mp4 单 pill）', () => assert(st.drawer && st.title === 'UP主甲' && st.coverImg && st.platPill === 3 && st.kindPill === 2, JSON.stringify(st)));
   await page.evaluate(() => document.querySelector('#libDrawerScrim').click());
   // 入口去重（2026-11-22 拍板）：工具栏不再有 添加订阅/粘贴下载 按钮，模态层整体撤除
   st = await page.evaluate(() => ({
@@ -398,8 +444,8 @@ document.addEventListener('DOMContentLoaded', () => {
   ok('全部×视频：2 张视频卡（a.mp4/c.mp4）', () => assert(st === 2, 'cards=' + st));
   await page.evaluate(() => document.querySelector('#libKindSeg .libseg-item[data-kind="all"]').click());
   await page.waitForTimeout(200);
-  st = await page.evaluate(() => document.querySelectorAll('#libList .lcard').length);
-  ok('回全部分段：4 张内容卡', () => assert(st === 4, 'cards=' + st));
+  st = await page.evaluate(() => ({ grpCards: document.querySelectorAll('#libList .subgcard').length, lcards: document.querySelectorAll('#libList .lcard').length }));
+  ok('回全部分段：组卡网格顶层（2 张主页卡）', () => assert(st.grpCards === 2 && st.lcards === 0, JSON.stringify(st)));
 
   console.log('\n=== G. 触控目标 ===');
   await page.setViewportSize({ width: 1440, height: 900 });
