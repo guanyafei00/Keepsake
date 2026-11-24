@@ -546,9 +546,9 @@
   .sc-detail[open] summary::before { content:"▾ "; }
   .sc-detail-body { font-size:12px; color:var(--txt2); line-height:1.95; padding:6px 2px 2px; overflow-wrap:anywhere; font-variant-numeric:tabular-nums; }
   /* 订阅主页视图（侧栏单入口 → 右侧详细名称列表） */
-  .subsgrid { display:grid; grid-template-columns:repeat(auto-fill,minmax(240px,1fr)); gap:14px; }
-  .subsgrid-wide { grid-template-columns:repeat(auto-fill,minmax(300px,1fr)); }
-  .subgcard { display:flex; align-items:center; gap:12px; padding:14px 16px; background:var(--panel); border:1px solid var(--line); border-radius:14px; box-shadow:var(--shadow-sm); cursor:pointer; user-select:none; transition:border-color 180ms var(--ease-out),transform 140ms var(--ease-out); animation:libCardIn 380ms var(--ease-out) both; }
+  .subsgrid { display:grid; grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); gap:14px; }
+  .subsgrid-wide { grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); }   /* 与订阅主页同栅格：切视图卡宽一致（2026-11-24 反馈「卡片大小不一致」） */
+  .subgcard { display:flex; align-items:center; gap:12px; min-height:100px; padding:14px 16px; background:var(--panel); border:1px solid var(--line); border-radius:14px; box-shadow:var(--shadow-sm); cursor:pointer; user-select:none; transition:border-color 180ms var(--ease-out),transform 140ms var(--ease-out); animation:libCardIn 380ms var(--ease-out) both; }   /* min-height 100：组卡与订阅卡同高（订阅卡含操作行自然高≈100） */
   .subgcard:hover { border-color:var(--acc); transform:translateY(-1px); }
   .subgcard:active { transform:scale(.98); }
   .subgcard.dim { opacity:.62; }
@@ -559,6 +559,8 @@
   .sg-name .nm { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; min-width:0; }
   .sg-name .sg-pause { font-size:10px; font-weight:600; color:var(--txt3); background:var(--panel2); border:1px solid var(--line); border-radius:6px; padding:1px 6px; flex:none; }
   .sg-meta { font-size:12px; color:var(--txt2); margin-top:3px; display:flex; align-items:center; gap:5px; font-variant-numeric:tabular-nums; white-space:nowrap; overflow:hidden; }
+  .sg-meta > span:first-child { flex:none; }
+  .sg-meta > span:last-child { min-width:0; flex:1; overflow:hidden; text-overflow:ellipsis; }   /* 户名长时末段自己省略号，不在 flex 边界硬裁 */
   .sg-go { color:var(--txt3); font-size:18px; flex:none; }
   /* 媒体库页头（设计稿 main-head：大标题+副标题+右侧分段） */
   .lib-head { flex:none; display:flex; align-items:flex-end; gap:16px; flex-wrap:wrap; padding:20px 2px 14px; }
@@ -3069,7 +3071,7 @@ function renderLibrary() {
         '<span class="sub-avatar" style="background:' + subColor(g.uploader) + '">' + esc(String(g.uploader).trim().slice(0, 1).toUpperCase()) + '</span>' +
         '<div class="sg-main">' +
           '<div class="sg-name"><span class="nm">' + esc(g.uploader) + '</span>' + (mAll ? '<span class="sg-pause">⤓ 手动</span>' : '') + '</div>' +
-          '<div class="sg-meta"><span class="platform-dot" style="background:' + platColor(g.site) + '"></span><span>' + esc(siteLabel(g.site)) + '</span><span class="sep">·</span><span>' + g.fileCount + ' 条 · ' + esc(g.sizeText || '') + ' · ' + timeAgo(g.lastMtime) + '</span></div>' +
+          '<div class="sg-meta"><span class="platform-dot" style="background:' + platColor(g.site) + '"></span><span>' + esc(siteLabel(g.site)) + '</span><span class="sep">·</span><span>' + g.fileCount + ' 条 · ' + esc(g.sizeText || '') + '</span></div>' +
         '</div>' +
         '<button type="button" class="sg-info" onclick="event.stopPropagation();openLibDrawer(\'' + escAttr(g.key) + '\')" title="档案与操作（文件列表/全组转写/专题总结/打开文件夹）">ℹ</button>' +
         '<span class="sg-go">›</span>' +
