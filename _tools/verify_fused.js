@@ -243,16 +243,29 @@ document.addEventListener('DOMContentLoaded', () => {
     mgmtShown: document.getElementById('subsMgmtBtn').style.display !== 'none'
   }));
   ok('订阅主页视图：右侧出详细名称（2 张订阅卡 + 页头标题 + 类型分段隐藏 + ⚙管理入口出现）', () => assert(subsView.title === '订阅主页' && subsView.cards === 2 && subsView.names.length === 2 && subsView.segHidden && subsView.mgmtShown, JSON.stringify(subsView)));
-  // 订阅卡操作行：检查/下载/暂停-恢复三件套（2026-11-23 拍板功能补齐）
-  const subOps = await page.evaluate(() => ({
-    ops: [...document.querySelectorAll('#libList .subgcard .sg-ops')].map(g => [...g.querySelectorAll('.op')].map(b => b.textContent.trim()).join('|')),
-    cnt: document.querySelectorAll('#libList .subgcard .sg-ops .op').length
-  }));
-  ok('订阅卡操作行：每卡 ⟳检查/⤓下载/⏸暂停（UP主乙已暂停则 ▶恢复），操作不触发卡跳转', () => assert(subOps.ops.length === 2 && subOps.cnt === 6 && subOps.ops[1].includes('恢复') && subOps.ops[0].includes('暂停'), JSON.stringify(subOps)));
+  // 订阅卡操作菜单：四按钮融合为一个「⋯」（2026-11-25 反馈：太密+按下无变化）
+  const subOps = await page.evaluate(() => {
+    const wraps = [...document.querySelectorAll('#libList .subgcard .sg-more-wrap')];
+    const menus = wraps.map(w => w.querySelector('.sg-menu'));
+    if (!wraps.length) return { cnt: 0 };
+    wraps[0].querySelector('.sg-more').click();
+    const openVisible = menus[0].classList.contains('open');
+    const items0 = [...menus[0].querySelectorAll('button')].map(b => b.textContent.trim()).join('|');
+    const items1 = [...menus[1].querySelectorAll('button')].map(b => b.textContent.trim()).join('|');
+    document.body.click();
+    const closedAfter = !menus[0].classList.contains('open');
+    return { cnt: wraps.length, openVisible, items0, items1, closedAfter };
+  });
+  ok('订阅卡操作融合为「⋯」菜单：每卡一个，点开三项（检查/下载/暂停），暂停卡出恢复项，点外自动收起', () => assert(subOps.cnt === 2 && subOps.openVisible && subOps.items0.includes('暂停') && subOps.items1.includes('恢复') && subOps.closedAfter, JSON.stringify(subOps)));
   const subInfoBtns = await page.evaluate(() => [...document.querySelectorAll('#libList .subgcard')].map(c => !!c.querySelector('.sg-info')));
   ok('订阅卡 ℹ 详情挂点：有归档的订阅每卡一个', () => assert(subInfoBtns.length === 2 && subInfoBtns.every(Boolean), JSON.stringify(subInfoBtns)));
   // 点暂停按钮 → userPaused 生效（mock subsUpdate）
-  await page.evaluate(() => document.querySelector('#libList .subgcard .sg-ops .op.ghost').click());
+  // 点菜单「暂停」项 → userPaused 生效（mock subsUpdate；菜单项顺序：检查/下载/sep/暂停）
+  await page.evaluate(() => {
+    const wrap = document.querySelector('#libList .subgcard .sg-more-wrap');
+    wrap.querySelector('.sg-more').click();
+    [...wrap.querySelectorAll('.sg-menu button')].find(b => b.textContent.includes('暂停')).click();
+  });
   await page.waitForTimeout(400);
   const pausedNow = await page.evaluate(() => window.__subs[0].userPaused === true);
   ok('订阅卡暂停操作：userPaused 生效', () => assert(pausedNow));
@@ -403,6 +416,29 @@ document.addEventListener('DOMContentLoaded', () => {
   ok('点 ⓘ 打开详情抽屉（标题/行/文件列表/文件操作挂点）', () => assert(st.open && st.title === 'UP主甲' && st.rows === 4 && st.files === 2, JSON.stringify(st)));
   const dOps = await page.evaluate(() => document.querySelector('#libDrawerBody .d-file .df-ops') ? document.querySelectorAll('#libDrawerBody .d-file .df-ops .x').length : -1);
   ok('抽屉文件行带操作挂点（阅读/转写/来源/删除等，≥10 个）', () => assert(dOps >= 10, 'ops=' + dOps));
+  // 2026-11-25 反馈「点 ℹ 不知道转写的是哪个文件」：类型标签 + 作用域提示 + 图片缩略图挂点
+  const dCtx = await page.evaluate(() => ({
+    types: [...document.querySelectorAll('#libDrawerBody .df-type')].map(x => x.textContent.trim()),
+    hint: (document.querySelector('#libDrawerBody .d-ops-hint') || {}).textContent || '',
+    svgIco: document.querySelectorAll('#libDrawerBody svg.ico').length
+  }));
+  ok('抽屉文件行带类型标签（视频/图片）+ 作用域提示（对全组 vs 单文件）+ SVG 图标化', () => assert(dCtx.types.join() === '视频,图片' && dCtx.hint.includes('全部') && dCtx.svgIco > 0, JSON.stringify(dCtx)));
+  await page.evaluate(() => closeLibDrawer());
+  // 设置页：组标题点击=整组显示（2026-11-25 反馈「东西太多」，撤四档标签改用既有导航加组切换）
+  await page.evaluate(() => switchPage('settings'));
+  await page.waitForTimeout(250);
+  const setTab = await page.evaluate(() => {
+    const grpHeads = [...document.querySelectorAll('#setNav .setNavGroup.grp-click')];
+    const visibleCnt = () => [...document.querySelectorAll('#page-settings .setCard')].filter(c => c.style.display !== 'none').length;
+    const single = visibleCnt();                       // 初始：单卡模式
+    grpHeads.find(t => t.textContent === '下载与传输').click();
+    const grp = visibleCnt();
+    const headTxt = (document.getElementById('setHead') || {}).textContent || '';
+    document.querySelector('#setNav .setNavItem[data-set="__all__"]').click();
+    const all = visibleCnt();
+    return { grpHeads: grpHeads.length, single, grp, headTxt, all };
+  });
+  ok('设置页组标题可点=整组显示（单卡→组 4 卡→全部），不再只能 13 卡一锅平铺', () => assert(setTab.grpHeads === 5 && setTab.single === 1 && setTab.grp === 4 && setTab.headTxt.includes('整组') && setTab.all >= 13, JSON.stringify(setTab)));
   ok('源码保留 makeCbz / aiPanel / 仅文件名 / 删帖挂点', () => {
     assert(src.includes('makeCbz') && src.includes('aiPanel') && src.includes('仅文件名') && src.includes('setCardWeread'), 'hook gone');
   });

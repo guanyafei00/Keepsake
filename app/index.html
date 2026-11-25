@@ -330,6 +330,9 @@
   .setNavInner { position:sticky; top:12px; max-height:calc(100vh - 160px); overflow-y:auto; }
   .setNavSec { margin-bottom:6px; }
   .setNavGroup { font-size:12px; font-weight:700; letter-spacing:.09em; color:var(--txt2); padding:12px 12px 4px; opacity:.85; }
+  .setNavGroup.grp-click { cursor:pointer; border-radius:var(--r-sm); margin:12px 4px 0; padding:6px 8px; opacity:1; transition:background 150ms,color 150ms; }   /* 2026-11-25：组标题可点=整组显示，不再被迫翻「全部设置」13 张卡 */
+  .setNavGroup.grp-click:hover { background:var(--panel2); color:var(--txt); }
+  .setNavGroup.grp-click.on { background:var(--accbg); color:var(--acc); }
   .setNavItem { padding:8px 10px 8px 12px; border-radius:var(--r-md); font-size:12px; color:var(--txt2); cursor:pointer; display:flex; gap:8px; align-items:center; margin-bottom:1px; }
   .setNavItem:hover { background:var(--panel2); color:var(--txt); }
   .setNavItem.on { background:var(--accbg); color:var(--acc2); font-weight:700; }
@@ -406,10 +409,19 @@
   .d-row .v { flex:1; min-width:0; word-break:break-all; color:var(--txt); }
   .d-actions { display:flex; gap:8px; flex-wrap:wrap; margin:14px 0 4px; }
   .d-filelist { margin-top:12px; border-top:1px solid var(--line); }
-  .d-file { display:flex; align-items:center; gap:10px; padding:8px 2px; border-bottom:1px solid var(--line); font-size:12px; }
+  .d-file { display:flex; align-items:center; gap:10px; padding:8px 2px; border-bottom:1px solid var(--line); font-size:12px; flex-wrap:wrap; }
   .d-file .df-ic { flex:none; font-size:14px; }
   .d-file .df-name { flex:1; min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; font-weight:600; }
   .d-file .df-meta { flex:none; font-size:12px; color:var(--txt2); }
+  .d-file .df-ops { flex:none; display:flex; gap:2px; }
+  /* 2026-11-25：376px 抽屉一行装不下文件名+类型+7~9 个操作钮，曾整体溢出被裁（用户看不到哪个文件能转写）
+     → 操作钮独占第二行，始终可见 */
+  .d-file .df-ops { order:5; flex-basis:100%; margin-top:4px; }
+  /* 2026-11-25 反馈「点 ℹ 不知道转写的是哪个视频/图片」：类型标签 + 图片缩略图 + 作用域提示 */
+  .df-thumb { width:32px; height:32px; object-fit:cover; border-radius:var(--r-xs); border:1px solid var(--line); background:var(--panel2); }
+  .df-type { flex:none; font-size:11px; color:var(--txt2); background:var(--panel2); border-radius:var(--r-xs); padding:2px 7px; white-space:nowrap; }
+  .d-ops-hint { display:flex; align-items:flex-start; gap:6px; font-size:12px; color:var(--txt2); line-height:1.6; margin:12px 0 8px; }
+  .d-ops-hint .ico { flex:none; margin-top:2px; color:var(--acc); }
   .d-more { padding:10px 2px; font-size:12px; color:var(--txt2); }
 
   /* --- ⌘K 万能指令面板（毛玻璃固定面 3/4）--- */
@@ -586,7 +598,31 @@
   .libgrp-head:hover .lg-go { color:var(--acc); }
   .libgrp-more { font-size:12px; color:var(--txt2); margin:10px 2px 0; cursor:pointer; padding:6px 12px; border-radius:var(--r-sm); display:inline-block; transition:background 160ms,color 160ms; }
   .libgrp-more:hover { background:var(--panel2); color:var(--acc); }
-  /* 组卡操作行（订阅主页卡上直接检查/下载/暂停恢复——2026-11-23 拍板功能补齐） */
+  /* 订阅卡操作菜单（2026-11-25 反馈：四按钮融合为一个，按下要有反馈） */
+  .sg-more-wrap { position:relative; margin-top:8px; display:inline-flex; }
+  .sg-more {
+    display:inline-flex; align-items:center; gap:5px; padding:5px 10px; border-radius:var(--r-sm);
+    border:1px solid var(--line); background:var(--panel2); color:var(--txt2);
+    font:inherit; font-size:12px; cursor:pointer; transition:background 150ms,color 150ms,border-color 150ms;
+  }
+  .sg-more:hover { color:var(--txt); border-color:var(--acc); background:var(--panel); }
+  .sg-more.busy .ico { animation:icoSpin 900ms linear infinite; }
+  .sg-more.busy { color:var(--acc); pointer-events:none; }
+  @keyframes icoSpin { to { transform:rotate(360deg); } }
+  .sg-menu {
+    position:absolute; left:0; top:calc(100% + 5px); z-index:6; min-width:172px;
+    background:var(--panel); border:1px solid var(--line); border-radius:var(--r-md);
+    box-shadow:0 8px 24px rgba(0,0,0,.14); padding:4px; display:none;
+  }
+  .sg-menu.open { display:block; }
+  .sg-menu button {
+    display:flex; align-items:center; gap:8px; width:100%; padding:7px 10px;
+    border:0; background:none; font:inherit; font-size:12.5px; color:var(--txt);
+    cursor:pointer; border-radius:var(--r-sm); text-align:left;
+  }
+  .sg-menu button:hover { background:var(--panel2); color:var(--acc); }
+  .sg-menu .sep { height:1px; background:var(--line); margin:3px 4px; }
+  /* 组卡操作行（rss 管理页行卡仍在用；订阅主页卡已改单按钮菜单） */
   .sg-ops { display:flex; align-items:center; gap:4px; margin-top:8px; flex-wrap:wrap; }
   .sg-ops .op {
     display:inline-flex; align-items:center; gap:4px; height:24px; padding:0 8px;
@@ -644,8 +680,6 @@
   .ccard-ph.video { background:linear-gradient(135deg,#2b2f3a,#1c1f28); color:rgba(255,255,255,.85); }
   .ccard-ph .ph-play { width:52px; height:52px; border-radius:50%; background:rgba(255,255,255,.16); display:grid; place-items:center; }
   .ccard-ph .ph-play::after { content:""; width:0; height:0; border-left:16px solid rgba(255,255,255,.9); border-top:10px solid transparent; border-bottom:10px solid transparent; margin-left:4px; }
-  .d-file .df-ops { display:none; gap:2px; flex:none; }
-  .d-file:hover .df-ops { display:flex; }
   .d-file .df-ops .x { font-size:12px; }
   .lib-footnote { font-size:12px; color:var(--txt3); margin:14px 2px 0; line-height:1.8; }
   .side-cnt-wrap { display:inline-flex; align-items:center; gap:8px; }
@@ -683,6 +717,10 @@
     <symbol id="i-doc" viewBox="0 0 24 24"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8l-5-5zM14 3v5h5M9 13h6M9 16.5h6"/></symbol>
     <symbol id="i-link" viewBox="0 0 24 24"><path d="M10 13.5a4.5 4.5 0 0 0 6.8.5l2.8-2.8a4.5 4.5 0 0 0-6.4-6.4l-1.6 1.6M14 10.5a4.5 4.5 0 0 0-6.8-.5l-2.8 2.8a4.5 4.5 0 0 0 6.4 6.4l1.6-1.6"/></symbol>
     <symbol id="i-feed" viewBox="0 0 24 24"><path d="M5 11a8 8 0 0 1 8 8M5 5a14 14 0 0 1 14 14"/><circle cx="6" cy="18" r="1.5"/></symbol>
+    <symbol id="i-dots" viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.4"/><circle cx="12" cy="12" r="1.4"/><circle cx="19" cy="12" r="1.4"/></symbol>
+    <symbol id="i-tag" viewBox="0 0 24 24"><path d="M3.5 12.2V4.5a1 1 0 0 1 1-1h7.7a2 2 0 0 1 1.4.6l7 7a2 2 0 0 1 0 2.8l-6.3 6.3a2 2 0 0 1-2.8 0l-7.4-7.4a2 2 0 0 1-.6-1.6z"/><circle cx="8.5" cy="8.5" r="1.3"/></symbol>
+    <symbol id="i-globe" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></symbol>
+    <symbol id="i-spark" viewBox="0 0 24 24"><path d="M12 3l2.3 5.2 5.7.6-4.3 3.9 1.2 5.6L12 15.6l-4.9 2.7 1.2-5.6L4 8.8l5.7-.6z"/></symbol>
   </defs></svg>
 
 <div class="app" id="app">
@@ -752,7 +790,7 @@
   <!-- 订阅页 -->
   <div class="page" id="page-rss">
     <div class="paste-box">
-      <span>📡</span>
+      <svg class="ico" style="width:17px;height:17px" aria-hidden="true"><use href="#i-feed"></use></svg>
       <input id="subUrl" placeholder="粘贴订阅链接：B站UP主 / YouTube频道 / X用户 / RSS·Atom feed（博客更新自动入库）/ Pixiv·微博·Danbooru·Reddit·Instagram 等图站用户页" style="flex:1;border:none;outline:none;font:inherit;font-size:13px;background:transparent;color:var(--txt)">
       <select id="subMaxBackfill" title="回溯条数上限：订阅后首次全量回溯只从最新往回数 N 条，超出部分跳过（后续追新增量不受影响）" style="border:none;outline:none;font:inherit;font-size:12px;background:var(--panel2);color:var(--txt);border-radius:var(--r-md);padding:8px 10px">
         <option value="0">回溯：全部</option>
@@ -790,13 +828,13 @@
       </div>
     </details>
     </div>
-    <div class="sec-t">📡 我的订阅 <span class="cnt" id="s-cnt2">0</span> <select id="groupFilter" onchange="renderSubs()" style="margin-left:auto;font:inherit;font-size:12px;background:var(--panel2);color:var(--txt);border:1px solid var(--line);border-radius:var(--r-sm);padding:4px 10px;outline:none"><option value="">全部分组</option></select> <span class="act" style="cursor:pointer;font-size:12px" onclick="exportGone()" title="把判定为源头已删除的内容导出成 CSV 表格">📤 删帖清单</span> <span class="act" style="cursor:pointer;font-size:12px" onclick="checkAllSubs()">⟳ 立即检查</span></div>
+    <div class="sec-t"><svg class="ico" style="width:15px;height:15px" aria-hidden="true"><use href="#i-feed"></use></svg> 我的订阅 <span class="cnt" id="s-cnt2">0</span> <select id="groupFilter" onchange="renderSubs()" style="margin-left:auto;font:inherit;font-size:12px;background:var(--panel2);color:var(--txt);border:1px solid var(--line);border-radius:var(--r-sm);padding:4px 10px;outline:none"><option value="">全部分组</option></select> <span class="act" style="cursor:pointer;font-size:12px" onclick="exportGone()" title="把判定为源头已删除的内容导出成 CSV 表格"><svg class="ico" style="width:13px;height:13px" aria-hidden="true"><use href="#i-doc"></use></svg> 删帖清单</span> <span class="act" style="cursor:pointer;font-size:12px" onclick="checkAllSubs()"><svg class="ico" style="width:13px;height:13px" aria-hidden="true"><use href="#i-retry"></use></svg> 立即检查</span></div>
     <div id="subList"><div class="empty">还没有订阅——支持 B站UP主/合集 / YouTube频道 / X用户 / RSS·Atom feed / Pixiv / 微博 / Reddit / Instagram / Danbooru 等站点主页</div></div>
     <div class="selbar" id="selBar">
       <span>已选 <b id="selCnt">0</b> 个订阅</span>
-      <span class="sb-btn" onclick="batchSubBackfill()">⤓ 全量下载</span>
-      <span class="sb-btn" onclick="batchSubCheck()">⟳ 检查</span>
-      <span class="sb-x" onclick="clearSubSel()" title="清除选择">✕</span>
+      <span class="sb-btn" onclick="batchSubBackfill()"><svg class="ico" style="width:13px;height:13px" aria-hidden="true"><use href="#i-dl"></use></svg> 全量下载</span>
+      <span class="sb-btn" onclick="batchSubCheck()"><svg class="ico" style="width:13px;height:13px" aria-hidden="true"><use href="#i-retry"></use></svg> 检查</span>
+      <span class="sb-x" onclick="clearSubSel()" title="清除选择"><svg class="ico" style="width:12px;height:12px" aria-hidden="true"><use href="#i-x"></use></svg></span>
     </div>
   </div>
 
@@ -2416,8 +2454,8 @@ async function renderSubs() {
       }
     }
     const paused = s.userPaused || s.paused;
-    const pausedTag = s.userPaused ? '<span class="st flat">⏸ 已暂停</span>'
-      : s.paused ? `<span class="st error" title="${esc('连续 3 次检查失败，已自动暂停：' + friendlySubFail(s.lastError) + '｜点 ▶ 恢复后会重试')}">连续失败暂停（悬停看原因）</span>` : '';
+    const pausedTag = s.userPaused ? `<span class="st flat">${ico('pause',12)} 已暂停</span>`
+      : s.paused ? `<span class="st error" title="${esc('连续 3 次检查失败，已自动暂停：' + friendlySubFail(s.lastError) + '｜点恢复按钮后重试')}">连续失败暂停（悬停看原因）</span>` : '';
     const groupTag = (s.group || '').trim() ? ` <span style="font-size:12px;color:var(--acc2);background:var(--panel2);border-radius:var(--r-xs);padding:1px 6px">${esc(s.group)}</span>` : '';
     const obs = s._observability || null;
     // M-A5 公众号追更：频率档固定 ≥30 分钟（读书接口频率红线，subs.update 白名单收紧到 [30,60]）
@@ -2427,42 +2465,44 @@ async function renderSubs() {
       (obs.cooldownAvailable
         ? (obs.cooldownUntil > Date.now() ? ` · 站点冷却至 ${_fmtWhen(obs.cooldownUntil)}（剩 ${heldMin(obs.cooldownUntil - Date.now())} 分钟）` : ' · 站点冷却：未熔断')
         : ' · 站点级冷却状态不可用') : ' · 调度状态不可用';
-    const atTag = s.autoTranscribe ? ' · <span style="color:var(--acc2)">📝 自动转写</span>' : '';
+    const atTag = s.autoTranscribe ? ' · <span style="color:var(--acc2)">' + ico('text',12) + ' 自动转写</span>' : '';
     const lnTag = s.latestN ? ` · 只下最新 ${s.latestN} 条` : '';
     const mbTag = s.maxBackfill ? ` · 回溯上限 ${s.maxBackfill} 条` : '';
     // RSS 诚实边界：只追新，不做删帖检测（feed 翻页会让旧文章消失，误报率高）——卡上常驻交代
-    const rssTag = s.kind === 'rss' ? ' · <span title="RSS 订阅只自动追新文章；不做删帖检测（feed 翻页会让旧文章消失，误报率高）">📡 只追新</span>' : '';
+    const rssTag = s.kind === 'rss' ? ' · <span title="RSS 订阅只自动追新文章；不做删帖检测（feed 翻页会让旧文章消失，误报率高）">' + ico('feed',12) + ' 只追新</span>' : '';
     // M-A5 公众号追更徽标：独立于 RSS 语义（新增文章自动归档为本地文章存档）
-    const wrTag = s.kind === 'weread' ? ' · <span title="公众号文章追更：新文章自动归档为本地文章存档，可在媒体库阅读">📖 公众号</span>' : '';
-    const xhsTag = s.kind === 'xhs-user' ? ' · <span title="小红书主页追更：新笔记自动解析图组/视频归档；需在小红书受控浏览器中保持登录态">📕 小红书</span>' : '';
+    const wrTag = s.kind === 'weread' ? ' · <span title="公众号文章追更：新文章自动归档为本地文章存档，可在媒体库阅读">' + ico('doc',12) + ' 公众号</span>' : '';
+    const xhsTag = s.kind === 'xhs-user' ? ' · <span title="小红书主页追更：新笔记自动解析图组/视频归档；需在小红书受控浏览器中保持登录态">' + ico('image',12) + ' 小红书</span>' : '';
     // 第三阶段卡化：短状态上卡面，调度/规则长串收进「调度与规则」展开区（信息不丢，卡面不再糊成一长串）
     const kindLabel = s.kind === 'bilibili' ? 'B站' : s.kind === 'bili-collection' ? '合集' : s.kind === 'x' ? 'X' : s.kind === 'youtube' ? 'YouTube' : s.kind === 'rss' ? 'RSS' : s.kind === 'weread' ? '公众号' : s.kind === 'xhs-user' ? '小红书' : s.kind === 'gdl' ? '图站' : '订阅';
-    const kindEmoji = { bilibili: '📺', 'bili-collection': '🎬', x: '𝕏', youtube: '▶️', rss: '📡', weread: '📖', 'xhs-user': '📕', gdl: '🖼️' }[s.kind] || '📡';
-    const kwLine = s.kw && s.kw.length ? ` · 🏷 关键词：<b style="color:var(--txt)">${esc(s.kw.join('/'))}</b>` : '';
-    const pausedLine = s.userPaused ? '手动暂停中，点 ▶ 恢复' : s.paused ? '连续失败自动暂停（悬停 ▶ 看原因）' : '';
+    // 设计语言统一（2026-11-25）：平台 emoji 换线性 SVG（与侧栏/任务页同风格）
+    const kindSvgMap = { bilibili: ico('video',18), 'bili-collection': ico('video',18), x: ico('link',18), youtube: ico('play',18), rss: ico('feed',18), weread: ico('doc',18), 'xhs-user': ico('image',18), gdl: ico('image',18) };
+    const kindGlyph = kindSvgMap[s.kind] || ico('feed',18);
+    const kwLine = s.kw && s.kw.length ? ` · ${ico('tag',12)} 关键词：<b style="color:var(--txt)">${esc(s.kw.join('/'))}</b>` : '';
+    const pausedLine = s.userPaused ? '手动暂停中，点恢复按钮恢复' : s.paused ? '连续失败自动暂停（悬停恢复按钮看原因）' : '';
     htmls.push(`
     <div class="subcard${paused ? ' dim' : ''}">
       <div class="sc-head">
         <div class="pickbox${_subSel.has(s.id) ? ' on' : ''}" onclick="subPick(event,'${s.id}')" title="选中（Ctrl 切换 / Shift 范围选）">${_subSel.has(s.id) ? '✔' : ''}</div>
-        <div class="sc-thumb">${kindEmoji}<span class="eng">${kindLabel}</span></div>
+        <div class="sc-thumb">${kindGlyph}<span class="eng">${kindLabel}</span></div>
         <div class="sc-main">
           <div class="sc-name"><span class="nm">${esc(s.name)}</span>${groupTag}</div>
-          <div class="sc-meta">${pausedTag ? pausedTag + ' · ' : ''}${statusHtml} · 已跟踪 ${s.knownCount} 条${s.lastNew ? ` · 上轮新增 ${s.lastNew}` : ''}${rssTag}${wrTag}${xhsTag}${s._pendingBackfill ? ' · <span style="color:var(--acc2)">⏳ 排队待回溯</span>' : ''}${s.autoBackfill ? ' · <span style="color:var(--acc2)">⤓ 自动全量下载中</span>' : ''}${goneBadge(s)}</div>
+          <div class="sc-meta">${pausedTag ? pausedTag + ' · ' : ''}${statusHtml} · 已跟踪 ${s.knownCount} 条${s.lastNew ? ` · 上轮新增 ${s.lastNew}` : ''}${rssTag}${wrTag}${xhsTag}${s._pendingBackfill ? ' · <span style="color:var(--acc2)">' + ico('retry',12) + ' 排队待回溯</span>' : ''}${s.autoBackfill ? ' · <span style="color:var(--acc2)">' + ico('dl',12) + ' 自动全量下载中</span>' : ''}${goneBadge(s)}</div>
         </div>
         <div class="sc-actions">
-          <button type="button" class="sx" onclick="openSubLink('${s.id}')" title="打开订阅原链接（浏览器）">🔗</button>
-          <button type="button" class="sx" onclick="checkSub('${s.id}')" title="立即检查">⟳</button>
-          <button type="button" class="sx" onclick="backfillSub('${s.id}')" title="把 TA 已发布的内容全部加入下载队列">⤓</button>
-          <button type="button" class="sx" onclick="openSubFolder('${s.id}')" title="打开下载文件夹">📂</button>
-          <button type="button" class="sx" onclick="editKw('${s.id}')" title="关键词过滤：只自动下载含关键词的内容">🏷</button>
-          <button type="button" class="sx" onclick="editSubOpts('${s.id}')" title="订阅设置：暂停/分组/检查频率/自动转写">⚙</button>
-          ${(s.userPaused || s.paused) ? `<button type="button" class="sx go" onclick="resumeSub('${s.id}')" title="${s.userPaused ? '恢复检查' : '恢复检查（连续失败已自动暂停）'}">▶</button>` : ''}
-          <button type="button" class="sx" onclick="removeSub('${s.id}')" title="取消订阅">✕</button>
+          <button type="button" class="sx" onclick="openSubLink('${s.id}')" title="打开订阅原链接（浏览器）">${ico('link',14)}</button>
+          <button type="button" class="sx" onclick="checkSub('${s.id}')" title="立即检查">${ico('retry',14)}</button>
+          <button type="button" class="sx" onclick="backfillSub('${s.id}')" title="把 TA 已发布的内容全部加入下载队列">${ico('dl',14)}</button>
+          <button type="button" class="sx" onclick="openSubFolder('${s.id}')" title="打开下载文件夹">${ico('folder-open',14)}</button>
+          <button type="button" class="sx" onclick="editKw('${s.id}')" title="关键词过滤：只自动下载含关键词的内容">${ico('tag',14)}</button>
+          <button type="button" class="sx" onclick="editSubOpts('${s.id}')" title="订阅设置：暂停/分组/检查频率/自动转写">${ico('gear',14)}</button>
+          ${(s.userPaused || s.paused) ? `<button type="button" class="sx go" onclick="resumeSub('${s.id}')" title="${s.userPaused ? '恢复检查' : '恢复检查（连续失败已自动暂停）'}">${ico('play',14)}</button>` : ''}
+          <button type="button" class="sx" onclick="removeSub('${s.id}')" title="取消订阅">${ico('x',14)}</button>
         </div>
       </div>
       <details class="sc-detail"${pausedLine ? ' open' : ''}>
         <summary>调度与规则</summary>
-        <div class="sc-detail-body">${pausedLine ? `⏸ ${pausedLine}<br>` : ''}${freqTag}${obsTags}${atTag}${lnTag}${mbTag}${kwLine}</div>
+        <div class="sc-detail-body">${pausedLine ? ico('pause',12) + ' ' + pausedLine + '<br>' : ''}${freqTag}${obsTags}${atTag}${lnTag}${mbTag}${kwLine}</div>
       </details>
     </div>`);
   }
@@ -2905,6 +2945,13 @@ const timeAgo = ms => {
   return Math.round(m / 1440) + ' 天前';
 };
 const kindIcon = k => k === 'video' ? '🎥' : k === 'image' ? '🖼️' : '📄';
+// 抽屉用 SVG 版图标（P1 设计语言统一）；kindSvg 供文件行，siteSvg 供来源行
+const kindSvg = k => k === 'video' ? ico('video',15) : k === 'image' ? ico('image',15) : k === 'subtitle' ? ico('text',15) : k === 'article' ? ico('doc',15) : ico('doc',15);
+const siteSvg = s => s === 'bilibili' ? ico('video',14) : s === 'youtube' ? ico('play',14) : s === 'article' ? ico('doc',14) : s === '未分类' ? ico('box',14) : ico('globe',14);
+const kindZh = k => ({ video:'视频', image:'图片', article:'文章', subtitle:'字幕' })[k] || '文件';
+const dfThumb = f => f.kind === 'image'
+  ? '<img class="df-thumb" loading="lazy" alt="" onerror="this.style.display=\'none\'" src="file:///' + encodeURI(String(f.path).replace(/\\/g, '/')) + '">'
+  : kindSvg(f.kind);
 
 async function loadLibrary(force) {
   if (libData && !force) { renderLibrary(); return; }
@@ -2980,22 +3027,33 @@ function renderSubsGallery() {
   const cards = list.map((s, i) => {
     const bad = s.lastError && (!s.lastCheck || (s.lastFailAt || 0) > (s.lastCheck || 0)) && !(s.userPaused || s.paused);
     const paused = !!(s.userPaused || s.paused);
-    const ops = '<div class="sg-ops" onclick="event.stopPropagation()">' +
-      '<button type="button" class="op" onclick="checkSub(\'' + escAttr(s.id) + '\')" title="立即检查 TA 有没有新内容">' + ico('retry',13) + ' 检查</button>' +
-      '<button type="button" class="op" onclick="backfillSub(\'' + escAttr(s.id) + '\')" title="把 TA 已发布的内容全部加入下载队列">' + ico('dl',13) + ' 下载</button>' +
-      (paused
-        ? '<button type="button" class="op ghost" onclick="resumeSub(\'' + escAttr(s.id) + '\')" title="恢复自动检查与下载">' + ico('play',13) + ' 恢复</button>'
-        : '<button type="button" class="op ghost" onclick="pauseSub(\'' + escAttr(s.id) + '\')" title="暂停自动检查与下载（已下载文件保留）">' + ico('pause',13) + ' 暂停</button>') +
-    '</div>';
-    // 有归档的订阅：右上角 ℹ 直接开档案详情抽屉（文件列表/全组转写/专题总结）
-    const grp = (typeof libData !== 'undefined' && libData && Array.isArray(libData.groups)) ? libData.groups.find(g => g.uploader === s.name) : null;
+    // 操作融合为一个「⋯」菜单（2026-11-25 反馈：四按钮太密+按下无变化）：菜单项点击后有 busy 旋转+toast 双反馈
+    const moreWrap = '<div class="sg-more-wrap" onclick="event.stopPropagation()">' +
+      '<button type="button" class="sg-more" onclick="toggleSubMenu(event)" aria-haspopup="menu" title="检查 / 下载 / 暂停">' + ico('dots',14) + ' 操作</button>' +
+      '<div class="sg-menu" role="menu">' +
+        '<button type="button" role="menuitem" onclick="subMenuAct(\'' + escAttr(s.id) + '\',\'check\',event)">' + ico('retry',13) + ' 立即检查新内容</button>' +
+        '<button type="button" role="menuitem" onclick="subMenuAct(\'' + escAttr(s.id) + '\',\'download\',event)">' + ico('dl',13) + ' 全部加入下载队列</button>' +
+        '<div class="sep"></div>' +
+        (paused
+          ? '<button type="button" role="menuitem" onclick="subMenuAct(\'' + escAttr(s.id) + '\',\'resume\',event)">' + ico('play',13) + ' 恢复自动检查</button>'
+          : '<button type="button" role="menuitem" onclick="subMenuAct(\'' + escAttr(s.id) + '\',\'pause\',event)">' + ico('pause',13) + ' 暂停自动检查</button>') +
+      '</div></div>';
+    // 有归档的订阅：右上角 ℹ 直接开档案详情抽屉。名字匹配放宽（2026-11-25 反馈 ins 卡无 ℹ：
+    // 真实数据里订阅名 miko vs 归档文件夹 mikomikowow 不相等），先精确、再双向包含，取文件数最多的组
+    const _nm = String(s.name || '').trim().toLowerCase();
+    const _groups = (typeof libData !== 'undefined' && libData && Array.isArray(libData.groups)) ? libData.groups : [];
+    let grp = _groups.find(g => String(g.uploader || '').trim().toLowerCase() === _nm);
+    if (!grp && _nm.length >= 2) {
+      grp = _groups.filter(g => { const gu = String(g.uploader || '').trim().toLowerCase(); return gu && gu.length >= 2 && (gu.includes(_nm) || _nm.includes(gu)); })
+        .sort((a, b) => (b.fileCount || 0) - (a.fileCount || 0))[0] || null;
+    }
     const info = grp ? '<button type="button" class="sg-info" onclick="event.stopPropagation();openLibDrawer(\'' + escAttr(grp.key) + '\')" title="档案与操作（文件列表/全组转写/专题总结/打开文件夹）" aria-label="档案与操作">' + ico('info',12) + '</button>' : '';
     return '<article class="subgcard' + (bad ? ' err' : '') + (paused ? ' dim' : '') + '" style="animation-delay:' + Math.min(i, 12) * 32 + 'ms" onclick="sideSubGo(\'' + escAttr(s.id) + '\')" title="查看「' + escAttr(s.name) + '」的归档">' +
       '<span class="sub-avatar" style="background:' + subColor(s.name) + '">' + esc(String(s.name).trim().slice(0, 1).toUpperCase()) + '</span>' +
       '<div class="sg-main">' +
         '<div class="sg-name"><span class="nm">' + esc(s.name) + '</span>' + (paused ? '<span class="sg-pause">' + ico('pause',11) + ' 已暂停</span>' : '') + '</div>' +
         '<div class="sg-meta"><span class="platform-dot" style="background:' + platColor(subKindPlat(s.kind)) + '"></span><span>' + esc(subKindLabel(s.kind)) + '</span><span class="sep">·</span><span>已跟踪 ' + (s.knownCount || 0) + ' 条</span></div>' +
-        ops +
+        moreWrap +
       '</div>' +
       info +
       '<span class="sg-go">›</span>' +
@@ -3003,12 +3061,38 @@ function renderSubsGallery() {
   }).join('');
   el.innerHTML = SUB_SUBBOX + '<div class="subsgrid">' + cards + '</div>';
 }
-// 暂停订阅（订阅主页卡上操作行用；恢复走 resumeSub）
+// 暂停订阅（订阅主页卡操作菜单用；恢复走 resumeSub）
 async function pauseSub(id) {
   const r = await window.keepsake.subsUpdate(id, { userPaused: true });
   if (r && r.ok === false) return toast(r.reason || '暂停失败');
-  toast('已暂停自动检查与下载');
+  toast('已暂停自动检查与下载（已下载文件保留）');
   loadSubs();
+}
+// 订阅卡「⋯」操作菜单（2026-11-25 拍板：四按钮融合为一个；busy 旋转 + toast 双反馈）
+function toggleSubMenu(ev) {
+  ev.stopPropagation();
+  const menu = ev.currentTarget.parentElement.querySelector('.sg-menu');
+  const wasOpen = menu.classList.contains('open');
+  closeAllSubMenus();
+  if (!wasOpen) menu.classList.add('open');
+}
+function closeAllSubMenus() { document.querySelectorAll('.sg-menu.open').forEach(m => m.classList.remove('open')); }
+document.addEventListener('click', closeAllSubMenus);
+async function subMenuAct(id, op, ev) {
+  ev.stopPropagation();
+  const wrap = ev.currentTarget.closest('.sg-more-wrap');
+  const btn = wrap ? wrap.querySelector('.sg-more') : null;
+  closeAllSubMenus();
+  if (btn) { btn.classList.add('busy'); btn.innerHTML = ico('retry', 14) + ' 处理中…'; }
+  try {
+    if (op === 'check') await checkSub(id);
+    else if (op === 'download') await backfillSub(id);
+    else if (op === 'pause') await pauseSub(id);
+    else if (op === 'resume') await resumeSub(id);
+  } finally {
+    if (btn) { btn.classList.remove('busy'); btn.innerHTML = ico('dots', 14) + ' 操作'; }
+    if (libView === 'subs') { try { renderLibrary(); } catch (e) {} }   // 暂停/恢复后卡片立即重绘（已暂停徽标/菜单项切换）
+  }
 }
 function renderLibrary() {
   const el = $('libList');
@@ -3440,16 +3524,26 @@ const SET_GROUPS = [
 ];
 const SET_ALL = SET_GROUPS.flatMap(g => g.items);
 const SET_IDS = new Set(SET_ALL.map(x => x[0]));
+const _setGroupIds = {};   // 组名 → 卡 id 集合（组标题点击=整组显示，2026-11-25 反馈「设置页东西太多」）
 function switchSet(id) {
+  const grpM = /^group:(.+)$/.exec(id);
+  const grpName = grpM ? grpM[1] : null;
+  const grpIds = grpName ? (_setGroupIds[grpName] || new Set()) : null;
   const showAll = id === '__all__';
-  document.querySelectorAll('#setNav .setNavItem').forEach(d => d.classList.toggle('on', showAll ? d.dataset.set === '__all__' : d.dataset.set === id));
-  document.querySelectorAll('#page-settings .setCard').forEach(c => c.style.display = (showAll || c.id === id ? '' : 'none'));
+  document.querySelectorAll('#setNav .setNavItem').forEach(d => d.classList.toggle('on', showAll ? d.dataset.set === '__all__' : false));
+  document.querySelectorAll('#setNav .setNavGroup').forEach(d => d.classList.toggle('on', !!grpName && d.textContent === grpName));
+  document.querySelectorAll('#page-settings .setCard').forEach(c => c.style.display = (showAll || c.id === id || (grpIds && grpIds.has(c.id))) ? '' : 'none');
   const head = $('setHead');
   if (head) {
-    const g = SET_GROUPS.find(x => x.items.some(m => m[0] === id));
-    head.innerHTML = showAll
-      ? '<b>全部设置</b><span>共 ' + document.querySelectorAll('#page-settings .setCard').length + ' 张卡片，按页面顺序排列</span>'
-      : '<b>' + esc(((SET_ALL.find(x => x[0] === id) || [])[2]) || '设置') + '</b><span>' + esc(g ? g.name + ' · ' + g.hint : '设置项') + '</span>';
+    if (grpName) {
+      const g = SET_GROUPS.find(x => x.name === grpName);
+      head.innerHTML = '<b>' + esc(grpName) + '</b><span>整组设置 · ' + esc(g ? g.hint : '') + '</span>';
+    } else {
+      const g = SET_GROUPS.find(x => x.items.some(m => m[0] === id));
+      head.innerHTML = showAll
+        ? '<b>全部设置</b><span>共 ' + document.querySelectorAll('#page-settings .setCard').length + ' 张卡片，按页面顺序排列；按组看可点左列组标题</span>'
+        : '<b>' + esc(((SET_ALL.find(x => x[0] === id) || [])[2]) || '设置') + '</b><span>' + esc(g ? g.name + ' · ' + g.hint : '设置项') + '</span>';
+    }
   }
   try { localStorage.setItem('keepsake.setSection', id); } catch (e) {}
 }
@@ -3504,8 +3598,11 @@ function initSettingsNav() {
 
   for (const g of SET_GROUPS) {
     const sec = document.createElement('div'); sec.className = 'setNavSec';
-    const t = document.createElement('div'); t.className = 'setNavGroup'; t.textContent = g.name;
+    const t = document.createElement('div'); t.className = 'setNavGroup grp-click'; t.textContent = g.name;
+    t.title = '点击显示「' + g.name + '」整组设置';
+    t.onclick = () => switchSet('group:' + g.name);
     sec.appendChild(t);
+    _setGroupIds[g.name] = new Set(g.items.map(x => x[0]));
     for (const [id, icon, name, key] of g.items) {
       const c = byId.get(id); if (!c) continue;
       const d = document.createElement('div');
@@ -3520,11 +3617,15 @@ function initSettingsNav() {
   }
   if (orphans.length) {
     const sec = document.createElement('div'); sec.className = 'setNavSec';
-    const t = document.createElement('div'); t.className = 'setNavGroup'; t.textContent = '其他';
+    const t = document.createElement('div'); t.className = 'setNavGroup grp-click'; t.textContent = '其他';
+    t.title = '点击显示整组设置';
+    t.onclick = () => switchSet('group:其他');
     sec.appendChild(t);
+    _setGroupIds['其他'] = new Set();
     orphans.forEach((c, i) => {
       const h3 = (c.querySelector('h3') || {}).textContent || ('设置 ' + (i + 1));
       const id = 'set-other-' + i;
+      _setGroupIds['其他'].add(id);
       const d = document.createElement('div');
       d.className = 'setNavItem'; d.dataset.set = id;
       d.dataset.kw = h3 + ' ' + c.textContent.slice(0, 160);
@@ -3545,7 +3646,7 @@ function initSettingsNav() {
   wrap.appendChild(nav); wrap.appendChild(main); page.appendChild(wrap);
   let last = null; try { last = localStorage.getItem('keepsake.setSection'); } catch (e) {}
   // 旧版存的是 10 个老 id，仍在新表里就沿用；否则默认落到「主题与配色」
-  switchSet(last === '__all__' || SET_IDS.has(last) ? last : SET_GROUPS[0].items[0][0]);
+  switchSet(last && (last === '__all__' || last.startsWith('group:') || SET_IDS.has(last)) ? last : SET_GROUPS[0].items[0][0]);
   loadWereadSetState();
 }
 initSettingsNav();
@@ -3698,11 +3799,11 @@ function dFileOps(f) {
   const btn = (ic, fn, tip, extra) => `<button type="button" class="x" onclick="event.stopPropagation();${fn}('${escAttr(f.path)}')" title="${tip}" aria-label="${escAttr(tip)}"${extra || ''}>${ic}</button>`;
   const isAv = /\.(mp4|mkv|webm|mov|avi|flv|m4a|mp3|wav)$/i.test(f.name);
   let h = '';
-  if (f.kind === 'article') h += btn('📖', 'openArticle', '阅读（浏览器打开本地存档，离线可看）') + btn('⟳', 'recheckArticle', '重新检查原文：是否被删除或编辑') + btn('✨', 'aiPanel', 'AI 摘要（对归档正文 article.md）');
-  if (isAv) h += btn('📝', 'transcribeFile', '本地转写出 SRT 字幕') + btn('🌐', 'translateFile', '生成中英双语字幕（无字幕会先自动转写；需在设置页配置 AI）') + btn('🎬', 'burnFile', '把字幕硬烧进视频（生成新视频文件）') + btn('✨', 'aiPanel', 'AI 文稿助理（摘要/翻译）');
-  if (f.kind === 'image') h += btn('📖', 'makeCbz', '把该图片所在目录的散图打包成 .cbz 漫画册（含 ComicInfo 元数据）');
-  if (f.kind === 'image' && f.hasText) h += btn('✨', 'aiPanel', 'AI 摘要（对笔记正文 note.md）');
-  h += btn('🔗', 'openLibSource', '打开来源链接（浏览器）') + btn('📁', 'openPath', '打开所在文件夹') + btn('🗑', 'trashFile', '删除（移入回收站，可恢复）', ' style="color:var(--red)"');
+  if (f.kind === 'article') h += btn(ico('doc',14), 'openArticle', '阅读（浏览器打开本地存档，离线可看）') + btn(ico('retry',14), 'recheckArticle', '重新检查原文：是否被删除或编辑') + btn(ico('spark',14), 'aiPanel', 'AI 摘要（对归档正文 article.md）');
+  if (isAv) h += btn(ico('text',14), 'transcribeFile', '本地转写出 SRT 字幕') + btn(ico('globe',14), 'translateFile', '生成中英双语字幕（无字幕会先自动转写；需在设置页配置 AI）') + btn(ico('video',14), 'burnFile', '把字幕硬烧进视频（生成新视频文件）') + btn(ico('spark',14), 'aiPanel', 'AI 文稿助理（摘要/翻译）');
+  if (f.kind === 'image') h += btn(ico('doc',14), 'makeCbz', '把该图片所在目录的散图打包成 .cbz 漫画册（含 ComicInfo 元数据）');
+  if (f.kind === 'image' && f.hasText) h += btn(ico('spark',14), 'aiPanel', 'AI 摘要（对笔记正文 note.md）');
+  h += btn(ico('link',14), 'openLibSource', '打开来源链接（浏览器）') + btn(ico('folder-open',14), 'openPath', '打开所在文件夹') + btn(ico('trash',14), 'trashFile', '删除（移入回收站，可恢复）', ' style="color:var(--red)"');
   return h;
 }
 
@@ -3718,22 +3819,24 @@ function openLibDrawer(key) {
   const hasAv = (g.files || []).some(f => /\.(mp4|mkv|webm|mov|avi|flv|m4a|mp3|wav)$/i.test(f.name));
   $('libDrawerBody').innerHTML = `
     <h2 class="d-title">${esc(g.uploader)}</h2>
-    <div class="d-origin-line">${siteIcon(g.site)} ${esc(g.site)}</div>
+    <div class="d-origin-line">${siteSvg(g.site)} ${esc(g.site)}</div>
     <div class="d-rows">
       <div class="d-row"><span class="k">文件总数</span><span class="v">${g.fileCount} 个</span></div>
-      <div class="d-row"><span class="k">构成</span><span class="v">🎥 ${g.videoCount} 视频 · 🖼️ ${g.imageCount} 图片${g.articleCount ? ' · 📄 ' + g.articleCount + ' 文章' : ''}</span></div>
+      <div class="d-row"><span class="k">构成</span><span class="v">${g.videoCount} 视频 · ${g.imageCount} 图片${g.articleCount ? ' · ' + g.articleCount + ' 文章' : ''}</span></div>
       <div class="d-row"><span class="k">占用空间</span><span class="v">${esc(g.sizeText || '')}</span></div>
       <div class="d-row"><span class="k">最近更新</span><span class="v">${timeAgo(g.lastMtime)}</span></div>
     </div>
+    <div class="d-ops-hint">${ico('info',13)} 下面两组按钮：一组对「${esc(g.uploader)}」主页的全部 ${g.fileCount} 个文件生效，一组只对单行对应的那个文件生效（行尾图标）</div>
     <div class="d-actions">
-      <button type="button" class="btn-mini" style="color:var(--acc2)" onclick="openPath('${escAttr(g.files[0] ? g.files[0].path : g.key)}')">📂 打开文件夹</button>
-      ${hasAv ? `<button type="button" class="btn-mini" style="color:var(--acc2)" onclick="transcribeGroup('${escAttr(g.key)}')">📝 全组转写</button>` : ''}
-      <button type="button" class="btn-mini" style="color:var(--acc2)" onclick="summarizeGroup('${escAttr(g.key)}')">✨ 专题总结</button>
+      <button type="button" class="btn-mini" style="color:var(--acc2)" onclick="openPath('${escAttr(g.files[0] ? g.files[0].path : g.key)}')">${ico('folder-open',14)} 打开文件夹</button>
+      ${hasAv ? `<button type="button" class="btn-mini" style="color:var(--acc2)" onclick="transcribeGroup('${escAttr(g.key)}')">${ico('text',14)} 全组转写</button>` : ''}
+      <button type="button" class="btn-mini" style="color:var(--acc2)" onclick="summarizeGroup('${escAttr(g.key)}')">${ico('spark',14)} 专题总结</button>
     </div>
-    <div class="d-filelist">${files.map(f => `
+    <div class="d-filelist">${files.map((f, i) => `
       <div class="d-file">
-        <span class="df-ic">${kindIcon(f.kind)}</span>
+        <span class="df-ic">${dfThumb(f)}</span>
         <span class="df-name" title="${escAttr(f.path)}">${esc(f.name)}</span>
+        <span class="df-type">${kindZh(f.kind)}</span>
         <span class="df-ops">${dFileOps(f)}</span>
         <span class="df-meta">${f.sizeText || ''} · ${timeAgo(f.mtime)}</span>
       </div>`).join('')}${(g.files || []).length > 60 ? `<div class="d-more">其余 ${(g.files || []).length - 60} 个文件在媒体库列表展开查看</div>` : ''}</div>`;
@@ -3784,6 +3887,7 @@ function ckSyncThemeIcon() {
 }
 new MutationObserver(ckSyncThemeIcon).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
 ckSyncThemeIcon();
+
 
 // 窄屏默认折叠侧栏（390px 等小窗不横向溢出；用户可点工具栏按钮展开）
 if (window.innerWidth <= 820) document.getElementById('app').classList.add('sidebar-collapsed');
