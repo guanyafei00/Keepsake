@@ -564,6 +564,9 @@
   /* 订阅主页视图（侧栏单入口 → 右侧详细名称列表） */
   .subsgrid { display:grid; grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); gap:14px; }
   .subsgrid-wide { grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); }   /* 与订阅主页同栅格：切视图卡宽一致（2026-11-24 反馈「卡片大小不一致」） */
+  /* 「其他归档」分区标题（不归属订阅的组，2026-11-25 收进订阅主页视图底部） */
+  .lib-sec-title { display:flex; align-items:center; gap:6px; margin:26px 0 12px; font-size:13px; font-weight:600; color:var(--txt2); }
+  .lib-sec-title .cnt { font-weight:400; font-size:12px; color:var(--txt3,var(--txt2)); }
   .subgcard { display:flex; align-items:center; gap:12px; min-height:100px; padding:14px 16px; background:var(--panel); border:1px solid var(--line); border-radius:var(--r); box-shadow:var(--shadow-sm); cursor:pointer; user-select:none; transition:border-color 180ms var(--ease-out),transform 140ms var(--ease-out); animation:libCardIn 380ms var(--ease-out) both; }   /* min-height 100：组卡与订阅卡同高（订阅卡含操作行自然高≈100） */
   .subgcard:hover { border-color:var(--acc); transform:translateY(-1px); }
   .subgcard:active { transform:scale(.98); }
@@ -598,30 +601,18 @@
   .libgrp-head:hover .lg-go { color:var(--acc); }
   .libgrp-more { font-size:12px; color:var(--txt2); margin:10px 2px 0; cursor:pointer; padding:6px 12px; border-radius:var(--r-sm); display:inline-block; transition:background 160ms,color 160ms; }
   .libgrp-more:hover { background:var(--panel2); color:var(--acc); }
-  /* 订阅卡操作菜单（2026-11-25 反馈：四按钮融合为一个，按下要有反馈） */
-  .sg-more-wrap { position:relative; margin-top:8px; display:inline-flex; }
-  .sg-more {
-    display:inline-flex; align-items:center; gap:5px; padding:5px 10px; border-radius:var(--r-sm);
+  /* 订阅卡单一智能按钮（2026-11-25 反馈：检查/下载/暂停/恢复四个功能合并成一个）：
+     正常态「追更」=检查+新内容自动入队；暂停态「恢复追更」=恢复+立即查一轮 */
+  .sg-act {
+    display:inline-flex; align-items:center; gap:5px; margin-top:8px; padding:5px 10px; border-radius:var(--r-sm);
     border:1px solid var(--line); background:var(--panel2); color:var(--txt2);
     font:inherit; font-size:12px; cursor:pointer; transition:background 150ms,color 150ms,border-color 150ms;
   }
-  .sg-more:hover { color:var(--txt); border-color:var(--acc); background:var(--panel); }
-  .sg-more.busy .ico { animation:icoSpin 900ms linear infinite; }
-  .sg-more.busy { color:var(--acc); pointer-events:none; }
+  .sg-act:hover { color:var(--txt); border-color:var(--acc); background:var(--panel); }
+  .sg-act.go { color:var(--acc); border-color:var(--acc); }
+  .sg-act.busy { color:var(--acc); pointer-events:none; }
+  .sg-act.busy .ico { animation:icoSpin 900ms linear infinite; }
   @keyframes icoSpin { to { transform:rotate(360deg); } }
-  .sg-menu {
-    position:absolute; left:0; top:calc(100% + 5px); z-index:6; min-width:172px;
-    background:var(--panel); border:1px solid var(--line); border-radius:var(--r-md);
-    box-shadow:0 8px 24px rgba(0,0,0,.14); padding:4px; display:none;
-  }
-  .sg-menu.open { display:block; }
-  .sg-menu button {
-    display:flex; align-items:center; gap:8px; width:100%; padding:7px 10px;
-    border:0; background:none; font:inherit; font-size:12.5px; color:var(--txt);
-    cursor:pointer; border-radius:var(--r-sm); text-align:left;
-  }
-  .sg-menu button:hover { background:var(--panel2); color:var(--acc); }
-  .sg-menu .sep { height:1px; background:var(--line); margin:3px 4px; }
   /* 组卡操作行（rss 管理页行卡仍在用；订阅主页卡已改单按钮菜单） */
   .sg-ops { display:flex; align-items:center; gap:4px; margin-top:8px; flex-wrap:wrap; }
   .sg-ops .op {
@@ -747,11 +738,12 @@
   <div class="logo"><span class="gem">K</span><span class="logo-txt"><span class="logo-name">Keepsake</span><span class="logo-sub">个人媒体归档台</span></span></div>
   <!-- ★ 侧栏排序（2026-11-23 拍板）：任务队列 → 订阅主页 → 小红书 →（分隔线）媒体库 →（组标签）工具 -->
   <div class="nav" data-page="tasks" onclick="switchPage('tasks')"><svg viewBox="0 0 256 256" fill="currentColor"><path d="M32,64a8,8,0,0,1,8-8H216a8,8,0,0,1,0,16H40A8,8,0,0,1,32,64Zm104,56H40a8,8,0,0,0,0,16h96a8,8,0,0,0,0-16Zm0,64H40a8,8,0,0,0,0,16h96a8,8,0,0,0,0-16Zm112-24a8,8,0,0,1-3.76,6.78l-64,40A8,8,0,0,1,168,200V120a8,8,0,0,1,12.24-6.78l64,40A8,8,0,0,1,248,160Zm-23.09,0L184,134.43v51.14Z"/></svg>任务队列 <span class="cnt" id="q-cnt">0</span></div>
-  <div class="nav" data-nav="subs" onclick="libViewGo('subs')" title="所有订阅主页收在这里，点击在右侧查看详细名称并可直接粘贴添加"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="fill:none"><rect x="3.5" y="3.5" width="17" height="17" rx="3"/><circle cx="12" cy="10" r="3"/><path d="M6.5 19a6 6 0 0 1 11 0"/></svg>订阅主页 <span class="cnt" id="sideSubCnt">0</span></div>
+  <div class="nav on" data-page="lib" data-nav="subs" onclick="libViewGo('subs')" title="所有订阅主页收在这里，点击在右侧查看详细名称并可直接粘贴添加"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="fill:none"><rect x="3.5" y="3.5" width="17" height="17" rx="3"/><circle cx="12" cy="10" r="3"/><path d="M6.5 19a6 6 0 0 1 11 0"/></svg>订阅主页 <span class="cnt" id="sideSubCnt">0</span></div>
   <div class="nav" id="xhsWinBtn" onclick="openXhsWin()" title="打开小红书受控浏览器：浏览笔记页后点窗口内【📥 归档】一键保存图文/视频"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="fill:none"><rect x="4" y="4" width="16" height="16" rx="4"/><path d="M9 15V9l6 6V9"/></svg>小红书</div>
   <div class="side-sep"></div>
   <div class="nav-grp">媒体库</div>
-  <div class="nav on" data-page="lib" onclick="libViewGo('all')"><svg viewBox="0 0 256 256" fill="currentColor"><path d="M216,72H131.31L104,44.69A15.86,15.86,0,0,0,92.69,40H40A16,16,0,0,0,24,56V200.62A15.4,15.4,0,0,0,39.38,216H216.89A15.13,15.13,0,0,0,232,200.89V88A16,16,0,0,0,216,72ZM40,56H92.69l16,16H40ZM216,200H40V88H216Z"/></svg>所有归档 <span class="cnt" id="l-fileAll">0</span></div>
+  <!-- 「所有归档」侧栏入口已撤（2026-11-25 拍板）：订阅主页/手动保存/仅文件名三视图覆盖全部入口，
+       订阅主页点卡片原地下钻进该订阅的归档；无订阅归属的旧内容收在订阅主页底部「其他归档」 -->
   <div class="nav" data-nav="only" onclick="libViewGo('only')" title="没有可预览封面、只有文件名的内容"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="fill:none"><path d="M12 3 2.5 20h19L12 3Z"/><line x1="12" y1="9" x2="12" y2="14"/><circle cx="12" cy="17" r=".6" fill="currentColor"/></svg>仅文件名 <span class="cnt" id="l-fileOnly">0</span></div>
   <div class="nav" data-nav="manual" onclick="libViewGo('manual')" title="单独下载的内容都收在这里，没有订阅归属"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="fill:none"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M4 20h16"/></svg>手动保存 <span class="cnt" id="l-fileManual">0</span></div>
   <div class="nav-grp">工具</div>
@@ -841,9 +833,9 @@
   <!-- 媒体库页（默认页：设计图的主视图，内容级卡片墙） -->
   <div class="page on" id="page-lib">
     <div class="lib-head">
-      <button class="lib-back" id="libBackBtn" onclick="backLibGroup()" style="display:none" title="返回所有归档">‹ 返回</button>
+      <button class="lib-back" id="libBackBtn" onclick="backLibGroup()" style="display:none" title="返回上一层">‹ 返回</button>
       <div class="lib-title-wrap">
-        <div class="lib-title" id="libTitle">所有归档</div>
+        <div class="lib-title" id="libTitle">订阅主页</div>
         <div class="lib-sub" id="libSub">订阅追更与手动添加，收在一处</div>
       </div>
       <div class="libseg" id="libKindSeg" role="tablist" aria-label="按类型筛选">
@@ -1752,7 +1744,7 @@ function switchPage(p) {
   if (p === 'rss') { loadSubs(); loadWereadState(); }
   updateSelBar();
   // 每次进媒体库都强制重扫磁盘：文件夹里手动删/加了文件也要如实反映（本地扫描快，分片异步不卡 UI）
-  if (p === 'lib') { libDirty = false; loadLibrary(true); }
+  if (p === 'lib') { libDirty = false; loadLibrary(true); syncLibNav(); }   // 高亮按当前视图归位（cmdk/顶栏直达媒体库时侧栏不挂空）
   if (p === 'strategy') loadStrategy();
   if (p === 'settings') { loadSettings(); loadCookieInfo(); loadPixivState(); loadAsr().then(initMirrorSelect).catch(() => {}); loadEngines(); }
 }
@@ -2992,7 +2984,7 @@ function localImgUrl(p) {
   try { return encodeURI('file:///' + String(p).replace(/\\/g, '/')).replace(/#/g, '%23'); } catch (e) { return ''; }
 }
 // 来源视图筛选：all / manual（手动添加视图 = 缺口①，入口在侧栏；页内另有 libKind 类型分段）
-let libView = 'all';           // 侧栏视图：all / only（仅文件名）/ manual（手动添加）/ subs（订阅主页单入口）
+let libView = 'subs';          // 侧栏视图：subs（订阅主页，默认）/ only（仅文件名）/ manual（手动添加）；「所有归档」入口已于 2026-11-25 撤除
 let libKind = 'all';           // 页内类型分段：all / video / image（与侧栏视图正交）
 let libGroup = null;           // 所有归档组内视图：null=组卡网格；=组 key 时显示该组全部内容（点组卡进入，2026-11-23 拍板）
 // 设计稿色板：订阅头像色（按名哈希）+ 平台色点
@@ -3017,6 +3009,18 @@ async function addSubFromBox() {
   renderSideSubs();
   try { renderLibrary(); } catch (e) {}
 }
+// 订阅名 ↔ 归档组匹配（2026-11-25 放宽：先精确，再双向包含 ≥2 字符，取文件数最多的组）
+function findGroupForSub(s) {
+  const groups = (typeof libData !== 'undefined' && libData && Array.isArray(libData.groups)) ? libData.groups : [];
+  const nm = String((s && s.name) || '').trim().toLowerCase();
+  if (!nm) return null;
+  let g = groups.find(x => String(x.uploader || '').trim().toLowerCase() === nm);
+  if (!g && nm.length >= 2) {
+    g = groups.filter(x => { const gu = String(x.uploader || '').trim().toLowerCase(); return gu && gu.length >= 2 && (gu.includes(nm) || nm.includes(gu)); })
+      .sort((a, b) => (b.fileCount || 0) - (a.fileCount || 0))[0] || null;
+  }
+  return g || null;
+}
 function renderSubsGallery() {
   const el = $('libList'); if (!el) return;
   const subs = (subsItems || []).slice().sort((a, b) => (b.lastCheck || 0) - (a.lastCheck || 0));
@@ -3024,74 +3028,83 @@ function renderSubsGallery() {
   const kw = libKw.toLowerCase();
   const list = kw ? subs.filter(s => String(s.name).toLowerCase().includes(kw)) : subs;
   if (!list.length) { el.innerHTML = SUB_SUBBOX + '<div class="empty">没有匹配「' + esc(libKw) + '」的订阅主页</div>'; return; }
+  const groupCard = (g, i) => {
+    const mAll = g.files.length > 0 && g.files.every(f => f.src && f.src.via && f.src.via !== 'sub');
+    return '<article class="subgcard" style="animation-delay:' + Math.min(i, 12) * 32 + 'ms" onclick="enterLibGroup(\'' + escAttr(g.key) + '\')" title="进入「' + escAttr(g.uploader) + '」的归档">' +
+      '<span class="sub-avatar" style="background:' + subColor(g.uploader) + '">' + esc(String(g.uploader).trim().slice(0, 1).toUpperCase()) + '</span>' +
+      '<div class="sg-main">' +
+        '<div class="sg-name"><span class="nm">' + esc(g.uploader) + '</span>' + (mAll ? '<span class="sg-pause">' + ico('dl',11) + ' 手动</span>' : '') + '</div>' +
+        '<div class="sg-meta"><span class="platform-dot" style="background:' + platColor(g.site) + '"></span><span>' + esc(siteLabel(g.site)) + '</span><span class="sep">·</span><span>' + g.fileCount + ' 条 · ' + esc(g.sizeText || '') + '</span></div>' +
+      '</div>' +
+      '<button type="button" class="sg-info" onclick="event.stopPropagation();openLibDrawer(\'' + escAttr(g.key) + '\')" title="档案与操作（文件列表/全组转写/专题总结/打开文件夹）" aria-label="档案与操作">' + ico('info',12) + '</button>' +
+      '<span class="sg-go">›</span>' +
+    '</article>';
+  };
   const cards = list.map((s, i) => {
     const bad = s.lastError && (!s.lastCheck || (s.lastFailAt || 0) > (s.lastCheck || 0)) && !(s.userPaused || s.paused);
     const paused = !!(s.userPaused || s.paused);
-    // 操作融合为一个「⋯」菜单（2026-11-25 反馈：四按钮太密+按下无变化）：菜单项点击后有 busy 旋转+toast 双反馈
-    const moreWrap = '<div class="sg-more-wrap" onclick="event.stopPropagation()">' +
-      '<button type="button" class="sg-more" onclick="toggleSubMenu(event)" aria-haspopup="menu" title="检查 / 下载 / 暂停">' + ico('dots',14) + ' 操作</button>' +
-      '<div class="sg-menu" role="menu">' +
-        '<button type="button" role="menuitem" onclick="subMenuAct(\'' + escAttr(s.id) + '\',\'check\',event)">' + ico('retry',13) + ' 立即检查新内容</button>' +
-        '<button type="button" role="menuitem" onclick="subMenuAct(\'' + escAttr(s.id) + '\',\'download\',event)">' + ico('dl',13) + ' 全部加入下载队列</button>' +
-        '<div class="sep"></div>' +
-        (paused
-          ? '<button type="button" role="menuitem" onclick="subMenuAct(\'' + escAttr(s.id) + '\',\'resume\',event)">' + ico('play',13) + ' 恢复自动检查</button>'
-          : '<button type="button" role="menuitem" onclick="subMenuAct(\'' + escAttr(s.id) + '\',\'pause\',event)">' + ico('pause',13) + ' 暂停自动检查</button>') +
-      '</div></div>';
-    // 有归档的订阅：右上角 ℹ 直接开档案详情抽屉。名字匹配放宽（2026-11-25 反馈 ins 卡无 ℹ：
-    // 真实数据里订阅名 miko vs 归档文件夹 mikomikowow 不相等），先精确、再双向包含，取文件数最多的组
-    const _nm = String(s.name || '').trim().toLowerCase();
-    const _groups = (typeof libData !== 'undefined' && libData && Array.isArray(libData.groups)) ? libData.groups : [];
-    let grp = _groups.find(g => String(g.uploader || '').trim().toLowerCase() === _nm);
-    if (!grp && _nm.length >= 2) {
-      grp = _groups.filter(g => { const gu = String(g.uploader || '').trim().toLowerCase(); return gu && gu.length >= 2 && (gu.includes(_nm) || _nm.includes(gu)); })
-        .sort((a, b) => (b.fileCount || 0) - (a.fileCount || 0))[0] || null;
-    }
+    // 单一智能按钮（2026-11-25 反馈二次澄清：不是菜单合并，是四个功能合并成一个按钮）：
+    // 正常态「追更」= 立即检查，后端检查时新内容自动入队下载（main.js checkSub→queue.add）；
+    // 暂停态「恢复追更」= 恢复自动检查并立即查一轮。暂停/回溯/频率等管理操作收在「管理」页。
+    const actBtn = paused
+      ? '<button type="button" class="sg-act go" onclick="subSmartAct(\'' + escAttr(s.id) + '\',event)" title="恢复自动追更，并立即检查一轮">' + ico('play',13) + ' 恢复追更</button>'
+      : '<button type="button" class="sg-act" onclick="subSmartAct(\'' + escAttr(s.id) + '\',event)" title="立即检查新内容，发现即自动下载">' + ico('retry',13) + ' 追更</button>';
+    // 有归档的订阅：右上角 ℹ 直接开档案详情抽屉
+    const grp = findGroupForSub(s);
     const info = grp ? '<button type="button" class="sg-info" onclick="event.stopPropagation();openLibDrawer(\'' + escAttr(grp.key) + '\')" title="档案与操作（文件列表/全组转写/专题总结/打开文件夹）" aria-label="档案与操作">' + ico('info',12) + '</button>' : '';
-    return '<article class="subgcard' + (bad ? ' err' : '') + (paused ? ' dim' : '') + '" style="animation-delay:' + Math.min(i, 12) * 32 + 'ms" onclick="sideSubGo(\'' + escAttr(s.id) + '\')" title="查看「' + escAttr(s.name) + '」的归档">' +
+    return '<article class="subgcard' + (bad ? ' err' : '') + (paused ? ' dim' : '') + '" style="animation-delay:' + Math.min(i, 12) * 32 + 'ms" onclick="enterSubGroup(\'' + escAttr(s.id) + '\')" title="进入「' + escAttr(s.name) + '」的归档">' +
       '<span class="sub-avatar" style="background:' + subColor(s.name) + '">' + esc(String(s.name).trim().slice(0, 1).toUpperCase()) + '</span>' +
       '<div class="sg-main">' +
         '<div class="sg-name"><span class="nm">' + esc(s.name) + '</span>' + (paused ? '<span class="sg-pause">' + ico('pause',11) + ' 已暂停</span>' : '') + '</div>' +
         '<div class="sg-meta"><span class="platform-dot" style="background:' + platColor(subKindPlat(s.kind)) + '"></span><span>' + esc(subKindLabel(s.kind)) + '</span><span class="sep">·</span><span>已跟踪 ' + (s.knownCount || 0) + ' 条</span></div>' +
-        moreWrap +
+        actBtn +
       '</div>' +
       info +
       '<span class="sg-go">›</span>' +
     '</article>';
   }).join('');
-  el.innerHTML = SUB_SUBBOX + '<div class="subsgrid">' + cards + '</div>';
+  // 「其他归档」：不归属任何订阅的组（老版本下载/已退订内容）——「所有归档」入口撤除后仍可达
+  const claimed = new Set(list.map(s => { const g = findGroupForSub(s); return g ? g.key : null; }).filter(Boolean));
+  const others = ((typeof libData !== 'undefined' && libData && Array.isArray(libData.groups)) ? libData.groups : []).filter(g => !claimed.has(g.key));
+  const othersHtml = others.length
+    ? '<div class="lib-sec-title">' + ico('folder',13) + ' 其他归档 <span class="cnt">' + others.length + '</span></div><div class="subsgrid">' + others.map(groupCard).join('') + '</div>'
+    : '';
+  el.innerHTML = SUB_SUBBOX + '<div class="subsgrid">' + cards + '</div>' + othersHtml;
 }
-// 暂停订阅（订阅主页卡操作菜单用；恢复走 resumeSub）
+// 订阅卡点击：原地下钻进该订阅的归档（2026-11-25 拍板：不再跳「所有归档」视图）
+function enterSubGroup(id) {
+  const s = (subsItems || []).find(x => x.id === id);
+  if (!s) return;
+  const g = findGroupForSub(s);
+  if (!g) { toast('「' + s.name + '」还没有归档内容——追更下载后自动出现在这里'); return; }
+  libGroup = g.key;
+  libKw = ''; const kwBox = $('libKw'); if (kwBox) kwBox.value = '';
+  try { renderLibrary(); } catch (e) {}
+  window.scrollTo(0, 0); const mc = document.querySelector('.main'); if (mc) mc.scrollTop = 0;
+}
+// 暂停订阅（管理页「订阅设置」用；恢复走 resumeSub）
 async function pauseSub(id) {
   const r = await window.keepsake.subsUpdate(id, { userPaused: true });
   if (r && r.ok === false) return toast(r.reason || '暂停失败');
   toast('已暂停自动检查与下载（已下载文件保留）');
   loadSubs();
 }
-// 订阅卡「⋯」操作菜单（2026-11-25 拍板：四按钮融合为一个；busy 旋转 + toast 双反馈）
-function toggleSubMenu(ev) {
+// 订阅卡单一智能按钮（2026-11-25 拍板）：检查+下载+暂停+恢复合并为一个按钮，按状态出对应动作
+// 正常态：追更 = 立即检查，后端检查时新内容自动入队下载；暂停态：恢复追更 = 恢复 + 立即查一轮
+async function subSmartAct(id, ev) {
   ev.stopPropagation();
-  const menu = ev.currentTarget.parentElement.querySelector('.sg-menu');
-  const wasOpen = menu.classList.contains('open');
-  closeAllSubMenus();
-  if (!wasOpen) menu.classList.add('open');
-}
-function closeAllSubMenus() { document.querySelectorAll('.sg-menu.open').forEach(m => m.classList.remove('open')); }
-document.addEventListener('click', closeAllSubMenus);
-async function subMenuAct(id, op, ev) {
-  ev.stopPropagation();
-  const wrap = ev.currentTarget.closest('.sg-more-wrap');
-  const btn = wrap ? wrap.querySelector('.sg-more') : null;
-  closeAllSubMenus();
-  if (btn) { btn.classList.add('busy'); btn.innerHTML = ico('retry', 14) + ' 处理中…'; }
+  const s = (subsItems || []).find(x => x.id === id);
+  const wasPaused = !!(s && (s.userPaused || s.paused));
+  const btn = ev.currentTarget;
+  btn.classList.add('busy');
+  btn.innerHTML = ico('retry', 13) + ' 处理中…';
   try {
-    if (op === 'check') await checkSub(id);
-    else if (op === 'download') await backfillSub(id);
-    else if (op === 'pause') await pauseSub(id);
-    else if (op === 'resume') await resumeSub(id);
-  } finally {
-    if (btn) { btn.classList.remove('busy'); btn.innerHTML = ico('dots', 14) + ' 操作'; }
-    if (libView === 'subs') { try { renderLibrary(); } catch (e) {} }   // 暂停/恢复后卡片立即重绘（已暂停徽标/菜单项切换）
+    if (wasPaused) await resumeSub(id);      // toast「已恢复检查」+ loadSubs
+    await checkSub(id);                       // toast「检查中…」+ 结果反馈；新内容后端自动入队
+  } catch (e) { toast('操作失败：' + (e.message || e)); }
+  finally {
+    btn.classList.remove('busy');
+    if (libView === 'subs') { try { renderLibrary(); } catch (e) {} }   // 暂停/恢复后卡片立即重绘（按钮/徽标随状态切换）
   }
 }
 function renderLibrary() {
@@ -3114,9 +3127,9 @@ function renderLibrary() {
   if (fa) fa.textContent = items.length;
   if (fo) fo.textContent = onlyCnt;
   if (fm) fm.textContent = manualCnt;
-  // 订阅主页视图（侧栏单入口）：右侧出详细名称列表，不走内容卡墙
-  if (libView === 'subs') { renderSubsGallery(); return; }
+  // 订阅主页视图顶层（无搜索/类型过滤/未下钻）：订阅卡 + 其他归档；搜索或类型过滤时穿透到内容卡
   const kw = libKw.toLowerCase();
+  if (libView === 'subs' && !kw && libKind === 'all' && !libGroup) { renderSubsGallery(); return; }
   let list = items;
   if (kw) list = list.filter(it =>
     it.f.name.toLowerCase().includes(kw) || it.g.uploader.toLowerCase().includes(kw) ||
@@ -3155,7 +3168,7 @@ function renderLibrary() {
     const openTip = f.kind === 'article' ? '阅读这篇存档' : '用系统默认程序打开';
     return '<article class="lcard" style="animation-delay:' + Math.min(i, 12) * 32 + 'ms" onclick="openMediaFile(\'' + escAttr(f.path) + '\',\'' + f.kind + '\')" title="' + escAttr(stem) + ' · ' + openTip + '">' +
       '<div class="lthumb">' + cover +
-        '<button type="button" class="lcard-info" onclick="event.stopPropagation();openLibDrawer(\'' + escAttr(g.key) + '\')" title="档案与操作（来源/转写/AI/删除检测）" aria-label="档案与操作">' + ico('info',14) + '</button>' +
+        '<button type="button" class="lcard-info" onclick="event.stopPropagation();openFileDrawer(\'' + escAttr(g.key) + '\',\'' + escAttr(f.path) + '\')" title="这条内容的详情与操作（转写/AI/来源/删除检测）" aria-label="这条内容的详情与操作">' + ico('info',14) + '</button>' +
         '<div class="lbadge-tl">' + kindPill + onlyPill + '</div>' +
         '<div class="lbadge-bl">' + originPill + plat + '</div>' +
       '</div>' +
@@ -3165,8 +3178,8 @@ function renderLibrary() {
       '</div>' +
     '</article>';
   };
-  // 组内视图：点组卡进入，平铺该组全部内容（仍保留 400 上限防超大组卡死）
-  if (libView === 'all' && !kw && libKind === 'all' && libGroup) {
+  // 组内视图：点组卡进入，平铺该组全部内容（仍保留 400 上限防超大组卡死）；订阅主页下钻与搜索穿透共用
+  if (!kw && libKind === 'all' && libGroup) {
     const g = libData.groups.find(x => x.key === libGroup);
     if (!g) { libGroup = null; renderLibrary(); return; }
     const gItems = items.filter(it => it.g === g);
@@ -3177,30 +3190,13 @@ function renderLibrary() {
     try { if (typeof renderP2 === 'function') renderP2(); } catch (e) {}
     return;
   }
-  // 组卡网格（2026-11-23 拍板：所有归档与订阅主页同构，每个主页/文件夹一张卡，点卡进入）
-  if (libView === 'all' && !kw && libKind === 'all') {
-    const cards = libData.groups.map((g, i) => {
-      const mAll = g.files.length > 0 && g.files.every(f => f.src && f.src.via && f.src.via !== 'sub');
-      return '<article class="subgcard" style="animation-delay:' + Math.min(i, 12) * 32 + 'ms" onclick="enterLibGroup(\'' + escAttr(g.key) + '\')" title="进入「' + escAttr(g.uploader) + '」的归档">' +
-        '<span class="sub-avatar" style="background:' + subColor(g.uploader) + '">' + esc(String(g.uploader).trim().slice(0, 1).toUpperCase()) + '</span>' +
-        '<div class="sg-main">' +
-          '<div class="sg-name"><span class="nm">' + esc(g.uploader) + '</span>' + (mAll ? '<span class="sg-pause">' + ico('dl',11) + ' 手动</span>' : '') + '</div>' +
-          '<div class="sg-meta"><span class="platform-dot" style="background:' + platColor(g.site) + '"></span><span>' + esc(siteLabel(g.site)) + '</span><span class="sep">·</span><span>' + g.fileCount + ' 条 · ' + esc(g.sizeText || '') + '</span></div>' +
-        '</div>' +
-        '<button type="button" class="sg-info" onclick="event.stopPropagation();openLibDrawer(\'' + escAttr(g.key) + '\')" title="档案与操作（文件列表/全组转写/专题总结/打开文件夹）" aria-label="档案与操作">' + ico('info',12) + '</button>' +
-        '<span class="sg-go">›</span>' +
-      '</article>';
-    }).join('');
-    el.innerHTML = libData.groups.length ? '<div class="subsgrid subsgrid-wide">' + cards + '</div>' : '<div class="empty">没有匹配的媒体</div>';
-    try { if (typeof renderP2 === 'function') renderP2(); } catch (e) {}
-    return;
-  }
+  // 「所有归档」组卡网格已撤（2026-11-25）：组浏览收进订阅主页视图（订阅卡下钻 + 底部「其他归档」）
   if (!shown.length) {
     let msg;
     if (kw) msg = '没有匹配「' + esc(libKw) + '」的媒体';
     else if (libView === 'manual' && libKind === 'video') msg = '手动保存的内容里还没有视频';
     else if (libView === 'manual' && libKind === 'image') msg = '手动保存的内容里还没有图文';
-    else if (libView === 'manual') msg = '还没有手动保存的内容——到「任务队列」粘贴链接收一条；更早版本下载的内容没有来源标记，按主页在「所有归档」里分组显示';
+    else if (libView === 'manual') msg = '还没有手动保存的内容——到「任务队列」粘贴链接收一条；更早版本下载的内容没有来源标记，在订阅主页底部「其他归档」按主页分组显示';
     else if (libView === 'only') msg = '没有仅文件名的内容——每条内容都有可预览的封面';
     else if (libKind === 'video') msg = '没有视频';
     else if (libKind === 'image') msg = '没有图文';
@@ -3217,12 +3213,12 @@ function renderLibrary() {
 function syncLibHead() {
   const t = $('libTitle'), s2 = $('libSub');
   if (!t || !s2) return;
-  const seg = $('libKindSeg'); if (seg) seg.style.display = libView === 'subs' ? 'none' : '';
-  const bk = $('libBackBtn'); if (bk) bk.style.display = (libView === 'all' && libGroup && !libKw && libKind === 'all') ? '' : 'none';
-  const mg = $('subsMgmtBtn'); if (mg) mg.style.display = libView === 'subs' ? '' : 'none';   // 管理入口收进订阅主页视图页头（2026-11-23：侧栏不再带「管理」二字）
-  if (libView === 'subs') { t.textContent = '订阅主页'; s2.textContent = (subsItems || []).length + ' 个订阅主页 · 点击卡片查看 TA 的归档'; return; }
-  // 组内视图：页头切组名 + 统计副标题
-  if (libView === 'all' && libGroup && !libKw && libKind === 'all' && libData && Array.isArray(libData.groups)) {
+  const seg = $('libKindSeg'); if (seg) seg.style.display = (libView === 'subs' && !libKw && !libGroup) ? 'none' : '';   // 订阅主页顶层藏类型分段；搜索/下钻穿透后恢复
+  const bk = $('libBackBtn'); if (bk) bk.style.display = (libGroup && !libKw && libKind === 'all') ? '' : 'none';
+  const mg = $('subsMgmtBtn'); if (mg) mg.style.display = (libView === 'subs' && !libGroup) ? '' : 'none';   // 管理入口只在订阅主页顶层显示
+  if (libView === 'subs' && !libGroup) { t.textContent = '订阅主页'; s2.textContent = (subsItems || []).length + ' 个订阅主页 · 点击卡片查看 TA 的归档'; return; }
+  // 组内视图：页头切组名 + 统计副标题（订阅主页下钻与其他归档进入共用）
+  if (libGroup && !libKw && libKind === 'all' && libData && Array.isArray(libData.groups)) {
     const g = libData.groups.find(x => x.key === libGroup);
     if (g) { t.textContent = g.uploader; s2.textContent = siteLabel(g.site) + ' · ' + g.fileCount + ' 条 · ' + (g.sizeText || '') + ' · 最近更新 ' + timeAgo(g.lastMtime); return; }
   }
@@ -3231,7 +3227,7 @@ function syncLibHead() {
   else if (libView === 'only') { t.textContent = '仅文件名'; s2.textContent = '没有可预览封面的内容'; }
   else if (libKind === 'video') { t.textContent = '视频'; s2.textContent = '本地已归档的视频内容'; }
   else if (libKind === 'image') { t.textContent = '图文'; s2.textContent = '图片与文章存档'; }
-  else { t.textContent = '所有归档'; s2.textContent = '按主页分类 · 点卡片进入文件夹，再点内容直接打开'; }
+  else { t.textContent = '订阅主页'; s2.textContent = '点击卡片查看 TA 的归档'; }
 }
 // ===== 组内视图导航 + 点卡直接打开（2026-11-23 拍板）=====
 function enterLibGroup(key) { libGroup = key; try { renderLibrary(); } catch (e) {} window.scrollTo(0, 0); const mc = document.querySelector('.main'); if (mc) mc.scrollTop = 0; }
@@ -3807,6 +3803,31 @@ function dFileOps(f) {
   return h;
 }
 
+// 单文件详情抽屉（2026-11-25 反馈：进文件夹后点内容卡 ℹ，要出这条内容自己的详情，不是整组的）
+function openFileDrawer(gKey, p) {
+  const g = ((typeof libData !== 'undefined' && libData && Array.isArray(libData.groups)) ? libData.groups : []).find(x => x.key === gKey);
+  const f = g ? (g.files || []).find(x => x.path === p) : null;
+  if (!f) { openLibDrawer(gKey); return; }   // 文件已被移动/删除：退回整组档案，不白屏
+  const stem = String(f.name).replace(/\.[^.]+$/, '');
+  const d = new Date(f.mtime || 0);
+  const date = isNaN(d) ? '—' : d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+  const dir = String(f.path).replace(/[\\/][^\\/]+$/, '');
+  $('libDrawerBody').innerHTML = `
+    <h2 class="d-title">${esc(stem)}</h2>
+    <div class="d-origin-line">${siteSvg(g.site)} ${esc(g.uploader)} · ${esc(siteLabel(g.site))}</div>
+    <div class="d-rows">
+      <div class="d-row"><span class="k">类型</span><span class="v">${kindSvg(f.kind)} ${kindZh(f.kind)}</span></div>
+      <div class="d-row"><span class="k">大小</span><span class="v">${esc(f.sizeText || '—')}</span></div>
+      <div class="d-row"><span class="k">归档时间</span><span class="v">${date}（${timeAgo(f.mtime)}）</span></div>
+      <div class="d-row"><span class="k">所在文件夹</span><span class="v" style="overflow-wrap:anywhere">${esc(dir)}</span></div>
+    </div>
+    <div class="d-ops-hint">${ico('info',13)} 下面这排按钮只对这一个文件生效（阅读/转写/AI/来源/删除）；要整主页操作（全组转写/专题总结）点底部「查看整个主页档案」</div>
+    <div class="d-actions">${dFileOps(f)}</div>
+    <div style="margin-top:14px"><button type="button" class="btn-mini" style="color:var(--acc2)" onclick="openLibDrawer('${escAttr(g.key)}')">${ico('folder-open',14)} 查看整个主页档案（${g.fileCount} 个文件）</button></div>`;
+  $('libDrawer').classList.add('open');
+  $('libDrawerScrim').classList.add('show');
+}
+
 function openLibDrawer(key) {
   if (!libData || !Array.isArray(libData.groups)) {   // 数据未就绪（首次进库正在扫描）：短暂重试
     clearTimeout(_drawerRetryTimer);
@@ -3914,37 +3935,29 @@ $('libKindSeg').addEventListener('click', e => {
   try { renderLibrary(); } catch (err) {}
 });
 // ===== 第三阶段：侧栏设计图化 —— 手动添加入口 + 订阅主页单入口 =====
-function libViewGo(v) {
-  switchPage('lib');
-  libView = v === 'manual' ? 'manual' : v === 'only' ? 'only' : v === 'subs' ? 'subs' : 'all';
-  // 修 bug（用户 2026-11-23 反馈）：切视图清顶栏搜索词——残留关键词会把订阅主页/手动视图过滤到只剩 1 个/0 个
-  if (libKw) { libKw = ''; const kwBox = $('libKw'); if (kwBox) kwBox.value = ''; }
-  libGroup = null;   // 侧栏切视图回顶层，不残留组内视图
-  // 侧栏视图高亮（视图项 data-nav / 归档项 data-page）
+// 侧栏视图高亮（视图项 data-nav / 媒体库默认项 data-page）——switchPage('lib') 与 libViewGo 共用
+function syncLibNav() {
   document.querySelectorAll('.sidebar .nav').forEach(n => {
     const on = (libView === 'manual' && n.dataset.nav === 'manual') ||
       (libView === 'only' && n.dataset.nav === 'only') ||
-      (libView === 'subs' && n.dataset.nav === 'subs') ||
-      (libView === 'all' && n.dataset.page === 'lib');
+      ((libView === 'subs' || libView === 'all') && n.dataset.nav === 'subs');
     n.classList.toggle('on', on);
   });
+}
+function libViewGo(v) {
+  switchPage('lib');
+  libView = v === 'manual' ? 'manual' : v === 'only' ? 'only' : 'subs';   // 「所有归档」入口已撤（2026-11-25）
+  // 修 bug（用户 2026-11-23 反馈）：切视图清顶栏搜索词——残留关键词会把订阅主页/手动视图过滤到只剩 1 个/0 个
+  if (libKw) { libKw = ''; const kwBox = $('libKw'); if (kwBox) kwBox.value = ''; }
+  libGroup = null;   // 侧栏切视图回顶层，不残留组内视图
+  if (v === 'subs') { libKind = 'all'; syncKindSeg(); }   // 订阅主页顶层不残留类型过滤（穿透态才会用到分段）
+  syncLibNav();
   if (typeof renderSideSubs === 'function') renderSideSubs();
   try { renderLibrary(); } catch (err) {}
 }
 // 侧栏订阅主页单入口后，这里只负责同步计数（详细名称在右侧订阅主页视图出）
 function renderSideSubs() {
   const cnt = $('sideSubCnt'); if (cnt) cnt.textContent = (subsItems || []).length;
-}
-function sideSubGo(id) {
-  const s = (subsItems || []).find(x => x.id === id);
-  if (!s) return;
-  libView = 'all';
-  switchPage('lib');
-  // 按订阅名过滤（内容卡按 UP主/站点聚合归属，订阅名即其名）
-  document.querySelectorAll('.sidebar .nav').forEach(n => n.classList.toggle('on', n.dataset.page === 'lib'));
-  const box = $('libKw'); if (box) box.value = s.name;
-  setLibKw(s.name);
-  try { renderLibrary(); } catch (err) {}
 }
 
 window.addEventListener('resize', moveLibSegThumb);

@@ -39,6 +39,8 @@ const obj = () => Promise.resolve({});
 window.keepsake = {
   snapshot: () => Promise.resolve(window.__snap), tasks: arr, queue: arr, done: arr,
   subsList: () => Promise.resolve(window.__subs), subs: arr,
+  subsCheck: id => { window.__checkCalls = [...(window.__checkCalls || []), id]; return Promise.resolve([]); },
+  subsResume: id => { const s = window.__subs.find(x => x.id === id); if (s) { s.userPaused = false; s.paused = false; } return Promise.resolve({ ok: true }); },
   subsAdd: u => { const s = { id: 's-' + Date.now(), kind: 'rss', name: '新订阅', knownCount: 0 }; window.__subs = [...window.__subs, s]; return Promise.resolve({ ok: true, sub: s }); },
   subsUpdate: (id, patch) => { const s = window.__subs.find(x => x.id === id); if (s) Object.assign(s, patch); return Promise.resolve({ ok: true }); },
   openFileLocal: p => { window.__openFileCalls = [...(window.__openFileCalls || []), p]; return Promise.resolve({ ok: true }); },
@@ -98,7 +100,7 @@ document.addEventListener('DOMContentLoaded', () => {
     app: !!document.getElementById('app')
   }));
   ok('工具栏（真搜索框+主题按钮+侧栏开关；品牌标识只在侧栏，全局仅一个 Keepsake；无小红书按钮）', () => assert(base.toolbar && base.brand && base.search && base.themeBtn && base.sideToggle && !base.xhsToolbar, JSON.stringify(base)));
-  ok('侧栏排序（2026-11-23 拍板）：任务队列→订阅主页→小红书→媒体库(所有归档/仅文件名/手动保存)→工具', () => assert(base.xhsSide && base.sideOrder === 'tasks,subs,xhsWinBtn,lib,only,manual,strategy,settings', JSON.stringify(base.sideOrder)));
+  ok('侧栏排序（2026-11-25 拍板）：任务队列→订阅主页→小红书→仅文件名/手动保存→工具（「所有归档」入口已撤）', () => assert(base.xhsSide && base.sideOrder === 'tasks,subs,xhsWinBtn,only,manual,strategy,settings', JSON.stringify(base.sideOrder)));
   ok('毛玻璃侧栏在 workspace 内，四页导航 + 两组标签（媒体库/工具；前三项为无标签高频入口）', () => assert(base.sidebar && base.navs.length === 4 && base.grp === 2 && base.navs[0] === 'tasks' && !base.navs.includes('rss'), JSON.stringify({ navs: base.navs, grp: base.grp })));
   ok('侧栏底部状态区（登录/规则/引擎更新入口）', () => assert(base.foot, 'no side-foot'));
   ok('⌘K 面板容器在位', () => assert(base.cmdk, 'no cmdk'));
@@ -107,10 +109,10 @@ document.addEventListener('DOMContentLoaded', () => {
   const onPageLib = await page.evaluate(() => (document.querySelector('.page.on') || {}).id === 'page-lib');
   ok('第三阶段：默认页 = 媒体库（启动第一眼）', () => assert(onPageLib));
   const sideShell = await page.evaluate(() => !!document.querySelector('.sidebar .nav[data-nav="manual"]') && !!document.querySelector('.sidebar .nav[data-nav="subs"]') && !!document.getElementById('sideSubCnt') && !document.getElementById('sideSubList'));
-  const smartGroup = await page.evaluate(() => [...document.querySelectorAll('.sidebar .nav')].some(n => n.textContent.includes('仅文件名')) && [...document.querySelectorAll('.sidebar .nav')].some(n => n.textContent.includes('手动保存')) && !!document.getElementById('l-fileAll') && !!document.getElementById('l-fileOnly') && !!document.getElementById('l-fileManual'));
-  ok('第五批：「所有归档/仅文件名/手动保存」在媒体库组内', () => assert(smartGroup));
-  const manageLink = await page.evaluate(() => !document.querySelector('.side-manage') && !!document.getElementById('subsMgmtBtn') && document.getElementById('subsMgmtBtn').style.display === 'none');
-  ok('侧栏不再带「管理」二字；管理入口收进订阅主页视图页头（非 subs 视图隐藏）', () => assert(manageLink));
+  const smartGroup = await page.evaluate(() => [...document.querySelectorAll('.sidebar .nav')].some(n => n.textContent.includes('仅文件名')) && [...document.querySelectorAll('.sidebar .nav')].some(n => n.textContent.includes('手动保存')) && !document.getElementById('l-fileAll') && !!document.getElementById('l-fileOnly') && !!document.getElementById('l-fileManual'));
+  ok('第五批：「仅文件名/手动保存」在媒体库组内 + 「所有归档」入口确已移除', () => assert(smartGroup));
+  const manageLink = await page.evaluate(() => !document.querySelector('.side-manage') && !!document.getElementById('subsMgmtBtn') && document.getElementById('subsMgmtBtn').style.display !== 'none');
+  ok('侧栏不再带「管理」二字；默认订阅主页视图页头带 ⚙管理入口', () => assert(manageLink));
 
   console.log('\n=== B. backdrop-filter 只在 4 个固定面 ===');
   const bf = await page.evaluate(() => {
@@ -163,8 +165,8 @@ document.addEventListener('DOMContentLoaded', () => {
     seg: document.querySelectorAll('#libKindSeg .libseg-item').length
   }));
   const libTitleTxt = await page.evaluate(() => (document.getElementById('libTitle') || {}).textContent);
-  ok('所有归档组卡网格（订阅主页同构：2 张主页卡 + 大标题 + 返回钮隐藏 + 类型分段）', () => assert(libRendered.cards === 0 && libRendered.grpCards === 2 && libRendered.grpNames.join(',') === 'UP主甲,UP主乙' && libRendered.grpGrid && libRendered.backHidden && libRendered.seg === 3 && libTitleTxt === '所有归档', JSON.stringify({ ...libRendered, title: libTitleTxt })));
-  // 点组卡进入组内视图：页头组名 + 返回钮出现 + 该组全部内容卡
+  ok('默认订阅主页视图（2026-11-25：顶层=订阅卡墙，无所有归档网格）', () => assert(libRendered.cards === 0 && libRendered.grpCards === 2 && libRendered.grpNames.join(',') === 'UP主甲,UP主乙' && !libRendered.grpGrid && libRendered.backHidden && libRendered.seg === 3 && libTitleTxt === '订阅主页', JSON.stringify({ ...libRendered, title: libTitleTxt })));
+  // 点订阅卡进入组内视图（原地下钻，2026-11-25 拍板不再跳视图）：页头组名 + 返回钮出现 + 该组全部内容卡
   await page.evaluate(() => document.querySelector('#libList .subgcard').click());
   await page.waitForTimeout(260);
   const grpInner = await page.evaluate(() => ({
@@ -185,13 +187,16 @@ document.addEventListener('DOMContentLoaded', () => {
   ok('点内容卡直接打开文件（a.mp4 → openFileLocal，不弹信息层）', () => assert(opened.opened && opened.opened.includes('a.mp4') && !opened.drawerOpen, JSON.stringify(opened)));
   await page.evaluate(() => { document.querySelector('#libList .lcard-info').click(); });
   await page.waitForTimeout(220);
-  const drawerViaInfo = await page.evaluate(() => document.getElementById('libDrawer').classList.contains('open'));
-  ok('ℹ 挂点主动开抽屉（信息层不消失，只是不再霸占点击）', () => assert(drawerViaInfo));
+  const drawerViaInfo = await page.evaluate(() => ({
+    open: document.getElementById('libDrawer').classList.contains('open'),
+    title: document.querySelector('#libDrawerBody .d-title')?.textContent
+  }));
+  ok('内容卡 ℹ 开单文件详情抽屉（2026-11-25：标题=该文件名，不再整组档案）', () => assert(drawerViaInfo.open && drawerViaInfo.title === 'a', JSON.stringify(drawerViaInfo)));
   await page.evaluate(() => closeLibDrawer());
   await page.evaluate(() => backLibGroup());
   await page.waitForTimeout(220);
-  const backTop = await page.evaluate(() => ({ cards: document.querySelectorAll('#libList .subgcard').length, backHidden: document.getElementById('libBackBtn').style.display === 'none' }));
-  ok('返回钮回组卡顶层', () => assert(backTop.cards === 2 && backTop.backHidden, JSON.stringify(backTop)));
+  const backTop = await page.evaluate(() => ({ cards: document.querySelectorAll('#libList .subgcard').length, backHidden: document.getElementById('libBackBtn').style.display === 'none', title: (document.getElementById('libTitle') || {}).textContent }));
+  ok('返回钮回订阅卡顶层（订阅主页视图）', () => assert(backTop.cards === 2 && backTop.backHidden && backTop.title === '订阅主页', JSON.stringify(backTop)));
   // ℹ 真实命中测试（2026-11-23 反馈「ℹ 点不开」根因：lbadge-tl 隐形角标条吞热区）
   await page.evaluate(() => switchPage('lib'));   // 命中测试要求真实可见：前面的断言只读字符串/直调函数，lib 页可能处于隐藏态
   await page.waitForTimeout(250);
@@ -243,43 +248,36 @@ document.addEventListener('DOMContentLoaded', () => {
     mgmtShown: document.getElementById('subsMgmtBtn').style.display !== 'none'
   }));
   ok('订阅主页视图：右侧出详细名称（2 张订阅卡 + 页头标题 + 类型分段隐藏 + ⚙管理入口出现）', () => assert(subsView.title === '订阅主页' && subsView.cards === 2 && subsView.names.length === 2 && subsView.segHidden && subsView.mgmtShown, JSON.stringify(subsView)));
-  // 订阅卡操作菜单：四按钮融合为一个「⋯」（2026-11-25 反馈：太密+按下无变化）
+  // 订阅卡单一智能按钮（2026-11-25 二次拍板：检查/下载/暂停/恢复四个功能合并成一个按钮，按状态出对应动作）
   const subOps = await page.evaluate(() => {
-    const wraps = [...document.querySelectorAll('#libList .subgcard .sg-more-wrap')];
-    const menus = wraps.map(w => w.querySelector('.sg-menu'));
-    if (!wraps.length) return { cnt: 0 };
-    wraps[0].querySelector('.sg-more').click();
-    const openVisible = menus[0].classList.contains('open');
-    const items0 = [...menus[0].querySelectorAll('button')].map(b => b.textContent.trim()).join('|');
-    const items1 = [...menus[1].querySelectorAll('button')].map(b => b.textContent.trim()).join('|');
-    document.body.click();
-    const closedAfter = !menus[0].classList.contains('open');
-    return { cnt: wraps.length, openVisible, items0, items1, closedAfter };
+    const btns = [...document.querySelectorAll('#libList .subgcard .sg-act')];
+    return { cnt: btns.length, labels: btns.map(b => b.textContent.trim()) };
   });
-  ok('订阅卡操作融合为「⋯」菜单：每卡一个，点开三项（检查/下载/暂停），暂停卡出恢复项，点外自动收起', () => assert(subOps.cnt === 2 && subOps.openVisible && subOps.items0.includes('暂停') && subOps.items1.includes('恢复') && subOps.closedAfter, JSON.stringify(subOps)));
+  ok('订阅卡单一智能按钮：每卡一个；正常态「追更」，暂停态「恢复追更」', () => assert(subOps.cnt === 2 && subOps.labels[0] === '追更' && subOps.labels[1].includes('恢复追更'), JSON.stringify(subOps)));
   const subInfoBtns = await page.evaluate(() => [...document.querySelectorAll('#libList .subgcard')].map(c => !!c.querySelector('.sg-info')));
   ok('订阅卡 ℹ 详情挂点：有归档的订阅每卡一个', () => assert(subInfoBtns.length === 2 && subInfoBtns.every(Boolean), JSON.stringify(subInfoBtns)));
-  // 点暂停按钮 → userPaused 生效（mock subsUpdate）
-  // 点菜单「暂停」项 → userPaused 生效（mock subsUpdate；菜单项顺序：检查/下载/sep/暂停）
-  await page.evaluate(() => {
-    const wrap = document.querySelector('#libList .subgcard .sg-more-wrap');
-    wrap.querySelector('.sg-more').click();
-    [...wrap.querySelectorAll('.sg-menu button')].find(b => b.textContent.includes('暂停')).click();
-  });
+  // 点 s1「追更」→ subsCheck 被调（后端检查时新内容自动入队，前端只需一次调用）
+  await page.evaluate(() => document.querySelector('#libList .subgcard .sg-act').click());
   await page.waitForTimeout(400);
-  const pausedNow = await page.evaluate(() => window.__subs[0].userPaused === true);
-  ok('订阅卡暂停操作：userPaused 生效', () => assert(pausedNow));
-  await page.evaluate(() => { window.__subs[0].userPaused = false; });
-  // 点第一张订阅卡 → 过滤到该订阅的归档（顶栏关键词=订阅名）
+  const checkCalled = await page.evaluate(() => ({ calls: window.__checkCalls || [], busyGone: !document.querySelector('#libList .subgcard .sg-act.busy') }));
+  ok('点「追更」→ subsCheck(s1) 调用一次，按钮 busy 态退出', () => assert(checkCalled.calls.includes('s1') && checkCalled.busyGone, JSON.stringify(checkCalled)));
+  // 点 s2「恢复追更」→ subsResume 被调 + userPaused 清除（mock）
+  await page.evaluate(() => [...document.querySelectorAll('#libList .subgcard .sg-act')][1].click());
+  await page.waitForTimeout(400);
+  const resumed = await page.evaluate(() => ({ calls: window.__checkCalls || [], paused: window.__subs[1].userPaused === true }));
+  ok('点「恢复追更」→ subsResume(s2) 恢复 + 立即检查（subsCheck 二次调用）', () => assert(resumed.calls.filter(x => x === 's2').length === 1 && !resumed.paused, JSON.stringify(resumed)));
+  // 点订阅卡 → 原地下钻到 TA 的归档（不跳视图、不落关键词）
   await page.evaluate(() => document.querySelector('#libList .subgcard').click());
   await page.waitForTimeout(260);
-  const subFiltered = await page.evaluate(() => ({ kw: document.getElementById('libKw').value, title: (document.getElementById('libTitle') || {}).textContent, cards: document.querySelectorAll('#libList .lcard').length }));
-  ok('点订阅卡 → 过滤到 TA 的归档（顶栏关键词=订阅名，UP主甲 2 条内容卡）', () => assert(subFiltered.kw === 'UP主甲' && subFiltered.title === '搜索结果' && subFiltered.cards === 2, JSON.stringify(subFiltered)));
-  // 修 bug 断言：带着残留关键词切视图必须自动清词（否则订阅主页只剩 1 个/手动视图空——用户 2026-11-23 反馈根因）
+  const subFiltered = await page.evaluate(() => ({ kw: document.getElementById('libKw').value, title: (document.getElementById('libTitle') || {}).textContent, cards: document.querySelectorAll('#libList .lcard').length, navOn: (document.querySelector('.sidebar .nav.on') || {}).dataset }));
+  ok('点订阅卡 → 原地下钻 TA 的归档（UP主甲 2 条内容卡，页头=组名，侧栏仍亮订阅主页）', () => assert(subFiltered.kw === '' && subFiltered.title === 'UP主甲' && subFiltered.cards === 2 && subFiltered.navOn.nav === 'subs', JSON.stringify(subFiltered)));
+  // 修 bug 断言：带着残留关键词切视图必须自动清词（否则订阅主页只剩 1 个——用户 2026-11-23 反馈根因）
+  await page.evaluate(() => { setLibKw('UP主甲'); });
+  await page.waitForTimeout(220);
   await page.evaluate(() => libViewGo('subs'));
   await page.waitForTimeout(260);
   const kwCleared = await page.evaluate(() => ({ kw: document.getElementById('libKw').value, cards: document.querySelectorAll('#libList .subgcard').length }));
-  ok('残留关键词自动清除：点过订阅卡后切订阅主页视图，订阅卡全量（非残留过滤到 1 个）', () => assert(kwCleared.kw === '' && kwCleared.cards === 2, JSON.stringify(kwCleared)));
+  ok('残留关键词自动清除：搜索态切订阅主页视图，订阅卡全量（非残留过滤到 1 个）', () => assert(kwCleared.kw === '' && kwCleared.cards === 2, JSON.stringify(kwCleared)));
   // 订阅主页视图自带粘贴订阅框（2026-11-23 拍板：加订阅不用绕订阅管理页）
   await page.evaluate(() => libViewGo('subs'));
   await page.waitForTimeout(260);
@@ -306,10 +304,10 @@ document.addEventListener('DOMContentLoaded', () => {
   await page.waitForTimeout(220);
   const onlyView = await page.evaluate(() => ({ title: (document.getElementById('libTitle') || {}).textContent, cards: document.querySelectorAll('#libList .lcard').length, pills: document.querySelectorAll('#libList .lpill.only').length }));
   ok('仅文件名视图：标题切换 + only 角标卡（mock g1 mp4+g2 附件）', () => assert(onlyView.title === '仅文件名' && onlyView.pills >= 1, JSON.stringify(onlyView)));
-  await page.evaluate(() => libViewGo('all'));
+  await page.evaluate(() => libViewGo('subs'));
   await page.waitForTimeout(220);
   const backAll = await page.evaluate(() => ({ title: (document.getElementById('libTitle') || {}).textContent, grpCards: document.querySelectorAll('#libList .subgcard').length }));
-  ok('回所有归档：标题恢复 + 组卡网格（顶层形态）', () => assert(backAll.title === '所有归档' && backAll.grpCards === 2, JSON.stringify(backAll)));
+  ok('回订阅主页：标题恢复 + 订阅卡墙（顶层形态）', () => assert(backAll.title === '订阅主页' && backAll.grpCards === 2, JSON.stringify(backAll)));
 
   console.log('\n=== D. ⌘K 面板 ===');
   await page.keyboard.press('Control+k');
@@ -413,16 +411,25 @@ document.addEventListener('DOMContentLoaded', () => {
     rows: document.querySelectorAll('#libDrawerBody .d-row').length,
     files: document.querySelectorAll('#libDrawerBody .d-file').length
   }));
-  ok('点 ⓘ 打开详情抽屉（标题/行/文件列表/文件操作挂点）', () => assert(st.open && st.title === 'UP主甲' && st.rows === 4 && st.files === 2, JSON.stringify(st)));
-  const dOps = await page.evaluate(() => document.querySelector('#libDrawerBody .d-file .df-ops') ? document.querySelectorAll('#libDrawerBody .d-file .df-ops .x').length : -1);
-  ok('抽屉文件行带操作挂点（阅读/转写/来源/删除等，≥10 个）', () => assert(dOps >= 10, 'ops=' + dOps));
-  // 2026-11-25 反馈「点 ℹ 不知道转写的是哪个文件」：类型标签 + 作用域提示 + 图片缩略图挂点
+  ok('点 ⓘ 打开单文件详情抽屉（2026-11-25：标题=文件名 a，四行信息：类型/大小/归档时间/所在文件夹，无整组文件列表）', () => assert(st.open && st.title === 'a' && st.rows === 4 && st.files === 0, JSON.stringify(st)));
+  const dOps = await page.evaluate(() => document.querySelectorAll('#libDrawerBody .d-actions .x').length);
+  ok('单文件抽屉带操作挂点（a.mp4：转写/双语/烧字幕/AI + 来源/文件夹/删除 = 7 个）', () => assert(dOps === 7, 'ops=' + dOps));
+  // 2026-11-25 反馈「点 ℹ 不知道转写的是哪个文件」：类型行 + 单文件作用域提示 + SVG 图标
   const dCtx = await page.evaluate(() => ({
-    types: [...document.querySelectorAll('#libDrawerBody .df-type')].map(x => x.textContent.trim()),
+    rows: [...document.querySelectorAll('#libDrawerBody .d-row')].map(x => x.textContent).join('|'),
     hint: (document.querySelector('#libDrawerBody .d-ops-hint') || {}).textContent || '',
     svgIco: document.querySelectorAll('#libDrawerBody svg.ico').length
   }));
-  ok('抽屉文件行带类型标签（视频/图片）+ 作用域提示（对全组 vs 单文件）+ SVG 图标化', () => assert(dCtx.types.join() === '视频,图片' && dCtx.hint.includes('全部') && dCtx.svgIco > 0, JSON.stringify(dCtx)));
+  ok('单文件抽屉：类型行（视频）+ 单文件作用域提示 + SVG 图标化', () => assert(dCtx.rows.includes('类型') && dCtx.rows.includes('视频') && dCtx.hint.includes('这一个文件') && dCtx.svgIco > 0, JSON.stringify(dCtx)));
+  // 单文件抽屉底部入口 → 整组档案抽屉（全组转写/专题总结/文件列表不丢）
+  await page.evaluate(() => { [...document.querySelectorAll('#libDrawerBody .btn-mini')].find(b => b.textContent.includes('整个主页档案')).click(); });
+  await page.waitForTimeout(200);
+  const grpDrawer = await page.evaluate(() => ({
+    title: document.querySelector('#libDrawerBody .d-title')?.textContent,
+    files: document.querySelectorAll('#libDrawerBody .d-file').length
+  }));
+  const dOpsGrp = await page.evaluate(() => document.querySelectorAll('#libDrawerBody .d-file .df-ops .x').length);
+  ok('整组档案抽屉可达：标题=UP主甲 + 2 文件行 + 行内操作挂点 ≥10（阅读/转写/来源/删除等）', () => assert(grpDrawer.title === 'UP主甲' && grpDrawer.files === 2 && dOpsGrp >= 10, JSON.stringify({ ...grpDrawer, ops: dOpsGrp })));
   await page.evaluate(() => closeLibDrawer());
   // 设置页：组标题点击=整组显示（2026-11-25 反馈「东西太多」，撤四档标签改用既有导航加组切换）
   await page.evaluate(() => switchPage('settings'));
@@ -467,7 +474,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   console.log('\n=== F2. 入口去重 + 手动保存视图 ===');
   // 内容级卡墙：点 ℹ 开抽屉（点卡本体直接打开文件，2026-11-23 拍板）+ 封面 file:// + 平台 pill
-  await page.evaluate(() => { document.getElementById('libKw').value = ''; setLibKw(''); libView = 'all'; renderLibrary(); window.switchPage('lib'); });
+  await page.evaluate(() => { document.getElementById('libKw').value = ''; setLibKw(''); libView = 'subs'; renderLibrary(); window.switchPage('lib'); });
   await page.waitForTimeout(300);
   await page.evaluate(() => { enterLibGroup('g1'); });
   await page.waitForTimeout(200);
@@ -480,7 +487,7 @@ document.addEventListener('DOMContentLoaded', () => {
     platPill: document.querySelectorAll('#libList .lbadge-bl .lpill').length,
     kindPill: document.querySelectorAll('#libList .lbadge-tl .lpill').length
   }));
-  ok('ℹ 开详情抽屉 + 封面 file:// + 角标齐（b.jpg 双 pill，a.mp4 单 pill）', () => assert(st.drawer && st.title === 'UP主甲' && st.coverImg && st.platPill === 3 && st.kindPill === 2, JSON.stringify(st)));
+  ok('ℹ 开单文件抽屉（标题=a）+ 封面 file:// + 角标齐（b.jpg 双 pill，a.mp4 单 pill）', () => assert(st.drawer && st.title === 'a' && st.coverImg && st.platPill === 3 && st.kindPill === 2, JSON.stringify(st)));
   await page.evaluate(() => document.querySelector('#libDrawerScrim').click());
   // 入口去重（2026-11-22 拍板）：工具栏不再有 添加订阅/粘贴下载 按钮，模态层整体撤除
   st = await page.evaluate(() => ({
@@ -511,14 +518,14 @@ document.addEventListener('DOMContentLoaded', () => {
   await page.waitForTimeout(250);
   st = await page.evaluate(() => ({ cards: document.querySelectorAll('#libList .lcard').length, empty: document.getElementById('libList').textContent }));
   ok('视频分段：manual×video 交集空态文案', () => assert(st.cards === 0 && st.empty.includes('没有视频'), JSON.stringify(st)));
-  await page.evaluate(() => { libViewGo('all'); syncKindSeg(); });
+  await page.evaluate(() => { libView = 'subs'; libKind = 'video'; renderLibrary(); syncKindSeg(); });   // 订阅主页视图×视频分段=穿透内容卡（分段与视图正交）
   await page.waitForTimeout(250);
   st = await page.evaluate(() => document.querySelectorAll('#libList .lcard').length);
   ok('全部×视频：2 张视频卡（a.mp4/c.mp4）', () => assert(st === 2, 'cards=' + st));
   await page.evaluate(() => document.querySelector('#libKindSeg .libseg-item[data-kind="all"]').click());
   await page.waitForTimeout(200);
   st = await page.evaluate(() => ({ grpCards: document.querySelectorAll('#libList .subgcard').length, lcards: document.querySelectorAll('#libList .lcard').length }));
-  ok('回全部分段：组卡网格顶层（2 张主页卡）', () => assert(st.grpCards === 2 && st.lcards === 0, JSON.stringify(st)));
+  ok('回全部分段：订阅卡墙顶层（2 张订阅卡）', () => assert(st.grpCards === 2 && st.lcards === 0, JSON.stringify(st)));
 
   console.log('\n=== G. 触控目标 ===');
   await page.setViewportSize({ width: 1440, height: 900 });
