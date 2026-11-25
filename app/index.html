@@ -159,7 +159,6 @@
   /* 旧伪元素页题（无头断言依赖 content，视觉由顶栏承担，kv2-on 下隐藏） */
   .page::before { content:""; display:block; }
   #page-tasks::before { content:"任务队列"; }
-  #page-rss::before   { content:"订阅归档"; }
   #page-lib::before   { content:"媒体库"; }
   #page-strategy::before { content:"风控策略"; }
   #page-settings::before { content:"设置"; }
@@ -259,14 +258,14 @@
     background-size:24px 2px, 18px 2px, 20px 2px; background-position:10px 9px, 10px 17px, 10px 25px; background-repeat:no-repeat; }
   .task.f-dim { display:none !important; }
 
-  /* --- 任务列表表格化（期2 口径延续）--- */
-  #queue.tblify, #doneList.tblify { display:block; }
-  #queue.tblify .task, #doneList.tblify .task { border:0; border-bottom:1px solid var(--line); border-radius:0; box-shadow:none; margin:0; padding:12px 16px; background:transparent; }
-  #queue.tblify .task:hover, #doneList.tblify .task:hover { background:var(--accbg); }
-  #queue.tblify .task:last-child, #doneList.tblify .task:last-child { border-bottom:0; }
-  #queue.tblify .task:has(> .st.flat) { background:var(--panel2); }
-  .tbl-head { display:grid; grid-template-columns:minmax(0,1fr) 96px 84px; gap:14px; padding:10px 16px;
-    font-size:12px; color:var(--txt2); background:var(--panel2); border:1px solid var(--line); border-radius:var(--r-md) var(--r-md) 0 0; font-weight:600; }
+  /* --- 任务队列卡墙（2026-11-25 拍板：与订阅主页同规格栅格 minmax(280px,1fr)·gap14）--- */
+  #queue.taskgrid, #doneList.taskgrid { display:grid; grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); gap:14px; align-items:start; }
+  #queue.taskgrid > .task, #doneList.taskgrid > .task { margin:0; flex-wrap:wrap; row-gap:6px; }
+  #queue.taskgrid > .task > .t-info, #doneList.taskgrid > .task > .t-info { flex:1 1 calc(100% - 82px); }
+  #queue.taskgrid > .task > .x, #doneList.taskgrid > .task > .x { flex:none; }
+  #queue.taskgrid > .task > .st, #doneList.taskgrid > .task > .st { flex:none; }
+  #queue.taskgrid > .task-open, #doneList.taskgrid > .task-open { grid-column:1/-1; margin:0; padding:0 2px; }
+  #queue.taskgrid > .empty, #doneList.taskgrid > .empty { grid-column:1/-1; }
   .tb2 { display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin:16px 2px 12px; }
   .tb2 .chip { display:inline-flex; align-items:center; gap:8px; background:var(--panel); border:1px solid var(--line);
     color:var(--txt2); font-size:12px; padding:8px 14px; border-radius:999px; cursor:pointer; user-select:none; transition:.15s; min-height:32px; }
@@ -274,19 +273,6 @@
   .tb2 .chip.on { background:var(--accbg); border-color:var(--acc-border); color:var(--acc2); font-weight:700; }
   .tb2 .chip .num { font-variant-numeric:tabular-nums; opacity:.8; }
   .tb2 .sp { flex:1; }
-
-  /* --- 订阅页 --- */
-  #subList.subgrid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:14px; align-items:start; }
-  #subList.subgrid .task { flex-wrap:wrap; margin:0; padding:15px 16px; }
-  #subList.subgrid .t-info { flex:1 1 calc(100% - 90px); }
-  #subList.subgrid .t-info .meta { display:flex; flex-wrap:wrap; gap:6px; }
-  #subList.subgrid > .empty { grid-column:1/-1; }
-  .pickbox { width:16px; height:16px; border:1.5px solid var(--line-strong); border-radius:var(--r-xs); flex-shrink:0; cursor:pointer; display:flex; align-items:center; justify-content:center; font-size:12px; line-height:1; color:#fff; background:var(--panel); user-select:none; }
-  .pickbox.on { background:var(--acc); border-color:var(--acc); }
-  .selbar { position:fixed; bottom:18px; left:50%; transform:translateX(-50%); background:var(--panel); border:1px solid var(--line-strong); border-radius:var(--r); box-shadow:var(--shadow-lg); padding:10px 16px; display:none; gap:14px; align-items:center; z-index:180; font-size:13px; }
-  .selbar.on { display:flex; }
-  .selbar .sb-btn { cursor:pointer; color:var(--acc2); font-weight:600; }
-  .selbar .sb-x { cursor:pointer; color:var(--txt2); }
 
   /* --- 媒体库 / 策略 --- */
   #libList.listify > .task { border-radius:var(--r-md); }
@@ -466,7 +452,7 @@
 
   /* --- 响应式 --- */
   @media (max-width:1180px) {
-    #subList.subgrid { grid-template-columns:1fr; }
+    #queue.taskgrid, #doneList.taskgrid { grid-template-columns:repeat(auto-fill,minmax(260px,1fr)); }
   }
   @media (max-width:820px) {
     .toolbar { gap:10px; padding:0 14px; }
@@ -780,55 +766,9 @@
   </div>
 
   <!-- 订阅页 -->
-  <div class="page" id="page-rss">
-    <div class="paste-box">
-      <svg class="ico" style="width:17px;height:17px" aria-hidden="true"><use href="#i-feed"></use></svg>
-      <input id="subUrl" placeholder="粘贴订阅链接：B站UP主 / YouTube频道 / X用户 / RSS·Atom feed（博客更新自动入库）/ Pixiv·微博·Danbooru·Reddit·Instagram 等图站用户页" style="flex:1;border:none;outline:none;font:inherit;font-size:13px;background:transparent;color:var(--txt)">
-      <select id="subMaxBackfill" title="回溯条数上限：订阅后首次全量回溯只从最新往回数 N 条，超出部分跳过（后续追新增量不受影响）" style="border:none;outline:none;font:inherit;font-size:12px;background:var(--panel2);color:var(--txt);border-radius:var(--r-md);padding:8px 10px">
-        <option value="0">回溯：全部</option>
-        <option value="10">最新 10 条</option>
-        <option value="20">最新 20 条</option>
-        <option value="50">最新 50 条</option>
-        <option value="100">最新 100 条</option>
-      </select>
-      <button class="btn-dl" onclick="addSub()">＋ 添加订阅</button>
-    </div>
-    <div class="hint">每 10 分钟自动增量检查（轻量单次请求，对站点压力小）· 添加后会询问是否回溯全部历史 · 新内容自动入队 · <b>UP 主删除源视频不会删除你已下载的文件</b></div>
-    <div id="subsCapacity" class="hint" style="margin-top:-4px">下载目录容量查询中…</div>
-    <!-- 公众号追更暂时下架（2026-11-19 拍板）：weread 历史列表接口被服务端风控闸封死（-2041 与 Cookie 无关），
-         只能拿最新一篇，追更价值不足；区块整体隐藏（DOM 保留，存量订阅与批量补文章逻辑不受影响，恢复时去掉外层 hidden 即可） -->
-    <div style="display:none">
-    <div class="sec-t" style="margin-top:18px">📖 公众号追更 <span class="cnt" id="wr-cnt">0</span> <span class="act" style="cursor:pointer;font-size:12px;margin-left:auto" id="wrLoginBtn" onclick="wereadLoginFlow()">🔑 扫码登录</span> <span class="act" style="cursor:pointer;font-size:12px;display:none" id="wrLogoutBtn" onclick="wereadLogoutFlow()">退出登录</span></div>
-    <div id="wrStateCard" class="hint" style="margin:0 2px 8px">公众号追更状态查询中…</div>
-    <div class="paste-box" style="margin:0 2px 10px">
-      <span>📖</span>
-      <input id="wrKw" placeholder="粘贴该公众号任意一篇文章链接（含微信短链），点＋即可添加追更" style="flex:1;border:none;outline:none;font:inherit;font-size:13px;background:transparent;color:var(--txt)">
-      <button class="btn-dl" onclick="wereadAddFlow()">＋ 添加追更</button>
-    </div>
-    <div id="wrCandidates" class="hint" style="display:none;margin:-4px 2px 8px"></div>
-    <!-- U6.5 批量补文章：上游列表接口当前只返回最新一篇，历史文章靠用户手上的链接补齐。
-         复用首页已有的多链接入队能力（article 引擎），不新增抓取路径、不碰风控端点。 -->
-    <details id="wrBulk" style="margin:0 2px 12px;border:1px solid var(--line);border-radius:var(--r-md);background:var(--panel);padding:8px 12px">
-      <summary style="cursor:pointer;font-size:12px;font-weight:600;color:var(--txt)">📥 批量补文章 <span style="font-weight:400;color:var(--txt2);font-size:12px">· 想存历史文章用这个</span></summary>
-      <div style="margin-top:9px">
-        <div class="note" style="font-size:12px;line-height:1.7;color:var(--txt2);margin-bottom:8px">自动追更目前只能拿到该号<b>最新一篇</b>，历史列表接口暂不可用。把想保存的文章链接一行一条粘在下面，逐篇归档成可离线阅读的本地文章；已在队列或已下载过的会自动跳过。链接需为 <code>mp.weixin.qq.com/s/</code> 开头的文章页。</div>
-        <textarea id="wrBulkUrls" rows="3" placeholder="https://mp.weixin.qq.com/s/xxxxx&#10;https://mp.weixin.qq.com/s/yyyyy" style="width:100%;box-sizing:border-box;font:inherit;font-size:12px;color:var(--txt);background:var(--panel2);border:1px solid var(--line);border-radius:var(--r-md);padding:8px 10px;outline:none;resize:vertical"></textarea>
-        <div style="margin-top:8px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-          <button class="btn-mini" onclick="wereadBulkAdd()">＋ 批量加入下载队列</button>
-          <span class="note" id="wrBulkState" style="font-size:12px;color:var(--txt2)"></span>
-        </div>
-      </div>
-    </details>
-    </div>
-    <div class="sec-t"><svg class="ico" style="width:15px;height:15px" aria-hidden="true"><use href="#i-feed"></use></svg> 我的订阅 <span class="cnt" id="s-cnt2">0</span> <select id="groupFilter" onchange="renderSubs()" style="margin-left:auto;font:inherit;font-size:12px;background:var(--panel2);color:var(--txt);border:1px solid var(--line);border-radius:var(--r-sm);padding:4px 10px;outline:none"><option value="">全部分组</option></select> <span class="act" style="cursor:pointer;font-size:12px" onclick="exportGone()" title="把判定为源头已删除的内容导出成 CSV 表格"><svg class="ico" style="width:13px;height:13px" aria-hidden="true"><use href="#i-doc"></use></svg> 删帖清单</span> <span class="act" style="cursor:pointer;font-size:12px" onclick="checkAllSubs()"><svg class="ico" style="width:13px;height:13px" aria-hidden="true"><use href="#i-retry"></use></svg> 立即检查</span></div>
-    <div id="subList"><div class="empty">还没有订阅——支持 B站UP主/合集 / YouTube频道 / X用户 / RSS·Atom feed / Pixiv / 微博 / Reddit / Instagram / Danbooru 等站点主页</div></div>
-    <div class="selbar" id="selBar">
-      <span>已选 <b id="selCnt">0</b> 个订阅</span>
-      <span class="sb-btn" onclick="batchSubBackfill()"><svg class="ico" style="width:13px;height:13px" aria-hidden="true"><use href="#i-dl"></use></svg> 全量下载</span>
-      <span class="sb-btn" onclick="batchSubCheck()"><svg class="ico" style="width:13px;height:13px" aria-hidden="true"><use href="#i-retry"></use></svg> 检查</span>
-      <span class="sb-x" onclick="clearSubSel()" title="清除选择"><svg class="ico" style="width:12px;height:12px" aria-hidden="true"><use href="#i-x"></use></svg></span>
-    </div>
-  </div>
+  <!-- 订阅管理页已撤（2026-11-25 主人拍板：与订阅主页/设置页大量重复，UI 风格也不合）：
+       添加订阅+回溯上限 → 订阅主页粘贴框；检查频率/暂停/分组/关键词 → 订阅主页 ℹ 档案抽屉；
+       删帖清单/容量 → 设置页「订阅追更」卡；批量检查与订阅列表（重复）随页砍掉。 -->
 
   <!-- 媒体库页（默认页：设计图的主视图，内容级卡片墙） -->
   <div class="page on" id="page-lib">
@@ -892,6 +832,23 @@
         <button class="btn-mini" onclick="pickOutDir()">更改目录</button>
       </div>
       <div class="desc" style="margin-bottom:0">默认在系统应用数据目录（C 盘）；C 盘空间紧张建议改到 D 盘 · 切换后新任务立即生效，运行中任务不受影响</div>
+    </div>
+
+    <div class="card">
+      <h3>📥 订阅追更 <span class="rec">删帖清单</span></h3>
+      <div class="desc">添加订阅、检查频率、回溯上限、暂停/分组/关键词过滤都在订阅主页：点订阅卡右上角 ℹ 打开档案抽屉即可管理。</div>
+      <div class="row">
+        <label>删帖清单</label>
+        <div style="flex:1;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+          <button class="btn-mini" onclick="exportGone()">导出 CSV</button>
+          <span class="note">把判定为源头已删除的内容导出成表格，可与本地留存文件对照</span>
+        </div>
+      </div>
+      <div class="row" style="margin-bottom:0">
+        <label>下载目录容量</label>
+        <div id="subsCapacity" style="flex:1;font-size:12px;color:var(--txt2)">查询中…</div>
+      </div>
+      <div class="note" style="margin:8px 0 0">默认每 10 分钟自动增量检查（单次轻量请求）；每个订阅可在 ℹ 档案抽屉「订阅设置」里单独调频率（10/30/60 分钟）。UP 主删除源视频不会删除你已下载的文件。</div>
     </div>
 
     <div class="card">
@@ -1154,7 +1111,7 @@
         <button class="btn-mini" onclick="wereadLoginFlow()">🔑 扫码登录</button>
         <button class="btn-mini" onclick="wereadClearExpiredFlow()">⟳ 重试检查</button>
       </div>
-      <div class="note" style="margin:10px 0 0">自动追更只能拿到该号<b>最新一篇</b>，历史列表接口暂不可用。要存历史文章，请到「订阅」页用 <b>📥 批量补文章</b> 粘贴文章链接；已下载过的会自动跳过。</div>
+      <div class="note" style="margin:10px 0 0">自动追更只能拿到该号<b>最新一篇</b>；历史文章批量补存入口已随订阅管理页下架（历史列表接口被服务端风控封死，暂无合规通道）。</div>
     </div>
   </div>
 </main>
@@ -1231,7 +1188,7 @@
       <div class="ob-body">
         <h4>删帖检测是什么</h4>
         <p>订阅的博主如果删了某篇内容，Keepsake 会在下次检查时发现并标记「已删除」，你已存到本地的那份不会被动。可在订阅页导出「删帖清单」逐条核对。</p>
-        <div class="ob-go"><button class="btn-mini" onclick="obGo('rss')">📤 查看删帖清单</button></div>
+        <div class="ob-go"><button class="btn-mini" onclick="obGo('set-subs')">📤 查看删帖清单</button></div>
       </div>
     </div>
     <div class="ob-foot">
@@ -1546,7 +1503,7 @@ function render() {
       ${dir ? `<button type="button" class="x" onclick="event.stopPropagation();openGroupFolder('${kind}','${escAttr(g)}')" title="打开该主页的下载文件夹" aria-label="打开下载文件夹">${ico('folder-open',14)}</button>` : ''}
       <div class="st flat">${open ? '收起 ▲' : '展开 ▼'}</div>
     </div>
-    ${open ? `<div style="margin:0 0 8px 28px">${(kind === 'active' ? ts.map(activeCard) : ts.map(doneCard)).join('')}<div style="text-align:right;margin-top:6px"><span class="act" style="cursor:pointer;font-size:12px" onclick="toggleTaskGroup('${kind}','${escAttr(g)}')">⌃ 收起该组</span></div></div>` : ''}`;
+    ${open ? `<div class="task-open" style="margin:0 0 8px 28px">${(kind === 'active' ? ts.map(activeCard) : ts.map(doneCard)).join('')}<div style="text-align:right;margin-top:6px"><span class="act" style="cursor:pointer;font-size:12px" onclick="toggleTaskGroup('${kind}','${escAttr(g)}')">⌃ 收起该组</span></div></div>` : ''}`;
   };
   $('queue').innerHTML = active.length ? groupTasks(active).map(e => groupBlock(e, 'active')).join('')
     : `<div class="empty">队列空空如也——贴个链接试试，比如 B 站视频或 UP 主主页</div>`;
@@ -1740,8 +1697,7 @@ async function retryTask(id) { await window.keepsake.retry(id); }
 function switchPage(p) {
   document.querySelectorAll('.nav').forEach(n => n.classList.toggle('on', n.dataset.page === p));
   document.querySelectorAll('.page').forEach(n => n.classList.toggle('on', n.id === 'page-' + p));
-  if (p === 'rss') { loadSubs(); loadWereadState(); }
-  updateSelBar();
+  // 订阅管理页已撤：rss 页面不存在，进订阅主页走 switchPage('lib') + libView='subs'
   // 每次进媒体库都强制重扫磁盘：文件夹里手动删/加了文件也要如实反映（本地扫描快，分片异步不卡 UI）
   if (p === 'lib') { libDirty = false; loadLibrary(true); syncLibNav(); }   // 高亮按当前视图归位（cmdk/顶栏直达媒体库时侧栏不挂空）
   if (p === 'strategy') loadStrategy();
@@ -1794,13 +1750,11 @@ function renderSkinBar() {
 // 复用 mountSkinLayer 的动态注入模式：只往 .main 顶部加容器，不动任何既有 DOM id。
 const P2_META = {
   tasks:    { t:'任务队列', c:'贴入链接自动识别并加入下载队列', act:'＋ 加入队列', fn:'p2FocusUrls()', pri:true },
-  rss:      { t:'订阅归档', c:'按主页整份留住，源头删帖可对照本地留存文件', act:'＋ 新增订阅', fn:'p2FocusSub()', pri:true },
   lib:      { t:'媒体库', c:'只读本地索引 · 任何情况下都不会自动删除你的文件', act:'↻ 重新扫描', fn:'loadLibrary(true)' },
   strategy: { t:'风控策略', c:'失败自动退避重试，节奏参数可远程调整', act:'↻ 刷新规则', fn:'refreshRules(); loadStrategySoon()' },
   settings: { t:'设置', c:'下载、转写、凭据与引擎，全部只在本机生效', act:'', fn:'' }
 };
 function p2FocusUrls() { const el = $('urls'); if (el) { el.focus(); el.scrollIntoView({block:'center',behavior:'smooth'}); } }
-function p2FocusSub()  { const el = $('subUrl'); if (el) { el.focus(); el.scrollIntoView({block:'center',behavior:'smooth'}); } }
 // 顶栏与 KPI 图标（内联 SVG，沿用 Phosphor 线性风格）
 const P2_ICO = {
   down:'<svg viewBox="0 0 256 256" fill="currentColor"><path d="M208,160v40a8,8,0,0,1-8,8H56a8,8,0,0,1-8-8V160a8,8,0,0,1,16,0v32H192V160a8,8,0,0,1,16,0ZM120,168a8,8,0,0,0,11.32,0l40-40a8,8,0,0,0-11.32-11.32L136,140.69V32a8,8,0,0,0-16,0v108.69L96.34,116.34A8,8,0,0,0,85,127.66Z"/></svg>',
@@ -1864,14 +1818,6 @@ function renderP2() {
       p2Kpi('warn','失败待重试', fail.length, '条', '退避后自动恢复', fail.length ? 'err' : '') + '</div>' +
       `<div class="kpi-paste"><span>🔗</span><textarea id="urls" rows="1" placeholder="粘贴视频 / 图片 / 文章链接（B站、YouTube、公众号、知乎…每行一个），自动识别并加入下载队列" autocomplete="off"></textarea>` +
       `<button class="btn-dl" id="btnAdd" onclick="addUrls()">＋ 加入队列</button></div>`;
-  } else if (page === 'rss') {
-    let ss = []; try { ss = Array.isArray(subsItems) ? subsItems : []; } catch (e) {}
-    const gone = ss.filter(s => s.gone || s.sourceDeleted).length;
-    html = '<div class="kpi2">' +
-      p2Kpi('link','活跃订阅', ss.filter(s=>!s.paused).length, '个主页', '每 10 分钟增量检查') +
-      p2Kpi('folder','已归档帖子', ss.reduce((a,s)=>a+(parseInt(s.knownCount,10)||0),0), '条', '本机留存') +
-      p2Kpi('down','最近失败', ss.filter(s=>s.lastError && (!s.lastCheck || (s.lastFailAt||0)>(s.lastCheck||0))).length, '条', '退避后自动重试') +
-      p2Kpi('warn','删帖预警', gone, '条', '本地文件仍在', gone ? 'err' : '') + '</div>';
   }
   // lib 页不渲染 KPI 卡组：已收藏数/占用已在页内工具行（l-sum），重复信息只添乱（设计图主视图也无 KPI）
   // kpiHost 每 15s 重建：保留正在输入的粘贴内容
@@ -1879,13 +1825,11 @@ function renderP2() {
   host.innerHTML = html;
   if (prevUrls) { const u = $('urls'); if (u) u.value = prevUrls; }
   if (page === 'tasks') bindUrlsProbe();   // textarea 在 kpiHost 内重建后重挂探测
-  // 列表表格化：给任务页两个列表加容器 class（纯 CSS 生效，不改内部 DOM）
-  ['queue','doneList'].forEach(id => { const el = $(id); if (el) el.classList.add('tblify'); });
-  // 订阅卡片网格（CSS 2 列，onclick 全保留）
-  const sl = $('subList'); if (sl) sl.classList.add('subgrid');
+  // 任务队列卡墙化（2026-11-25 主人拍板「尺寸与订阅主页统一」）：与 subsgrid 同参数栅格
+  ['queue','doneList'].forEach(id => { const el = $(id); if (el) el.classList.add('taskgrid'); });
   // 媒体库轻量表格化（斑马纹，保留展开逻辑）
   const ll = $('libList'); if (ll) ll.classList.add('listify');
-  // 任务页 toolbar（chip 视图切换 + 表头）：一次性注入，不改任何既有 DOM
+  // 任务页 toolbar（chip 视图切换）：一次性注入；表头已随卡墙化删除（卡片墙无表格列概念）
   if (page === 'tasks') {
     const pg = $('page-tasks');
     if (pg && !$('p2TaskBar')) {
@@ -1897,15 +1841,6 @@ function renderP2() {
       const anchor = $('probeStrip') || pg.querySelector('.paste-box');
       if (anchor) anchor.parentNode.insertBefore(bar, anchor);
     }
-    // 表头行（纯展示，对齐 CSS grid 列）
-    ['queue','doneList'].forEach(id => {
-      const el = $(id);
-      if (el && !el.dataset.p2head) {
-        const h = document.createElement('div'); h.className = 'tbl-head';
-        h.innerHTML = `<span>内容</span><span>状态 / 文件</span><span>操作</span>`;
-        el.parentNode.insertBefore(h, el); el.dataset.p2head = '1';
-      }
-    });
   }
 }
 // 任务视图切换：只切两个既有容器的显示，不动任何任务行/数据
@@ -2337,15 +2272,6 @@ let _goneFilesKey = {};   // subId -> 缓存键（gone 清单未变则跳过重�
 async function loadSubs() {
   subsItems = await window.keepsake.subsList();
   await refreshSubsObservability();
-  // #70② 分组过滤下拉：同步分组清单
-  const sel = $('groupFilter');
-  if (sel) {
-    const cur = sel.value;
-    const groups = [...new Set(subsItems.map(s => (s.group || '').trim()).filter(Boolean))];
-    sel.innerHTML = '<option value="">全部分组</option><option value="::none">未分组</option>' +
-      groups.map(g => `<option value="${escAttr(g)}">${esc(g)}</option>`).join('');
-    sel.value = groups.includes(cur) || ['::none', ''].includes(cur) ? cur : '';
-  }
   renderSubs();
   refreshNavCounts();
 }
@@ -2418,144 +2344,11 @@ function friendlySubFail(m) {
   const tail = k.replace(/^[（(]+/, '').replace(/[）)]+$/, '').trim();   // 只剩括号备注时去掉括号壳，避免「其他错误：（...）（悬停…」双括号
   return '其他错误：' + (tail || k).slice(0, 50) + '（悬停看原始报错）';
 }
-async function renderSubs() {
-  const el = $('subList');
-  const sel = $('groupFilter');
-  const gf = sel ? sel.value : '';
-  let items = subsItems;
-  if (gf === '::none') items = items.filter(s => !(s.group || '').trim());
-  else if (gf) items = items.filter(s => (s.group || '').trim() === gf);
-  $('s-cnt2').textContent = items.length;
-  window._subOrder = items.map(s => s.id);   // 当前显示顺序（Shift 范围选基准，含分组过滤）
-  // 2026-11-21：界面风格锁定默认，原 stream/dash 三形态分支已移除；订阅列表统一用默认行卡样式。
-  const htmls = [];
-  for (const s of items) {
-    const ago = s.lastCheck ? Math.round((Date.now() - s.lastCheck) / 60000) : null;
-    // 失败态显式化（实测确认）：旧逻辑失败时 lastCheck 不动 → 永远显示「尚未检查」，
-    // 用户分不清「没查过」和「查了但失败」。lastFailAt 晚于 lastCheck = 最近一次尝试失败
-    const lastFailed = s.lastError && (!s.lastCheck || (s.lastFailAt || 0) > (s.lastCheck || 0));
-    const statusHtml = lastFailed
-      ? `<span style="color:var(--red);cursor:help;text-decoration:underline dotted" title="技术详情：${esc(s.lastError)}">检查失败：${esc(friendlySubFail(s.lastError))}</span>`
-      : ago === null ? '尚未检查' : ago + ' 分钟前检查过';
-    if (s.sourceDeleted) {
-      // gone 清单未变直接复用缓存，不再每次渲染都发 subsGoneFiles（主进程全目录走查）
-      const gk = s.id + '|' + (s.gone || []).join(',');
-      if (_goneFilesKey[s.id] !== gk) {
-        try { const r = await window.keepsake.subsGoneFiles(s.id); _goneFilesMap[s.id] = (r && r.files) || {}; _goneFilesKey[s.id] = gk; } catch (e) {}
-      }
-    }
-    const paused = s.userPaused || s.paused;
-    const pausedTag = s.userPaused ? `<span class="st flat">${ico('pause',12)} 已暂停</span>`
-      : s.paused ? `<span class="st error" title="${esc('连续 3 次检查失败，已自动暂停：' + friendlySubFail(s.lastError) + '｜点恢复按钮后重试')}">连续失败暂停（悬停看原因）</span>` : '';
-    const groupTag = (s.group || '').trim() ? ` <span style="font-size:12px;color:var(--acc2);background:var(--panel2);border-radius:var(--r-xs);padding:1px 6px">${esc(s.group)}</span>` : '';
-    const obs = s._observability || null;
-    // M-A5 公众号追更：频率档固定 ≥30 分钟（读书接口频率红线，subs.update 白名单收紧到 [30,60]）
-    const freqTag = s.kind === 'weread' ? ' · 检查频率 ≥30 分钟' : ` · 检查频率 ${s.intervalMin || 10} 分钟`;
-    const obsTags = obs ? ` · 最近成功 ${_fmtWhen(obs.lastSuccessAt)} · 最近失败 ${_fmtWhen(obs.lastFailAt)} · 连续失败 ${obs.failStreak} 次` +
-      (obs.userPaused ? ' · 手动暂停' : obs.paused ? ' · 连续失败自动暂停' : '') +
-      (obs.cooldownAvailable
-        ? (obs.cooldownUntil > Date.now() ? ` · 站点冷却至 ${_fmtWhen(obs.cooldownUntil)}（剩 ${heldMin(obs.cooldownUntil - Date.now())} 分钟）` : ' · 站点冷却：未熔断')
-        : ' · 站点级冷却状态不可用') : ' · 调度状态不可用';
-    const atTag = s.autoTranscribe ? ' · <span style="color:var(--acc2)">' + ico('text',12) + ' 自动转写</span>' : '';
-    const lnTag = s.latestN ? ` · 只下最新 ${s.latestN} 条` : '';
-    const mbTag = s.maxBackfill ? ` · 回溯上限 ${s.maxBackfill} 条` : '';
-    // RSS 诚实边界：只追新，不做删帖检测（feed 翻页会让旧文章消失，误报率高）——卡上常驻交代
-    const rssTag = s.kind === 'rss' ? ' · <span title="RSS 订阅只自动追新文章；不做删帖检测（feed 翻页会让旧文章消失，误报率高）">' + ico('feed',12) + ' 只追新</span>' : '';
-    // M-A5 公众号追更徽标：独立于 RSS 语义（新增文章自动归档为本地文章存档）
-    const wrTag = s.kind === 'weread' ? ' · <span title="公众号文章追更：新文章自动归档为本地文章存档，可在媒体库阅读">' + ico('doc',12) + ' 公众号</span>' : '';
-    const xhsTag = s.kind === 'xhs-user' ? ' · <span title="小红书主页追更：新笔记自动解析图组/视频归档；需在小红书受控浏览器中保持登录态">' + ico('image',12) + ' 小红书</span>' : '';
-    // 第三阶段卡化：短状态上卡面，调度/规则长串收进「调度与规则」展开区（信息不丢，卡面不再糊成一长串）
-    const kindLabel = s.kind === 'bilibili' ? 'B站' : s.kind === 'bili-collection' ? '合集' : s.kind === 'x' ? 'X' : s.kind === 'youtube' ? 'YouTube' : s.kind === 'rss' ? 'RSS' : s.kind === 'weread' ? '公众号' : s.kind === 'xhs-user' ? '小红书' : s.kind === 'gdl' ? '图站' : '订阅';
-    // 设计语言统一（2026-11-25）：平台 emoji 换线性 SVG（与侧栏/任务页同风格）
-    const kindSvgMap = { bilibili: ico('video',18), 'bili-collection': ico('video',18), x: ico('link',18), youtube: ico('play',18), rss: ico('feed',18), weread: ico('doc',18), 'xhs-user': ico('image',18), gdl: ico('image',18) };
-    const kindGlyph = kindSvgMap[s.kind] || ico('feed',18);
-    const kwLine = s.kw && s.kw.length ? ` · ${ico('tag',12)} 关键词：<b style="color:var(--txt)">${esc(s.kw.join('/'))}</b>` : '';
-    const pausedLine = s.userPaused ? '手动暂停中，点恢复按钮恢复' : s.paused ? '连续失败自动暂停（悬停恢复按钮看原因）' : '';
-    htmls.push(`
-    <div class="subcard${paused ? ' dim' : ''}">
-      <div class="sc-head">
-        <div class="pickbox${_subSel.has(s.id) ? ' on' : ''}" onclick="subPick(event,'${s.id}')" title="选中（Ctrl 切换 / Shift 范围选）">${_subSel.has(s.id) ? '✔' : ''}</div>
-        <div class="sc-thumb">${kindGlyph}<span class="eng">${kindLabel}</span></div>
-        <div class="sc-main">
-          <div class="sc-name"><span class="nm">${esc(s.name)}</span>${groupTag}</div>
-          <div class="sc-meta">${pausedTag ? pausedTag + ' · ' : ''}${statusHtml} · 已跟踪 ${s.knownCount} 条${s.lastNew ? ` · 上轮新增 ${s.lastNew}` : ''}${rssTag}${wrTag}${xhsTag}${s._pendingBackfill ? ' · <span style="color:var(--acc2)">' + ico('retry',12) + ' 排队待回溯</span>' : ''}${s.autoBackfill ? ' · <span style="color:var(--acc2)">' + ico('dl',12) + ' 自动全量下载中</span>' : ''}${goneBadge(s)}</div>
-        </div>
-        <div class="sc-actions">
-          <button type="button" class="sx" onclick="openSubLink('${s.id}')" title="打开订阅原链接（浏览器）">${ico('link',14)}</button>
-          <button type="button" class="sx" onclick="checkSub('${s.id}')" title="立即检查">${ico('retry',14)}</button>
-          <button type="button" class="sx" onclick="backfillSub('${s.id}')" title="把 TA 已发布的内容全部加入下载队列">${ico('dl',14)}</button>
-          <button type="button" class="sx" onclick="openSubFolder('${s.id}')" title="打开下载文件夹">${ico('folder-open',14)}</button>
-          <button type="button" class="sx" onclick="editKw('${s.id}')" title="关键词过滤：只自动下载含关键词的内容">${ico('tag',14)}</button>
-          <button type="button" class="sx" onclick="editSubOpts('${s.id}')" title="订阅设置：暂停/分组/检查频率/自动转写">${ico('gear',14)}</button>
-          ${(s.userPaused || s.paused) ? `<button type="button" class="sx go" onclick="resumeSub('${s.id}')" title="${s.userPaused ? '恢复检查' : '恢复检查（连续失败已自动暂停）'}">${ico('play',14)}</button>` : ''}
-          <button type="button" class="sx" onclick="removeSub('${s.id}')" title="取消订阅">${ico('x',14)}</button>
-        </div>
-      </div>
-      <details class="sc-detail"${pausedLine ? ' open' : ''}>
-        <summary>调度与规则</summary>
-        <div class="sc-detail-body">${pausedLine ? ico('pause',12) + ' ' + pausedLine + '<br>' : ''}${freqTag}${obsTags}${atTag}${lnTag}${mbTag}${kwLine}</div>
-      </details>
-    </div>`);
-  }
-  el.innerHTML = htmls.length ? htmls.join('') : (subsItems.length ? `<div class="empty">该分组下暂无订阅</div>` : `<div class="empty">还没有订阅——支持 B站UP主/合集 / YouTube频道 / X用户 / Pixiv / 微博 / Reddit / Instagram / Danbooru 等站点主页</div>`);
-  const wrCnt = $('wr-cnt'); if (wrCnt) wrCnt.textContent = subsItems.filter(s => s.kind === 'weread').length;   // M-A5 公众号追更计数同步
+// 管理页已撤（2026-11-25 主人拍板）：订阅列表/批量操作随页砍掉，这里只做计数同步与侧栏刷新
+function renderSubs() {
+  const cnt = $('sideSubCnt'); if (cnt) cnt.textContent = (subsItems || []).length;
   if (typeof renderSideSubs === 'function') renderSideSubs();
-  updateSelBar();
 }
-
-// ===== 订阅多选（用户需求：鼠标点选，Ctrl 切换、Shift 范围选，批量下载）=====
-const _subSel = new Set();
-let _subAnchor = null;
-function subPick(e, id) {
-  e.stopPropagation();
-  const order = window._subOrder || subsItems.map(s => s.id);
-  if (e.shiftKey && _subAnchor && order.includes(_subAnchor)) {
-    const a = order.indexOf(_subAnchor), b = order.indexOf(id);
-    for (let i = Math.min(a, b); i <= Math.max(a, b); i++) _subSel.add(order[i]);
-  } else if (_subSel.has(id)) _subSel.delete(id);
-  else _subSel.add(id);
-  _subAnchor = id;
-  renderSubs();
-}
-function updateSelBar() {
-  const bar = document.getElementById('selBar');
-  if (!bar) return;
-  const on = document.getElementById('page-rss').classList.contains('on') && _subSel.size > 0;
-  bar.classList.toggle('on', on);
-  if (on) document.getElementById('selCnt').textContent = _subSel.size;
-}
-async function batchSubBackfill() {
-  const ids = [..._subSel];
-  if (!ids.length) return;
-  if (!confirm(`把选中的 ${ids.length} 个订阅已发布的全部内容加入下载队列？\n队列忙时会自动排队，当前任务完成后依次开始。`)) return;
-  toast(`正在为 ${ids.length} 个订阅排队…`);
-  let ok = 0, fail = 0, queued = 0;
-  for (const id of ids) {
-    try {
-      const r = await window.keepsake.subsBackfill(id);
-      if (r && r.ok) { ok++; if (r.queued) queued++; } else fail++;
-    } catch (e) { fail++; }
-  }
-  toast(`批量回溯：${ok} 个已受理${queued ? `（${queued} 个排队中，自动依次开始）` : ''}${fail ? `，${fail} 个失败` : ''}`);
-  _subSel.clear(); _subAnchor = null;
-  loadSubs();
-}
-async function batchSubCheck() {
-  const ids = [..._subSel];
-  if (!ids.length) return;
-  toast(`检查 ${ids.length} 个订阅中…（自动依次进行，完成后提示）`);
-  const all = [];
-  for (const id of ids) { try { const rs = await window.keepsake.subsCheck(id); if (Array.isArray(rs)) all.push(...rs); } catch (e) {} }
-  _subSel.clear(); _subAnchor = null;
-  loadSubs();
-  const bad = all.filter(r => r.ok === false && r.name && !/间隔未到|已暂停/.test(r.reason || ''));
-  // 浏览器登录态警告：文案不含订阅名，多个订阅命中同一条 → Set 去重后拼进同一条 toast
-  // （toast 是单元素，连弹会互相覆盖，逐条弹只能看到最后一条）
-  const warns = [...new Set(all.filter(r => r.warning).map(r => String(r.warning)))];
-  const wTail = warns.length ? '；⚠ ' + warns.join('；⚠ ') : '';
-  toast(bad.length ? `检查完毕：${bad.length} 个失败（${bad.slice(0, 2).map(b => b.name).join('、')}${bad.length > 2 ? ' 等' : ''}）— 卡片上红字就是原因${wTail}` : '选中订阅检查完毕，全部正常 ✓' + wTail);
-}
-function clearSubSel() { _subSel.clear(); _subAnchor = null; renderSubs(); }
 
 // #70② 订阅设置模态：暂停 / 分组 / 检查频率 / 自动转写
 function editSubOpts(id) {
@@ -2756,23 +2549,25 @@ async function openSubFolder(id) {
   await window.keepsake.subsOpenFolder(id);
 }
 async function addSub() {
-  const url = $('subUrl').value.trim();
+  const urlEl = $('subUrl'); const url = urlEl ? urlEl.value.trim() : '';
   if (!url) return toast('先粘贴 UP 主页、频道或 RSS feed 链接');
   const r = await window.keepsake.subsAdd(url, null, Number($('subMaxBackfill').value) || 0);
   if (!r.ok) return toast(r.reason);
-  $('subUrl').value = '';
+  if (urlEl) urlEl.value = '';
   toast(r.sub && r.sub.kind === 'rss' ? '订阅成功，正在拉取 feed 记录已发布文章…' : '订阅成功，正在记录内容清单…');
   if (r.warning) toast('⚠ ' + r.warning);   // 缺登录态站点（Pixiv/IG/X 游客态实测必失败）提前告知；卡片上还会常驻失败原因
   loadSubs();
+  try { renderLibrary(); } catch (e) {}   // 订阅主页卡墙即时出新卡
   // 自动跑首轮检查（建立基线，之后的更新才会自动下载）
   try { await window.keepsake.subsCheck(r.sub.id); } catch (e) {}
   loadSubs();
+  try { renderLibrary(); } catch (e) {}
   const info = subsItems.find(s => s.id === r.sub.id) || {};
   // 用户需求：订阅后询问是否立即回溯下载
   if (confirm(`订阅「${info.name || '成功'}」完成，已记录 ${info.knownCount || 0} 条内容。\n\n要把 TA 已发布的内容现在就全部下载吗？`)) {
     await backfillSub(r.sub.id);
   } else {
-    toast('之后 TA 有更新会自动下载；存量想下时点订阅卡片的 ⤓ 按钮');
+    toast('之后 TA 有更新会自动下载；存量想下时点订阅卡 ℹ 档案抽屉里的「全部加入下载队列」');
   }
 }
 // ===== M-A5 公众号追更（独立区块；与 RSS 订阅共用 renderSubs 卡片，徽标/频率档区分）=====
@@ -2883,7 +2678,12 @@ async function wereadPickCandidate(mpId, title) {
   if (r && r.ok) { $('wrCandidates').style.display = 'none'; $('wrKw').value = ''; toast('已添加追更：' + title + ' ✓ 首次检查中…'); loadSubs(); }
   else toast('添加失败：' + ((r && r.reason) || '未知原因'));
 }
-async function removeSub(id) { await window.keepsake.subsRemove(id); loadSubs(); }
+async function removeSub(id) {
+  if (!confirm('取消这条订阅？\n（不再追更；已下载的文件全部保留）')) return;
+  await window.keepsake.subsRemove(id);
+  loadSubs();
+  try { renderLibrary(); } catch (e) {}   // 订阅主页卡墙即时移除该卡
+}
 async function resumeSub(id) { await window.keepsake.subsResume(id); toast('已恢复检查'); loadSubs(); }
 async function backfillSub(id) {
   if (!confirm('把这个订阅已发布的全部内容（视频+图文，含历史）加入下载队列？\n内容多时清单要拉一会儿，入队后按限流策略自动限速慢慢下。')) return;
@@ -2997,17 +2797,7 @@ const siteLabel = s2 => SITE_LABEL[String(s2).toLowerCase()] || s2;
 const SUB_KIND_LABEL = { bilibili: 'B站', 'bili-collection': '合集', x: 'X', youtube: 'YouTube', rss: 'RSS', weread: '公众号', 'xhs-user': '小红书', gdl: '图站' };
 const subKindLabel = k => SUB_KIND_LABEL[String(k).toLowerCase()] || '订阅';
 const subKindPlat = k => ({ 'xhs-user': 'xiaohongshu', 'bili-collection': 'bilibili', weread: 'weread' })[k] || k;
-const SUB_SUBBOX = '<div class="paste-box" style="margin:0 0 18px"><span>🔗</span><input id="subUrlBox" type="text" placeholder="粘贴创作者主页地址（B站UP主 / YouTube频道 / 小红书 / RSS…），回车或点按钮订阅" autocomplete="off"><button class="btn-dl" onclick="addSubFromBox()">＋ 添加订阅</button></div>';
-async function addSubFromBox() {
-  const box = $('subUrlBox'); if (!box) return;
-  const v = box.value.trim();
-  if (!v) return toast('先粘贴 UP 主页、频道或 RSS feed 链接');
-  $('subUrl').value = v;   // 复用订阅页完整链路（subsAdd 预检/登录态提醒/首轮检查/回溯询问），回溯条数沿用订阅页下拉默认
-  await addSub();
-  box.value = '';
-  renderSideSubs();
-  try { renderLibrary(); } catch (e) {}
-}
+const SUB_SUBBOX = '<div class="paste-box" style="margin:0 0 18px"><span>🔗</span><input id="subUrl" type="text" placeholder="粘贴创作者主页地址（B站UP主 / YouTube频道 / 小红书 / RSS…），回车或点按钮订阅" autocomplete="off" onkeydown="if(event.key===\'Enter\')addSub()"><select id="subMaxBackfill" title="回溯条数上限：订阅后首次全量回溯只从最新往回数 N 条，超出部分跳过（后续追新增量不受影响）" style="border:none;outline:none;font:inherit;font-size:12px;background:var(--panel2);color:var(--txt);border-radius:var(--r-md);padding:8px 10px"><option value="0">回溯：全部</option><option value="10">最新 10 条</option><option value="20">最新 20 条</option><option value="50">最新 50 条</option><option value="100">最新 100 条</option></select><button class="btn-dl" onclick="addSub()">＋ 添加订阅</button></div>';
 // 订阅名 ↔ 归档组匹配（2026-11-25 放宽：先精确，再双向包含 ≥2 字符，取文件数最多的组）
 function findGroupForSub(s) {
   const groups = (typeof libData !== 'undefined' && libData && Array.isArray(libData.groups)) ? libData.groups : [];
@@ -3485,7 +3275,7 @@ window.keepsake.onInterrupted(d => { if (d && d.count) toast('上次未正常退
 window.keepsake.snapshot().then(s => { items = s; render(); refreshInterruptBanner(); });
 // 侧栏角标首刷（用户反馈：不点开订阅/媒体库就看不到现有数量）
 // 订阅数立即取（读 json 秒回）；媒体库后台静默全扫一次（大目录不卡界面，扫完角标自然更新）
-window.keepsake.subsList().then(list => { subsItems = list || []; refreshNavCounts(); }).catch(() => {});
+window.keepsake.subsList().then(list => { subsItems = list || []; refreshNavCounts(); renderSubs(); }).catch(() => {});
 loadLibrary(true).catch(() => {});
 
 // ===== U6.5 设置页重新规划：13 张卡全部收编 + 5 组语义分组 + 搜索 =====
@@ -3497,6 +3287,7 @@ const SET_GROUPS = [
   ]},
   { name: '下载与传输', hint: '保存位置、速度、引擎、代理', items: [
     ['set-downloads', '⚙', '下载设置', '保存目录'],
+    ['set-subs', '📥', '订阅追更', '删帖清单'],
     ['set-conc', '🚦', '并发与限速', '速度'],
     ['set-engines', '🛠', '下载引擎', '引擎更新'],
     ['set-proxy', '🌐', '网络代理', '代理地址'],
@@ -3655,7 +3446,8 @@ function obClose(mark) {
 // obGo：关闭浮层并跳转到对应入口（订阅页 / 任务页 / 设置-Cookie 管理分段）
 function obGo(target) {
   obClose(true);
-  if (target === 'set-cookies') { switchPage('settings'); switchSet('set-cookies'); }
+  if (target === 'rss') { libViewGo('subs'); }   // 管理页已撤：订阅直达订阅主页（添加订阅）
+  else if (/^set-/.test(target)) { switchPage('settings'); switchSet(target); }
   else switchPage(target);
 }
 try {
@@ -3702,13 +3494,13 @@ const CK_ICONS = {
 };
 const CK_ACTIONS = [
   { ic: 'tasks',    label: '任务队列',     hint: '切换到任务页',              run: () => { closeCmdk(); switchPage('tasks'); } },
-  { ic: 'rss',      label: '订阅管理',     hint: '检查频率/回溯/删帖清单',      run: () => { closeCmdk(); switchPage('rss'); } },
+  { ic: 'rss',      label: '订阅管理',     hint: '删帖清单/容量/频率说明',      run: () => { closeCmdk(); switchPage('settings'); switchSet('set-subs'); } },
   { ic: 'lib',      label: '媒体库',       hint: '浏览本地已归档媒体',        run: () => { closeCmdk(); switchPage('lib'); } },
   { ic: 'lib',      label: '手动添加',     hint: '单独下载的内容都收在这里',  run: () => { closeCmdk(); libOriginGo('manual'); } },
   { ic: 'strategy', label: '风控策略',     hint: '查看限流与学习状态',        run: () => { closeCmdk(); switchPage('strategy'); } },
   { ic: 'settings', label: '设置',         hint: '打开设置页',                run: () => { closeCmdk(); switchPage('settings'); } },
   { ic: 'paste',    label: '粘贴链接下载', hint: '到任务队列页粘贴，自动识别入队', run: () => { closeCmdk(); switchPage('tasks'); setTimeout(() => { const i = document.getElementById('urls'); if (i) i.focus(); }, 150); } },
-  { ic: 'sub',      label: '添加订阅',     hint: '到订阅管理页粘贴主页地址',       run: () => { closeCmdk(); switchPage('rss'); setTimeout(() => { const i = document.getElementById('subUrl'); if (i) i.focus(); }, 150); } },
+  { ic: 'sub',      label: '添加订阅',     hint: '到订阅主页粘贴主页地址',       run: () => { closeCmdk(); libViewGo('subs'); setTimeout(() => { const i = document.getElementById('subUrl'); if (i) i.focus(); }, 200); } },
   { ic: 'sun',      label: '切浅色',       hint: '外观 · 浅色主题',           run: () => { closeCmdk(); setUiTheme('light'); } },
   { ic: 'moon',     label: '切深色',       hint: '外观 · 深色主题',           run: () => { closeCmdk(); setUiTheme('dark'); } },
   { ic: 'auto',     label: '跟随系统',     hint: '外观 · 深浅跟随系统',       run: () => { closeCmdk(); setUiTheme('auto'); } },
@@ -3836,6 +3628,20 @@ function openLibDrawer(key) {
   if (!g) { toast('详情数据不可用'); return; }
   const files = (g.files || []).slice(0, 60);
   const hasAv = (g.files || []).some(f => /\.(mp4|mkv|webm|mov|avi|flv|m4a|mp3|wav)$/i.test(f.name));
+  // 订阅管理区（2026-11-25 管理页已撤：检查频率/回溯/分组/关键词/取消订阅收进档案抽屉）
+  // 组 key ↔ 订阅反查：遍历订阅用 findGroupForSub 正向匹配同名组
+  const sub = (subsItems || []).find(s => { const mg = findGroupForSub(s); return mg && mg.key === key; });
+  const subMgmt = sub ? `
+    <div class="d-ops-hint" style="margin-top:14px">${ico('gear',13)} 订阅管理（只对这条订阅生效）</div>
+    ${goneBadge(sub)}
+    <div class="d-actions">
+      <button type="button" class="btn-mini" style="color:var(--acc2)" onclick="editSubOpts('${escAttr(sub.id)}')">${ico('gear',14)} 订阅设置</button>
+      <button type="button" class="btn-mini" style="color:var(--acc2)" onclick="editKw('${escAttr(sub.id)}')">${ico('tag',14)} 关键词过滤</button>
+      <button type="button" class="btn-mini" style="color:var(--acc2)" onclick="backfillSub('${escAttr(sub.id)}')">${ico('dl',14)} 全部加入下载队列</button>
+      <button type="button" class="btn-mini" style="color:var(--acc2)" onclick="openSubLink('${escAttr(sub.id)}')">${ico('link',14)} 原链接</button>
+      <button type="button" class="btn-mini" style="color:var(--red-strong)" onclick="removeSub('${escAttr(sub.id)}')">${ico('trash',14)} 取消订阅</button>
+    </div>
+    <div class="d-ops-hint">${ico('info',13)} 检查频率/暂停/分组/自动转写在「订阅设置」里；来源已删除的内容本地文件不会被动</div>` : '';
   $('libDrawerBody').innerHTML = `
     <h2 class="d-title">${esc(g.uploader)}</h2>
     <div class="d-origin-line">${siteSvg(g.site)} ${esc(g.site)}</div>
@@ -3851,6 +3657,7 @@ function openLibDrawer(key) {
       ${hasAv ? `<button type="button" class="btn-mini" style="color:var(--acc2)" onclick="transcribeGroup('${escAttr(g.key)}')">${ico('text',14)} 全组转写</button>` : ''}
       <button type="button" class="btn-mini" style="color:var(--acc2)" onclick="summarizeGroup('${escAttr(g.key)}')">${ico('spark',14)} 专题总结</button>
     </div>
+    ${subMgmt}
     <div class="d-filelist">${files.map((f, i) => `
       <div class="d-file">
         <span class="df-ic">${dfThumb(f)}</span>

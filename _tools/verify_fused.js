@@ -105,7 +105,7 @@ document.addEventListener('DOMContentLoaded', () => {
   ok('侧栏底部状态区（登录/规则/引擎更新入口）', () => assert(base.foot, 'no side-foot'));
   ok('⌘K 面板容器在位', () => assert(base.cmdk, 'no cmdk'));
   ok('详情抽屉在位', () => assert(base.drawer, 'no drawer'));
-  ok('五页 id 齐全', () => assert(['page-tasks', 'page-rss', 'page-lib', 'page-strategy', 'page-settings'].every(x => base.pages.includes(x)), JSON.stringify(base.pages)));
+  ok('四页 id 齐全（订阅管理页已撤，2026-11-25 拍板）', () => assert(['page-tasks', 'page-lib', 'page-strategy', 'page-settings'].every(x => base.pages.includes(x)) && !base.pages.includes('page-rss'), JSON.stringify(base.pages)));
   const onPageLib = await page.evaluate(() => (document.querySelector('.page.on') || {}).id === 'page-lib');
   ok('第三阶段：默认页 = 媒体库（启动第一眼）', () => assert(onPageLib));
   const sideShell = await page.evaluate(() => !!document.querySelector('.sidebar .nav[data-nav="manual"]') && !!document.querySelector('.sidebar .nav[data-nav="subs"]') && !!document.getElementById('sideSubCnt') && !document.getElementById('sideSubList'));
@@ -137,7 +137,7 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   console.log('\n=== C. 五页切换 + 渲染 ===');
-  for (const p of ['tasks', 'rss', 'lib', 'strategy', 'settings']) {
+  for (const p of ['tasks', 'lib', 'strategy', 'settings']) {
     await page.evaluate(pg => window.switchPage(pg), p);
     await page.waitForTimeout(200);
     const on = await page.evaluate(pg => document.getElementById('page-' + pg).classList.contains('on'), p);
@@ -228,13 +228,13 @@ document.addEventListener('DOMContentLoaded', () => {
     notInGroup: document.getElementById('libBackBtn').style.display === 'none'
   }));
   ok('点组卡 ℹ：开档案抽屉且不进组内视图', () => assert(grpInfoDrawer.open && grpInfoDrawer.notInGroup, JSON.stringify(grpInfoDrawer)));
-  await page.evaluate(() => closeLibDrawer());
-  const rssRendered = await page.evaluate(() => ({
-    cards: document.querySelectorAll('#subList .subcard').length,
-    detail: document.querySelectorAll('#subList .sc-detail').length,
-    actions: document.querySelectorAll('#subList .sc-actions .sx').length
+  // 管理页已撤：订阅管理收进档案抽屉（订阅设置/关键词/全量下载/原链接/取消订阅）
+  const subMgmt = await page.evaluate(() => ({
+    btns: [...document.querySelectorAll('#libDrawerBody .d-actions .btn-mini')].map(b => b.textContent.trim()),
+    hasGear: !!document.querySelector('#libDrawerBody .btn-mini')
   }));
-  ok('订阅页卡片化渲染（2 卡 + 展开区 + 操作挂点）', () => assert(rssRendered.cards === 2 && rssRendered.detail === 2 && rssRendered.actions >= 14, JSON.stringify(rssRendered)));
+  ok('档案抽屉带订阅管理区（设置/关键词/全部加入下载队列/原链接/取消订阅）', () => assert(subMgmt.btns.some(t => t.includes('订阅设置')) && subMgmt.btns.some(t => t.includes('关键词过滤')) && subMgmt.btns.some(t => t.includes('全部加入下载队列')) && subMgmt.btns.some(t => t.includes('取消订阅')), JSON.stringify(subMgmt)));
+  await page.evaluate(() => closeLibDrawer());
   const sideSubs = await page.evaluate(() => ({ subsNav: !!document.querySelector('.sidebar .nav[data-nav="subs"]'), isSubItems: document.querySelectorAll('.sidebar .nav.is-sub').length, cnt: document.getElementById('sideSubCnt').textContent }));
   ok('侧栏订阅主页单入口（不展示详细主页名，只显示计数）', () => assert(sideSubs.subsNav && sideSubs.isSubItems === 0 && sideSubs.cnt === '2', JSON.stringify(sideSubs)));
   // 点击单入口 → 右侧出详细名称（订阅主页视图）
@@ -280,12 +280,18 @@ document.addEventListener('DOMContentLoaded', () => {
   // 订阅主页视图自带粘贴订阅框（2026-11-23 拍板：加订阅不用绕订阅管理页）
   await page.evaluate(() => libViewGo('subs'));
   await page.waitForTimeout(260);
-  let boxSt = await page.evaluate(() => ({ input: !!document.getElementById('subUrlBox'), btn: !!document.querySelector('#libList .paste-box .btn-dl') }));
-  ok('订阅主页视图自带粘贴订阅框（输入框+添加订阅按钮在卡墙上方）', () => assert(boxSt.input && boxSt.btn, JSON.stringify(boxSt)));
-  await page.evaluate(() => { document.getElementById('subUrlBox').value = 'https://example.com/new-creator'; document.querySelector('#libList .paste-box .btn-dl').click(); });
+  let boxSt = await page.evaluate(() => ({ input: !!document.getElementById('subUrl'), sel: !!document.getElementById('subMaxBackfill'), btn: !!document.querySelector('#libList .paste-box .btn-dl') }));
+  ok('订阅主页粘贴框：输入框+回溯上限下拉+添加订阅按钮（管理页粘贴框随页迁入）', () => assert(boxSt.input && boxSt.sel && boxSt.btn, JSON.stringify(boxSt)));
+  await page.evaluate(() => { document.getElementById('subUrl').value = 'https://example.com/new-creator'; document.querySelector('#libList .paste-box .btn-dl').click(); });
   await page.waitForTimeout(700);
-  boxSt = await page.evaluate(() => ({ cnt: document.getElementById('sideSubCnt').textContent, cards: document.querySelectorAll('#libList .subgcard').length, cleared: document.getElementById('subUrlBox').value === '' }));
+  boxSt = await page.evaluate(() => ({ cnt: document.getElementById('sideSubCnt').textContent, cards: document.querySelectorAll('#libList .subgcard').length, cleared: document.getElementById('subUrl').value === '' }));
   ok('粘贴框提交：走完整 addSub 链路（新订阅卡入列 3 张 + 侧栏计数 3 + 输入框清空）', () => assert(boxSt.cnt === '3' && boxSt.cards === 3 && boxSt.cleared, JSON.stringify(boxSt)));
+  // 设置页「订阅追更」卡（删帖清单/容量迁入，2026-11-25 拍板）
+  const setSubsCard = await page.evaluate(() => {
+    const c = document.getElementById('set-subs');
+    return { exists: !!c, hasGone: !!(c && [...c.querySelectorAll('button')].some(b => b.textContent.includes('导出 CSV'))), hasCap: !!(c && document.getElementById('subsCapacity')) };
+  });
+  ok('设置页「订阅追更」卡：删帖清单导出 + 下载目录容量（从管理页迁入）', () => assert(setSubsCard.exists && setSubsCard.hasGone && setSubsCard.hasCap, JSON.stringify(setSubsCard)));
   // 回退 mock 状态，避免污染后续订阅相关测试
   await page.evaluate(() => { window.__subs = window.__subs.slice(0, 2); window.keepsake.subsList && loadSubs(); });
   await page.waitForTimeout(300);
@@ -444,7 +450,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const all = visibleCnt();
     return { grpHeads: grpHeads.length, single, grp, headTxt, all };
   });
-  ok('设置页组标题可点=整组显示（单卡→组 4 卡→全部），不再只能 13 卡一锅平铺', () => assert(setTab.grpHeads === 5 && setTab.single === 1 && setTab.grp === 4 && setTab.headTxt.includes('整组') && setTab.all >= 13, JSON.stringify(setTab)));
+  ok('设置页组标题可点=整组显示（单卡→组 5 卡→全部），不再只能 14 卡一锅平铺', () => assert(setTab.grpHeads === 5 && setTab.single === 1 && setTab.grp === 5 && setTab.headTxt.includes('整组') && setTab.all >= 14, JSON.stringify(setTab)));
   ok('源码保留 makeCbz / aiPanel / 仅文件名 / 删帖挂点', () => {
     assert(src.includes('makeCbz') && src.includes('aiPanel') && src.includes('仅文件名') && src.includes('setCardWeread'), 'hook gone');
   });
@@ -496,15 +502,15 @@ document.addEventListener('DOMContentLoaded', () => {
     toolbarBtns: [...document.querySelectorAll('.toolbar button')].map(b => b.id || b.className)
   }));
   ok('工具栏无重复入口（无添加订阅/粘贴下载按钮，无模态层；入口收敛到各自页面）', () => assert(!st.dlBtn && !st.subBtn && st.layers === 0, JSON.stringify(st)));
-  // ⌘K「添加订阅」命令 → 跳订阅管理页并聚焦输入框
+  // ⌘K「添加订阅」命令 → 直达订阅主页并聚焦粘贴框（管理页已撤）
   await page.evaluate(() => { openCmdk(); });
   await page.waitForTimeout(100);
   await page.keyboard.insertText('>添加订阅');
   await page.waitForTimeout(120);
   await page.keyboard.press('Enter');
-  await page.waitForTimeout(300);
-  st = await page.evaluate(() => ({ page: (document.querySelector('.page.on') || {}).id, focus: document.activeElement === document.getElementById('subUrl') }));
-  ok('⌘K「添加订阅」→ 跳订阅管理页并聚焦粘贴框', () => assert(st.page === 'page-rss' && st.focus, JSON.stringify(st)));
+  await page.waitForTimeout(400);
+  st = await page.evaluate(() => ({ page: (document.querySelector('.page.on') || {}).id, title: (document.getElementById('libTitle') || {}).textContent, focus: document.activeElement === document.getElementById('subUrl') }));
+  ok('⌘K「添加订阅」→ 直达订阅主页并聚焦粘贴框', () => assert(st.page === 'page-lib' && st.title === '订阅主页' && st.focus, JSON.stringify(st)));
   // 手动添加视图（缺口①）：侧栏入口 → manual 只留 b.jpg 一张卡
   await page.evaluate(() => { window.__lib.groups[0].files[1].src = { via: 'single', url: 'https://e.com/b' }; document.getElementById('libKw').value = ''; setLibKw(''); window.switchPage('lib'); });
   await page.waitForTimeout(200);
@@ -549,9 +555,9 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   console.log('\n=== I. 坑位静态计数 ===');
-  // 91 基线 +1（renderSubs 映射重构）+6（第五批色板/站点标签映射行 weread/weixin 标识符与公众号标签，非新增入口）
+  // 102 基线 -23（订阅管理页已撤 2026-11-25：weread 隐藏区块/批量补文章/公众号文案随页删，历史区块 git 可找回）
   const occ = (src.match(/公众号|视频号|weread|weixin|Channels/g) || []).length;
-  ok('公众号/视频号坑位出现次数 = 102（基线 98 + 订阅主页视图 kind 映射行 weread/公众号 标识符重复）', () => assert(occ === 102, 'occ=' + occ));
+  ok('公众号/视频号坑位出现次数 = 79（102 基线 - 管理页 weread 区块随页删除）', () => assert(occ === 79, 'occ=' + occ));
 
   console.log('\n=== J. 运行时无 JS 报错 ===');
   ok('pageerror 为空', () => assert(errors.length === 0, errors.slice(0, 3).join(' | ')));
