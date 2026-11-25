@@ -100,12 +100,12 @@ document.addEventListener('DOMContentLoaded', () => {
     app: !!document.getElementById('app')
   }));
   ok('工具栏（真搜索框+主题按钮+侧栏开关；品牌标识只在侧栏，全局仅一个 Keepsake；无小红书按钮）', () => assert(base.toolbar && base.brand && base.search && base.themeBtn && base.sideToggle && !base.xhsToolbar, JSON.stringify(base)));
-  ok('侧栏排序（2026-11-25 拍板）：任务队列→订阅主页→小红书→仅文件名/手动保存→工具（「所有归档」入口已撤）', () => assert(base.xhsSide && base.sideOrder === 'tasks,subs,xhsWinBtn,only,manual,strategy,settings', JSON.stringify(base.sideOrder)));
-  ok('毛玻璃侧栏在 workspace 内，四页导航 + 两组标签（媒体库/工具；前三项为无标签高频入口）', () => assert(base.sidebar && base.navs.length === 4 && base.grp === 2 && base.navs[0] === 'tasks' && !base.navs.includes('rss'), JSON.stringify({ navs: base.navs, grp: base.grp })));
+  ok('侧栏排序（2026-11-25 拍板）：任务队列→订阅主页→小红书→仅文件名/手动保存→工具→设置→高级', () => assert(base.xhsSide && base.sideOrder === 'tasks,subs,xhsWinBtn,only,manual,strategy,settings,adv', JSON.stringify(base.sideOrder)));
+  ok('毛玻璃侧栏在 workspace 内，五页导航 + 两组标签（媒体库/工具；前三项为无标签高频入口）', () => assert(base.sidebar && base.navs.length === 5 && base.grp === 2 && base.navs[0] === 'tasks' && !base.navs.includes('rss'), JSON.stringify({ navs: base.navs, grp: base.grp })));
   ok('侧栏底部状态区（登录/规则/引擎更新入口）', () => assert(base.foot, 'no side-foot'));
   ok('⌘K 面板容器在位', () => assert(base.cmdk, 'no cmdk'));
   ok('详情抽屉在位', () => assert(base.drawer, 'no drawer'));
-  ok('四页 id 齐全（订阅管理页已撤，2026-11-25 拍板）', () => assert(['page-tasks', 'page-lib', 'page-strategy', 'page-settings'].every(x => base.pages.includes(x)) && !base.pages.includes('page-rss'), JSON.stringify(base.pages)));
+  ok('五页 id 齐全（订阅管理页已撤、设置拆出高级页，2026-11-25 拍板）', () => assert(['page-tasks', 'page-lib', 'page-strategy', 'page-settings', 'page-adv'].every(x => base.pages.includes(x)) && !base.pages.includes('page-rss'), JSON.stringify(base.pages)));
   const onPageLib = await page.evaluate(() => (document.querySelector('.page.on') || {}).id === 'page-lib');
   ok('第三阶段：默认页 = 媒体库（启动第一眼）', () => assert(onPageLib));
   const sideShell = await page.evaluate(() => !!document.querySelector('.sidebar .nav[data-nav="manual"]') && !!document.querySelector('.sidebar .nav[data-nav="subs"]') && !!document.getElementById('sideSubCnt') && !document.getElementById('sideSubList'));
@@ -137,7 +137,7 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   console.log('\n=== C. 五页切换 + 渲染 ===');
-  for (const p of ['tasks', 'lib', 'strategy', 'settings']) {
+  for (const p of ['tasks', 'lib', 'strategy', 'settings', 'adv']) {
     await page.evaluate(pg => window.switchPage(pg), p);
     await page.waitForTimeout(200);
     const on = await page.evaluate(pg => document.getElementById('page-' + pg).classList.contains('on'), p);
@@ -436,21 +436,36 @@ document.addEventListener('DOMContentLoaded', () => {
   const dOpsGrp = await page.evaluate(() => document.querySelectorAll('#libDrawerBody .d-file .df-ops .x').length);
   ok('整组档案抽屉可达：标题=UP主甲 + 2 文件行 + 行内操作挂点 ≥10（阅读/转写/来源/删除等）', () => assert(grpDrawer.title === 'UP主甲' && grpDrawer.files === 2 && dOpsGrp >= 10, JSON.stringify({ ...grpDrawer, ops: dOpsGrp })));
   await page.evaluate(() => closeLibDrawer());
-  // 设置页：组标题点击=整组显示（2026-11-25 反馈「东西太多」，撤四档标签改用既有导航加组切换）
+  // 设置页：组标题点击=整组显示；设置/高级两页制（2026-11-25 主人拍板「选项太多拆出来」）
   await page.evaluate(() => switchPage('settings'));
   await page.waitForTimeout(250);
   const setTab = await page.evaluate(() => {
-    const grpHeads = [...document.querySelectorAll('#setNav .setNavGroup.grp-click')];
+    const grpHeads = [...document.querySelectorAll('#page-settings .setNavGroup.grp-click')];
     const visibleCnt = () => [...document.querySelectorAll('#page-settings .setCard')].filter(c => c.style.display !== 'none').length;
     const single = visibleCnt();                       // 初始：单卡模式
     grpHeads.find(t => t.textContent === '下载与传输').click();
     const grp = visibleCnt();
-    const headTxt = (document.getElementById('setHead') || {}).textContent || '';
-    document.querySelector('#setNav .setNavItem[data-set="__all__"]').click();
+    const headTxt = (document.querySelector('#page-settings .setHead') || {}).textContent || '';
+    document.querySelector('#page-settings .setNavItem[data-set="__all__"]').click();
     const all = visibleCnt();
     return { grpHeads: grpHeads.length, single, grp, headTxt, all };
   });
-  ok('设置页组标题可点=整组显示（单卡→组 5 卡→全部），不再只能 14 卡一锅平铺', () => assert(setTab.grpHeads === 5 && setTab.single === 1 && setTab.grp === 5 && setTab.headTxt.includes('整组') && setTab.all >= 14, JSON.stringify(setTab)));
+  ok('设置页=常用 6 卡（外观/下载/订阅追更/并发/通知/更新），组标题可点=整组显示', () => assert(setTab.grpHeads === 3 && setTab.single === 1 && setTab.grp === 3 && setTab.headTxt.includes('整组') && setTab.all === 6, JSON.stringify(setTab)));
+  const setAdv = await page.evaluate(() => {
+    switchPage('adv');
+    const grpHeads = [...document.querySelectorAll('#page-adv .setNavGroup.grp-click')].map(t => t.textContent);
+    const visibleCnt = () => [...document.querySelectorAll('#page-adv .setCard')].filter(c => c.style.display !== 'none').length;
+    const single = visibleCnt();
+    grpHeads && document.querySelector('#page-adv .setNavGroup.grp-click').click();
+    const grp = visibleCnt();
+    // 设置页里不應再出现引擎/代理/Cookie 卡
+    switchPage('settings');
+    const inSettings = ['set-engines', 'set-proxy', 'set-cookies', 'set-asr', 'set-ai', 'set-data', 'set-native', 'set-weread'].filter(id => { const c = document.getElementById(id); return c && c.closest('#page-settings'); }).length;
+    return { grpHeads, single, grp, inSettings };
+  });
+  ok('高级页=8 卡 4 组（引擎与网络/账号与登录/本地 AI/维护），且这些卡已从设置页迁出', () => assert(setAdv.grpHeads.join(',') === '引擎与网络,账号与登录,本地 AI,维护' && setAdv.single === 1 && setAdv.grp === 2 && setAdv.inSettings === 0, JSON.stringify(setAdv)));
+  const obGoAdv = await page.evaluate(() => { switchPage('tasks'); obGo('set-cookies'); const on = (document.querySelector('.page.on') || {}).id; const vis = document.getElementById('set-cookies').style.display !== 'none'; switchPage('tasks'); return { on, vis }; });
+  ok('obGo(set-cookies)：先反查所在页再切页，直达高级页 Cookie 卡（落在隐藏页=真 bug）', () => assert(obGoAdv.on === 'page-adv' && obGoAdv.vis, JSON.stringify(obGoAdv)));
   ok('源码保留 makeCbz / aiPanel / 仅文件名 / 删帖挂点', () => {
     assert(src.includes('makeCbz') && src.includes('aiPanel') && src.includes('仅文件名') && src.includes('setCardWeread'), 'hook gone');
   });

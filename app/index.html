@@ -162,6 +162,7 @@
   #page-lib::before   { content:"媒体库"; }
   #page-strategy::before { content:"风控策略"; }
   #page-settings::before { content:"设置"; }
+  #page-adv::before { content:"高级"; }
   .page::before { font-size:25px; font-weight:800; color:var(--txt); letter-spacing:.02em; padding:0 0 16px; margin:0 0 22px; border-bottom:2px solid var(--acc-border); }
   .kv2-on .page::before { display:none; }
 
@@ -331,11 +332,11 @@
   .setHead { display:flex; align-items:baseline; gap:10px; flex-wrap:wrap; margin:0 2px 12px; padding-bottom:8px; border-bottom:1px solid var(--line); }
   .setHead b { font-size:14px; }
   .setHead span { font-size:12px; color:var(--txt2); }
-  #page-settings .setCard > .desc { font-size:12px; line-height:1.65; color:var(--txt2); margin-bottom:12px; }
-  #page-settings .setCard > .note, #page-settings .setCard .row > .note { font-size:12px; line-height:1.6; color:var(--txt2); }
-  #page-settings .setCard .row { margin-bottom:8px; }
-  #page-settings .setCard { border:1px solid var(--line); border-radius:var(--r); box-shadow:var(--shadow-sm); }
-  #page-settings .setCard > h3 { padding-bottom:10px; border-bottom:1px solid var(--line); margin-bottom:12px; }
+  .setCard > .desc { font-size:12px; line-height:1.65; color:var(--txt2); margin-bottom:12px; }
+  .setCard > .note, .setCard .row > .note { font-size:12px; line-height:1.6; color:var(--txt2); }
+  .setCard .row { margin-bottom:8px; }
+  .setCard { border:1px solid var(--line); border-radius:var(--r); box-shadow:var(--shadow-sm); }
+  .setCard > h3 { padding-bottom:10px; border-bottom:1px solid var(--line); margin-bottom:12px; }
 
   /* --- 首启引导（#28）--- */
   .ob-mask { position:fixed; inset:0; background:rgba(0,0,0,.45); z-index:300; display:flex; align-items:center; justify-content:center; padding:24px; }
@@ -736,7 +737,8 @@
   <div class="nav" data-page="strategy" onclick="switchPage('strategy')"><svg viewBox="0 0 256 256" fill="currentColor"><path d="M208,40H48A16,16,0,0,0,32,56v56c0,52.72,25.52,84.67,46.93,102.19,23.06,18.86,46,25.27,47,25.53a8,8,0,0,0,4.2,0c1-.26,23.91-6.67,47-25.53C198.48,196.67,224,164.72,224,112V56A16,16,0,0,0,208,40Zm0,72c0,37.07-13.66,67.16-40.6,89.42A129.3,129.3,0,0,1,128,223.62a128.25,128.25,0,0,1-38.92-21.81C61.82,179.51,48,149.3,48,112l0-56,160,0Z"/></svg>限流策略</div>
   <!-- 视频号入口暂时下架（2026-11-19 拍板）：受控窗/IPC 保留，恢复时解开本行（小红书在上方收集簇中）
   <div class="nav" onclick="openChannelsWin()" title="打开微信视频号受控浏览器：官方页面正常登录浏览，播放后点窗口内【📥 归档】一键保存">📹 视频号</div> -->
-  <div class="nav" data-page="settings" onclick="switchPage('settings')"><svg viewBox="0 0 256 256" fill="currentColor"><path d="M128,80a48,48,0,1,0,48,48A48.05,48.05,0,0,0,128,80Zm0,80a32,32,0,1,1,32-32A32,32,0,0,1,128,160Zm88-29.84q.06-2.16,0-4.32l14.92-18.64a8,8,0,0,0,1.48-7.06,107.21,107.21,0,0,0-10.88-26.25,8,8,0,0,0-6-3.93l-23.72-2.64q-1.48-1.56-3-3L186,40.54a8,8,0,0,0-3.94-6,107.71,107.71,0,0,0-26.25-10.87,8,8,0,0,0-7.06,1.49L130.16,40Q128,40,125.84,40L107.2,25.11a8,8,0,0,0-7.06-1.48A107.6,107.6,0,0,0,73.89,34.51a8,8,0,0,0-3.93,6L67.32,64.27q-1.56,1.49-3,3L40.54,70a8,8,0,0,0-6,3.94,107.71,107.71,0,0,0-10.87,26.25,8,8,0,0,0,1.49,7.06L40,125.84Q40,128,40,130.16L25.11,148.8a8,8,0,0,0-1.48,7.06,107.21,107.21,0,0,0,10.88,26.25,8,8,0,0,0,6,3.93l23.72,2.64q1.49,1.56,3,3L70,215.46a8,8,0,0,0,3.94,6,107.71,107.71,0,0,0,26.25,10.87,8,8,0,0,0,7.06-1.49L125.84,216q2.16.06,4.32,0l18.64,14.92a8,8,0,0,0,7.06,1.48,107.21,107.21,0,0,0,26.25-10.88,8,8,0,0,0,3.93-6l2.64-23.72q1.56-1.48,3-3L215.46,186a8,8,0,0,0,6-3.94,107.71,107.71,0,0,0,10.87-26.25,8,8,0,0,0-1.49-7.06Zm-16.1-6.5a73.93,73.93,0,0,1,0,8.68,8,8,0,0,0,1.74,5.48l14.19,17.73a91.57,91.57,0,0,1-6.23,15L187,173.11a8,8,0,0,0-5.1,2.64,74.11,74.11,0,0,1-6.14,6.14,8,8,0,0,0-2.64,5.1l-2.51,22.58a91.32,91.32,0,0,1-15,6.23l-17.74-14.19a8,8,0,0,0-5-1.75h-.48a73.93,73.93,0,0,1-8.68,0,8,8,0,0,0-5.48,1.74L100.45,215.8a91.57,91.57,0,0,1-15-6.23L82.89,187a8,8,0,0,0-2.64-5.1,74.11,74.11,0,0,1-6.14-6.14,8,8,0,0,0-5.1-2.64L46.43,170.6a91.32,91.32,0,0,1-6.23-15l14.19-17.74a8,8,0,0,0,1.74-5.48,73.93,73.93,0,0,1,0-8.68,8,8,0,0,0-1.74-5.48L40.2,100.45a91.57,91.57,0,0,1,6.23-15L69,82.89a8,8,0,0,0,5.1-2.64,74.11,74.11,0,0,1,6.14-6.14A8,8,0,0,0,82.89,69L85.4,46.43a91.32,91.32,0,0,1,15-6.23l17.74,14.19a8,8,0,0,0,5.48,1.74,73.93,73.93,0,0,1,8.68,0,8,8,0,0,0,5.48-1.74L155.55,40.2a91.57,91.57,0,0,1,15,6.23L173.11,69a8,8,0,0,0,2.64,5.1,74.11,74.11,0,0,1,6.14,6.14,8,8,0,0,0,5.1,2.64l22.58,2.51a91.32,91.32,0,0,1,6.23,15l-14.19,17.74A8,8,0,0,0,199.87,123.66Z"/></svg>设置</div>
+  <div class="nav" data-page="settings" onclick="switchPage('settings')" title="主题、保存位置、通知等常用偏好"><svg viewBox="0 0 256 256" fill="currentColor"><path d="M128,80a48,48,0,1,0,48,48A48.05,48.05,0,0,0,128,80Zm0,80a32,32,0,1,1,32-32A32,32,0,0,1,128,160Zm88-29.84q.06-2.16,0-4.32l14.92-18.64a8,8,0,0,0,1.48-7.06,107.21,107.21,0,0,0-10.88-26.25,8,8,0,0,0-6-3.93l-23.72-2.64q-1.48-1.56-3-3L186,40.54a8,8,0,0,0-3.94-6,107.71,107.71,0,0,0-26.25-10.87,8,8,0,0,0-7.06,1.49L130.16,40Q128,40,125.84,40L107.2,25.11a8,8,0,0,0-7.06-1.48A107.6,107.6,0,0,0,73.89,34.51a8,8,0,0,0-3.93,6L67.32,64.27q-1.56,1.49-3,3L40.54,70a8,8,0,0,0-6,3.94,107.71,107.71,0,0,0-10.87,26.25,8,8,0,0,0,1.49,7.06L40,125.84Q40,128,40,130.16L25.11,148.8a8,8,0,0,0-1.48,7.06,107.21,107.21,0,0,0,10.88,26.25,8,8,0,0,0,6,3.93l23.72,2.64q1.49,1.56,3,3L70,215.46a8,8,0,0,0,3.94,6,107.71,107.71,0,0,0,26.25,10.87,8,8,0,0,0,7.06-1.49L125.84,216q2.16.06,4.32,0l18.64,14.92a8,8,0,0,0,7.06,1.48,107.21,107.21,0,0,0,26.25-10.88,8,8,0,0,0,3.93-6l2.64-23.72q1.56-1.48,3-3L215.46,186a8,8,0,0,0,6-3.94,107.71,107.71,0,0,0,10.87-26.25,8,8,0,0,0-1.49-7.06Zm-16.1-6.5a73.93,73.93,0,0,1,0,8.68,8,8,0,0,0,1.74,5.48l14.19,17.73a91.57,91.57,0,0,1-6.23,15L187,173.11a8,8,0,0,0-5.1,2.64,74.11,74.11,0,0,1-6.14,6.14,8,8,0,0,0-2.64,5.1l-2.51,22.58a91.32,91.32,0,0,1-15,6.23l-17.74-14.19a8,8,0,0,0-5-1.75h-.48a73.93,73.93,0,0,1-8.68,0,8,8,0,0,0-5.48,1.74L100.45,215.8a91.57,91.57,0,0,1-15-6.23L82.89,187a8,8,0,0,0-2.64-5.1,74.11,74.11,0,0,1-6.14-6.14,8,8,0,0,0-5.1-2.64L46.43,170.6a91.32,91.32,0,0,1-6.23-15l14.19-17.74a8,8,0,0,0,1.74-5.48,73.93,73.93,0,0,1,0-8.68,8,8,0,0,0-1.74-5.48L40.2,100.45a91.57,91.57,0,0,1,6.23-15L69,82.89a8,8,0,0,0,5.1-2.64,74.11,74.11,0,0,1,6.14-6.14A8,8,0,0,0,82.89,69L85.4,46.43a91.32,91.32,0,0,1,15-6.23l17.74,14.19a8,8,0,0,0,5.48,1.74,73.93,73.93,0,0,1,8.68,0,8,8,0,0,0,5.48-1.74L155.55,40.2a91.57,91.57,0,0,1,15,6.23L173.11,69a8,8,0,0,0,2.64,5.1,74.11,74.11,0,0,1,6.14,6.14,8,8,0,0,0,5.1,2.64l22.58,2.51a91.32,91.32,0,0,1,6.23,15l-14.19,17.74A8,8,0,0,0,199.87,123.66Z"/></svg>设置</div>
+  <div class="nav" data-page="adv" onclick="switchPage('adv')" title="引擎、代理、登录凭据、本地 AI、数据维护"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" style="fill:none"><line x1="4" y1="7.5" x2="20" y2="7.5"/><circle cx="9.5" cy="7.5" r="2.3"/><line x1="4" y1="16" x2="20" y2="16"/><circle cx="15" cy="16" r="2.3"/></svg>高级</div>
   <div class="side-foot">
     <div class="frow"><svg viewBox="0 0 256 256" fill="currentColor"><path d="M224,144v64a8,8,0,0,1-8,8H40a8,8,0,0,1-8-8V144a8,8,0,0,1,16,0v56H208V144a8,8,0,0,1,16,0Zm-101.66,5.66a8,8,0,0,0,11.32,0l40-40a8,8,0,0,0-11.32-11.32L136,124.69V32a8,8,0,0,0-16,0v92.69L93.66,98.34a8,8,0,0,0-11.32,11.32Z"/></svg><span id="loginBadge" class="act" onclick="openLogin()">登录 B 站</span></div>
     <div class="frow"><svg viewBox="0 0 256 256" fill="currentColor"><path d="M208,40H48A16,16,0,0,0,32,56v56c0,52.72,25.52,84.67,46.93,102.19,23.06,18.86,46,25.27,47,25.53a8,8,0,0,0,4.2,0c1-.26,23.91-6.67,47-25.53C198.48,196.67,224,164.72,224,112V56A16,16,0,0,0,208,40Zm0,72c0,37.07-13.66,67.16-40.6,89.42A129.3,129.3,0,0,1,128,223.62a128.25,128.25,0,0,1-38.92-21.81C61.82,179.51,48,149.3,48,112l0-56,160,0Z"/></svg>限流规则 <span class="act" onclick="refreshRules()" id="rulesVer">自动更新</span></div>
@@ -1114,6 +1116,10 @@
       <div class="note" style="margin:10px 0 0">自动追更只能拿到该号<b>最新一篇</b>；历史文章批量补存入口已随订阅管理页下架（历史列表接口被服务端风控封死，暂无合规通道）。</div>
     </div>
   </div>
+
+  <!-- 高级页（2026-11-25 主人拍板「设置选项太多拆出来」）：引擎/代理/凭据/本地 AI/维护 8 卡，
+       卡片 DOM 由 initSettingsPages() 从 page-settings 迁入（appendChild 移动），此处只留空壳 -->
+  <div class="page" id="page-adv"></div>
 </main>
 
     <!-- ============ 详情抽屉（毛玻璃固定面 4/4，媒体库用）============ -->
@@ -1673,7 +1679,7 @@ async function cancelDlModel(id) {
 window.keepsake.onAsrDownloadProgress(d => {
   window._asrProg = window._asrProg || {};
   window._asrProg[d.id] = d.pct;
-  if (document.getElementById('page-settings').classList.contains('on') && d.pct % 5 === 0) loadAsr();
+  if ((document.getElementById('page-settings').classList.contains('on') || document.getElementById('page-adv').classList.contains('on')) && d.pct % 5 === 0) loadAsr();   // 本地转写卡在「高级」页（2026-11-25 拆分）
 });
 async function initMirrorSelect() {
   const r = window._asrData || await window.keepsake.asrModels();
@@ -1752,7 +1758,8 @@ const P2_META = {
   tasks:    { t:'任务队列', c:'贴入链接自动识别并加入下载队列', act:'＋ 加入队列', fn:'p2FocusUrls()', pri:true },
   lib:      { t:'媒体库', c:'只读本地索引 · 任何情况下都不会自动删除你的文件', act:'↻ 重新扫描', fn:'loadLibrary(true)' },
   strategy: { t:'风控策略', c:'失败自动退避重试，节奏参数可远程调整', act:'↻ 刷新规则', fn:'refreshRules(); loadStrategySoon()' },
-  settings: { t:'设置', c:'下载、转写、凭据与引擎，全部只在本机生效', act:'', fn:'' }
+  settings: { t:'设置', c:'主题、保存位置、通知等常用偏好', act:'', fn:'' },
+  adv:      { t:'高级', c:'引擎、代理、登录凭据、本地 AI 与数据维护，全部只在本机生效', act:'', fn:'' }
 };
 function p2FocusUrls() { const el = $('urls'); if (el) { el.focus(); el.scrollIntoView({block:'center',behavior:'smooth'}); } }
 // 顶栏与 KPI 图标（内联 SVG，沿用 Phosphor 线性风格）
@@ -2326,13 +2333,13 @@ function friendlySubFail(m) {
   const siteRaw = (s.match(/^\[(\w+)\]/i) || s.match(/\[(\w+)\]\[error\]/i) || (k.match(/^\[(\w+)\]/i) || []))[1];
   const siteName = siteRaw ? ({ twitter: 'X（推特）', instagram: 'Instagram', pixiv: 'Pixiv', weibo: '微博', bilibili: 'B站', youtube: 'YouTube' }[siteRaw.toLowerCase()] || siteRaw) : '';
   const who = siteName ? siteName : '该站点';
-  if (/refresh-token/i.test(k)) return '需要 Pixiv 授权（设置 → Cookie 管理 → Pixiv 授权，一次性操作）';   // Pixiv 专用：它的报错是 'refresh-token' required，与 cookie 无关
-  if (/AuthRequired|authenticated cookies|需要登录/i.test(k)) return who + '需要登录才能看：到 设置 → Cookie 管理 导入它的 cookies.txt（或在设置页选一个已登录的浏览器）';
+  if (/refresh-token/i.test(k)) return '需要 Pixiv 授权（高级 → Cookie 管理 → Pixiv 授权，一次性操作）';   // Pixiv 专用：它的报错是 'refresh-token' required，与 cookie 无关
+  if (/AuthRequired|authenticated cookies|需要登录/i.test(k)) return who + '需要登录才能看：到 高级 → Cookie 管理 导入它的 cookies.txt（或在设置页选一个已登录的浏览器）';
   if (/NotFoundError|could not be found|user not found/i.test(k)) return (siteName ? siteName + ' 上' : '') + '找不到这个账号：可能已改名或注销（点订阅 ⚙ 核对链接）；Instagram 也可能要登录后才可见';
   // Instagram 2026-09 起 graphql 接口频繁变更（KeyError: 'data' / missing_required_variable_value），上游 gallery-dl 跟进中——与 Cookie/账号无关（官方账号同报错已实证）
   if (/KeyError:\s*'data'|missing_required_variable_value|Failed to load API data/i.test(k)) return who + ' 的接口临时变更，下载器官方正在跟进适配（不是 Cookie 或账号的问题），出修复版引擎后更新即恢复';
-  if (/401|Unauthorized|AuthenticationError|PHPSESSID|cookies?\s*(required|expired|invalid)|login/i.test(k)) return (siteName ? siteName + ' ' : '') + '需要登录 Cookie（设置 → Cookie 管理，导入该站点 cookies.txt）';
-  if (/403|Forbidden/i.test(k)) return '站点拒绝访问：需要登录 Cookie，或站点在挡程序（设置 → Cookie 管理）';
+  if (/401|Unauthorized|AuthenticationError|PHPSESSID|cookies?\s*(required|expired|invalid)|login/i.test(k)) return (siteName ? siteName + ' ' : '') + '需要登录 Cookie（高级 → Cookie 管理，导入该站点 cookies.txt）';
+  if (/403|Forbidden/i.test(k)) return '站点拒绝访问：需要登录 Cookie，或站点在挡程序（高级 → Cookie 管理）';
   if (/404|not found|No extractor/i.test(k)) return '订阅地址失效或站点不支持（检查订阅链接）';
   if (/HTTP Error 5\d\d|Internal Server Error|Bad Gateway|Service Unavailable/i.test(k)) return '站点服务器开小差，稍后自动重试';
   if (/ENOTFOUND|getaddrinfo|EAI_AGAIN/i.test(k)) return '域名打不开：断网、站点被墙或站点挂了';
@@ -3281,14 +3288,25 @@ loadLibrary(true).catch(() => {});
 // ===== U6.5 设置页重新规划：13 张卡全部收编 + 5 组语义分组 + 搜索 =====
 // 旧版只认 10 张卡（漏了「外观」「本土平台受控浏览」），漏网的卡片一直悬在导航外 → 页面显得乱。
 // 现在按 h3 文本归组，认不出的卡片统一归入「其他」，绝不留在导航外面。
-const SET_GROUPS = [
+// ===== 设置页拆分（2026-11-25 主人拍板「设置选项太多，分拆出来」）：两页制 =====
+// 「设置」只留常用 6 卡；引擎/代理/凭据/本地 AI/维护挪「高级」页（侧栏独立入口）。
+// 卡片 DOM 全部写在 page-settings 里，initSettingsPages() 按 h3 匹配后 appendChild 迁入各自页。
+const SET_GROUPS = [   // 设置页（常用）
   { name: '主题与配色', hint: '主题、强调色', items: [
     ['set-appearance', '🎨', '外观', '主题 / 配色'],
   ]},
-  { name: '下载与传输', hint: '保存位置、速度、引擎、代理', items: [
+  { name: '下载与传输', hint: '保存位置与速度', items: [
     ['set-downloads', '⚙', '下载设置', '保存目录'],
     ['set-subs', '📥', '订阅追更', '删帖清单'],
     ['set-conc', '🚦', '并发与限速', '速度'],
+  ]},
+  { name: '系统', hint: '通知与版本', items: [
+    ['set-notify', '🔔', '通知与常驻', '托盘 / 自启'],
+    ['set-update', '⬆️', '软件更新', '版本'],
+  ]},
+];
+const ADV_GROUPS = [   // 高级页
+  { name: '引擎与网络', hint: '下载引擎、代理', items: [
     ['set-engines', '🛠', '下载引擎', '引擎更新'],
     ['set-proxy', '🌐', '网络代理', '代理地址'],
   ]},
@@ -3301,42 +3319,63 @@ const SET_GROUPS = [
     ['set-asr', '📝', '本地转写', 'Whisper'],
     ['set-ai', '✨', 'AI 文稿助理', 'BYOK'],
   ]},
-  { name: '系统与维护', hint: '通知、备份、版本', items: [
-    ['set-notify', '🔔', '通知与常驻', '托盘 / 自启'],
+  { name: '维护', hint: '备份与迁移', items: [
     ['set-data', '💾', '数据安全', '备份迁移'],
-    ['set-update', '⬆️', '软件更新', '版本'],
   ]},
 ];
-const SET_ALL = SET_GROUPS.flatMap(g => g.items);
+const SET_PAGES = [
+  { page: 'page-settings', groups: SET_GROUPS, key: 'keepsake.setSection' },
+  { page: 'page-adv', groups: ADV_GROUPS, key: 'keepsake.setSectionAdv' },
+];
+const SET_ALL = SET_PAGES.flatMap(p => p.groups.flatMap(g => g.items));
 const SET_IDS = new Set(SET_ALL.map(x => x[0]));
-const _setGroupIds = {};   // 组名 → 卡 id 集合（组标题点击=整组显示，2026-11-25 反馈「设置页东西太多」）
-function switchSet(id) {
+const _setGroupIds = {};   // pageId → 组名 → 卡 id 集合（组标题点击=整组显示）
+function switchSet(id, pageId) {
+  // 页面归属：显式 pageId 优先；否则按卡 id / 组名反查；__all__ 归设置页
+  if (!pageId) {
+    if (id === '__all__') pageId = 'page-settings';
+    else if (/^group:/.test(id)) {
+      const nm = id.slice(6);
+      const p = SET_PAGES.find(p => p.groups.some(g => g.name === nm));
+      pageId = p ? p.page : 'page-settings';
+    } else {
+      const p = SET_PAGES.find(p => p.groups.some(g => g.items.some(m => m[0] === id)));
+      pageId = p ? p.page : 'page-settings';
+    }
+  }
+  const page = document.getElementById(pageId);
+  const cfg = SET_PAGES.find(p => p.page === pageId);
+  if (!page || !cfg) return;
   const grpM = /^group:(.+)$/.exec(id);
   const grpName = grpM ? grpM[1] : null;
-  const grpIds = grpName ? (_setGroupIds[grpName] || new Set()) : null;
+  const pageGrpIds = _setGroupIds[pageId] || {};
+  const grpIds = grpName ? (pageGrpIds[grpName] || new Set()) : null;
   const showAll = id === '__all__';
-  document.querySelectorAll('#setNav .setNavItem').forEach(d => d.classList.toggle('on', showAll ? d.dataset.set === '__all__' : false));
-  document.querySelectorAll('#setNav .setNavGroup').forEach(d => d.classList.toggle('on', !!grpName && d.textContent === grpName));
-  document.querySelectorAll('#page-settings .setCard').forEach(c => c.style.display = (showAll || c.id === id || (grpIds && grpIds.has(c.id))) ? '' : 'none');
-  const head = $('setHead');
+  page.querySelectorAll('.setNavItem').forEach(d => d.classList.toggle('on', showAll ? d.dataset.set === '__all__' : false));
+  page.querySelectorAll('.setNavGroup').forEach(d => d.classList.toggle('on', !!grpName && d.textContent === grpName));
+  page.querySelectorAll('.setCard').forEach(c => c.style.display = (showAll || c.id === id || (grpIds && grpIds.has(c.id))) ? '' : 'none');
+  const head = page.querySelector('.setHead');
   if (head) {
     if (grpName) {
-      const g = SET_GROUPS.find(x => x.name === grpName);
+      const g = cfg.groups.find(x => x.name === grpName);
       head.innerHTML = '<b>' + esc(grpName) + '</b><span>整组设置 · ' + esc(g ? g.hint : '') + '</span>';
     } else {
-      const g = SET_GROUPS.find(x => x.items.some(m => m[0] === id));
+      const g = cfg.groups.find(x => x.items.some(m => m[0] === id));
       head.innerHTML = showAll
-        ? '<b>全部设置</b><span>共 ' + document.querySelectorAll('#page-settings .setCard').length + ' 张卡片，按页面顺序排列；按组看可点左列组标题</span>'
+        ? '<b>全部设置</b><span>共 ' + page.querySelectorAll('.setCard').length + ' 张卡片，按页面顺序排列；按组看可点左列组标题</span>'
         : '<b>' + esc(((SET_ALL.find(x => x[0] === id) || [])[2]) || '设置') + '</b><span>' + esc(g ? g.name + ' · ' + g.hint : '设置项') + '</span>';
     }
   }
-  try { localStorage.setItem('keepsake.setSection', id); } catch (e) {}
+  try { localStorage.setItem(cfg.key, id); } catch (e) {}
 }
-// 搜索：只过滤左列导航项，不改动卡片内容；回车直达第一个匹配
-function filterSetNav(q) {
+// 搜索：只过滤本页左列导航项，不改动卡片内容；回车直达第一个匹配
+function filterSetNav(q, pageId) {
+  pageId = pageId || 'page-settings';
+  const page = document.getElementById(pageId);
+  if (!page) return null;
   const s = String(q || '').trim().toLowerCase();
   let hit = 0, first = null;
-  document.querySelectorAll('#setNav .setNavSec').forEach(sec => {
+  page.querySelectorAll('.setNavSec').forEach(sec => {
     let vis = 0;
     sec.querySelectorAll('.setNavItem').forEach(d => {
       if (d.dataset.set === '__all__') { d.style.display = ''; return; }
@@ -3346,95 +3385,99 @@ function filterSetNav(q) {
     });
     sec.style.display = vis ? '' : 'none';
   });
-  const empty = $('setNavEmpty'); if (empty) empty.style.display = hit ? 'none' : '';
+  const empty = page.querySelector('.setNavEmpty'); if (empty) empty.style.display = hit ? 'none' : '';
   return first;
 }
-function initSettingsNav() {
-  const page = document.getElementById('page-settings');
-  if (!page || document.getElementById('setNav')) return;   // 已初始化过
-  const cards = [...page.querySelectorAll(':scope > .card')];
-  const byId = new Map();
-  const orphans = [];
-  // 按 h3 文本认卡（用关键字而非完整标题，标题里带徽标文字也能认出）
-  for (const c of cards) {
-    const h3 = (c.querySelector('h3') || {}).textContent || '';
-    const meta = SET_ALL.find(x => h3.includes(x[2]));
-    if (meta && !byId.has(meta[0])) byId.set(meta[0], c);
-    else orphans.push(c);
-  }
-  const wrap = document.createElement('div'); wrap.className = 'setWrap';
-  const nav = document.createElement('div'); nav.className = 'setNav'; nav.id = 'setNav';
-  const navInner = document.createElement('div'); navInner.className = 'setNavInner';
-  const main = document.createElement('div'); main.className = 'setMain';
-  const head = document.createElement('div'); head.className = 'setHead'; head.id = 'setHead';
-
-  const search = document.createElement('input');
-  search.className = 'setSearch'; search.id = 'setSearch'; search.type = 'text';
-  search.placeholder = '🔍 搜索设置项，如「代理」「转写」';
-  search.oninput = () => filterSetNav(search.value);
-  search.onkeydown = e => { if (e.key === 'Enter') { const f = filterSetNav(search.value); if (f) switchSet(f); } };
-  navInner.appendChild(search);
-
-  const all = document.createElement('div');
-  all.className = 'setNavItem'; all.dataset.set = '__all__';
-  all.innerHTML = '<span class="setIco">▦</span>全部设置';
-  all.onclick = () => switchSet('__all__');
-  navInner.appendChild(all);
-
-  for (const g of SET_GROUPS) {
-    const sec = document.createElement('div'); sec.className = 'setNavSec';
-    const t = document.createElement('div'); t.className = 'setNavGroup grp-click'; t.textContent = g.name;
-    t.title = '点击显示「' + g.name + '」整组设置';
-    t.onclick = () => switchSet('group:' + g.name);
-    sec.appendChild(t);
-    _setGroupIds[g.name] = new Set(g.items.map(x => x[0]));
-    for (const [id, icon, name, key] of g.items) {
-      const c = byId.get(id); if (!c) continue;
-      const d = document.createElement('div');
-      d.className = 'setNavItem'; d.dataset.set = id;
-      d.dataset.kw = name + ' ' + key + ' ' + g.name + ' ' + c.textContent.slice(0, 160);
-      d.innerHTML = `<span class="setIco">${icon}</span>${esc(name)}<span class="setHint">${esc(key)}</span>`;
-      d.onclick = () => switchSet(id);
-      sec.appendChild(d);
-      c.id = id; c.classList.add('setCard'); main.appendChild(c);
+function initSettingsPages() {
+  const pool = [...document.querySelectorAll('#page-settings > .card')];   // 卡片作者区（DOM 迁移源头）
+  const consumed = new Set();
+  for (const cfg of SET_PAGES) {
+    const page = document.getElementById(cfg.page);
+    if (!page) continue;
+    _setGroupIds[cfg.page] = {};
+    const byId = new Map();
+    for (const c of pool) {
+      if (consumed.has(c)) continue;
+      const h3 = (c.querySelector('h3') || {}).textContent || '';
+      const meta = cfg.groups.flatMap(g => g.items).find(x => h3.includes(x[2]));
+      if (meta && !byId.has(meta[0])) byId.set(meta[0], c);
     }
-    navInner.appendChild(sec);
+    const wrap = document.createElement('div'); wrap.className = 'setWrap';
+    const nav = document.createElement('div'); nav.className = 'setNav';
+    const navInner = document.createElement('div'); navInner.className = 'setNavInner';
+    const main = document.createElement('div'); main.className = 'setMain';
+    const head = document.createElement('div'); head.className = 'setHead';
+    const search = document.createElement('input');
+    search.className = 'setSearch'; search.type = 'text';
+    search.placeholder = '🔍 搜索设置项，如「代理」「转写」';
+    search.oninput = () => filterSetNav(search.value, cfg.page);
+    search.onkeydown = e => { if (e.key === 'Enter') { const f = filterSetNav(search.value, cfg.page); if (f) switchSet(f, cfg.page); } };
+    navInner.appendChild(search);
+    const all = document.createElement('div');
+    all.className = 'setNavItem'; all.dataset.set = '__all__';
+    all.innerHTML = '<span class="setIco">▦</span>全部设置';
+    all.onclick = () => switchSet('__all__', cfg.page);
+    navInner.appendChild(all);
+    for (const g of cfg.groups) {
+      const sec = document.createElement('div'); sec.className = 'setNavSec';
+      const t = document.createElement('div'); t.className = 'setNavGroup grp-click'; t.textContent = g.name;
+      t.title = '点击显示「' + g.name + '」整组设置';
+      t.onclick = () => switchSet('group:' + g.name, cfg.page);
+      sec.appendChild(t);
+      _setGroupIds[cfg.page][g.name] = new Set(g.items.map(x => x[0]));
+      for (const [id, icon, name, key] of g.items) {
+        const c = byId.get(id); if (!c) continue;
+        const d = document.createElement('div');
+        d.className = 'setNavItem'; d.dataset.set = id;
+        d.dataset.kw = name + ' ' + key + ' ' + g.name + ' ' + c.textContent.slice(0, 160);
+        d.innerHTML = '<span class="setIco">' + icon + '</span>' + esc(name) + '<span class="setHint">' + esc(key) + '</span>';
+        d.onclick = () => switchSet(id, cfg.page);
+        sec.appendChild(d);
+        c.id = id; c.classList.add('setCard'); main.appendChild(c);   // appendChild 把卡片从 page-settings 迁入本页
+        consumed.add(c);
+      }
+      navInner.appendChild(sec);
+    }
+    // 未被任何组认领的孤儿卡（兜底：认「其他」组，保证不丢设置）
+    const orphans = pool.filter(c => !consumed.has(c));
+    if (orphans.length && cfg.page === 'page-adv') {
+      const sec = document.createElement('div'); sec.className = 'setNavSec';
+      const t = document.createElement('div'); t.className = 'setNavGroup grp-click'; t.textContent = '其他';
+      t.title = '点击显示整组设置';
+      t.onclick = () => switchSet('group:其他', cfg.page);
+      sec.appendChild(t);
+      _setGroupIds[cfg.page]['其他'] = new Set();
+      orphans.forEach((c, i) => {
+        const h3 = (c.querySelector('h3') || {}).textContent || ('设置 ' + (i + 1));
+        const id = 'set-other-' + i;
+        _setGroupIds[cfg.page]['其他'].add(id);
+        const d = document.createElement('div');
+        d.className = 'setNavItem'; d.dataset.set = id;
+        d.dataset.kw = h3 + ' ' + c.textContent.slice(0, 160);
+        d.innerHTML = '<span class="setIco">•</span>' + esc(h3.trim().slice(0, 18));
+        d.onclick = () => switchSet(id, cfg.page);
+        sec.appendChild(d);
+        c.id = id; c.classList.add('setCard'); main.appendChild(c);
+        consumed.add(c);
+      });
+      navInner.appendChild(sec);
+    }
+    const empty = document.createElement('div');
+    empty.className = 'setNavEmpty'; empty.style.display = 'none';
+    empty.textContent = '没有匹配的设置项';
+    navInner.appendChild(empty);
+    nav.appendChild(navInner);
+    main.insertBefore(head, main.firstChild);
+    wrap.appendChild(nav); wrap.appendChild(main); page.appendChild(wrap);
+    let last = null; try { last = localStorage.getItem(cfg.key); } catch (e) {}
+    const valid = last && (last === '__all__' || last.startsWith('group:') || cfg.groups.some(g => g.items.some(m => m[0] === last)));
+    switchSet(valid ? last : cfg.groups[0].items[0][0], cfg.page);
   }
-  if (orphans.length) {
-    const sec = document.createElement('div'); sec.className = 'setNavSec';
-    const t = document.createElement('div'); t.className = 'setNavGroup grp-click'; t.textContent = '其他';
-    t.title = '点击显示整组设置';
-    t.onclick = () => switchSet('group:其他');
-    sec.appendChild(t);
-    _setGroupIds['其他'] = new Set();
-    orphans.forEach((c, i) => {
-      const h3 = (c.querySelector('h3') || {}).textContent || ('设置 ' + (i + 1));
-      const id = 'set-other-' + i;
-      _setGroupIds['其他'].add(id);
-      const d = document.createElement('div');
-      d.className = 'setNavItem'; d.dataset.set = id;
-      d.dataset.kw = h3 + ' ' + c.textContent.slice(0, 160);
-      d.innerHTML = `<span class="setIco">•</span>${esc(h3.trim().slice(0, 18))}`;
-      d.onclick = () => switchSet(id);
-      sec.appendChild(d);
-      c.id = id; c.classList.add('setCard'); main.appendChild(c);
-    });
-    navInner.appendChild(sec);
-  }
-  const empty = document.createElement('div');
-  empty.className = 'setNavEmpty'; empty.id = 'setNavEmpty'; empty.style.display = 'none';
-  empty.textContent = '没有匹配的设置项';
-  navInner.appendChild(empty);
-
-  nav.appendChild(navInner);
-  main.insertBefore(head, main.firstChild);
-  wrap.appendChild(nav); wrap.appendChild(main); page.appendChild(wrap);
-  let last = null; try { last = localStorage.getItem('keepsake.setSection'); } catch (e) {}
-  // 旧版存的是 10 个老 id，仍在新表里就沿用；否则默认落到「主题与配色」
-  switchSet(last && (last === '__all__' || last.startsWith('group:') || SET_IDS.has(last)) ? last : SET_GROUPS[0].items[0][0]);
+  // 双页都认领后仍未消费的卡（防御：映射漏配）→ 藏掉并提示，不让它裸露在页面上
+  pool.filter(c => !consumed.has(c)).forEach(c => { c.style.display = 'none'; console.warn('[settings] orphan card hidden:', (c.querySelector('h3') || {}).textContent); });
   loadWereadSetState();
 }
-initSettingsNav();
+initSettingsPages();
 
 // ===== 首启引导（#28）：只在首次启动弹 3 步引导浮层；标记 onboarded 后不再烦 =====
 // 兼容历史品牌名遗留标记（dgo-onboarded），老用户也算已引导过，不重复弹
@@ -3443,11 +3486,16 @@ function obClose(mark) {
   const m = $('onboardMask'); if (m) m.style.display = 'none';
   if (mark) { try { localStorage.setItem('keepsake-onboarded', '1'); } catch (e) {} }
 }
-// obGo：关闭浮层并跳转到对应入口（订阅页 / 任务页 / 设置-Cookie 管理分段）
+// obGo：关闭浮层并跳转到对应入口（订阅主页 / 任务页 / 设置-高级页分段）
 function obGo(target) {
   obClose(true);
   if (target === 'rss') { libViewGo('subs'); }   // 管理页已撤：订阅直达订阅主页（添加订阅）
-  else if (/^set-/.test(target)) { switchPage('settings'); switchSet(target); }
+  else if (/^set-/.test(target)) {
+    // 设置拆两页（2026-11-25）：先按卡 id 反查所在页再切页，否则落在隐藏页上用户看不到
+    const p = SET_PAGES.find(p => p.groups.some(g => g.items.some(m => m[0] === target)));
+    switchPage(p ? (p.page === 'page-adv' ? 'adv' : 'settings') : 'settings');
+    switchSet(target);
+  }
   else switchPage(target);
 }
 try {
@@ -3499,6 +3547,7 @@ const CK_ACTIONS = [
   { ic: 'lib',      label: '手动添加',     hint: '单独下载的内容都收在这里',  run: () => { closeCmdk(); libOriginGo('manual'); } },
   { ic: 'strategy', label: '风控策略',     hint: '查看限流与学习状态',        run: () => { closeCmdk(); switchPage('strategy'); } },
   { ic: 'settings', label: '设置',         hint: '打开设置页',                run: () => { closeCmdk(); switchPage('settings'); } },
+  { ic: 'gear',     label: '高级设置',     hint: '引擎/代理/凭据/本地 AI/维护', run: () => { closeCmdk(); switchPage('adv'); } },
   { ic: 'paste',    label: '粘贴链接下载', hint: '到任务队列页粘贴，自动识别入队', run: () => { closeCmdk(); switchPage('tasks'); setTimeout(() => { const i = document.getElementById('urls'); if (i) i.focus(); }, 150); } },
   { ic: 'sub',      label: '添加订阅',     hint: '到订阅主页粘贴主页地址',       run: () => { closeCmdk(); libViewGo('subs'); setTimeout(() => { const i = document.getElementById('subUrl'); if (i) i.focus(); }, 200); } },
   { ic: 'sun',      label: '切浅色',       hint: '外观 · 浅色主题',           run: () => { closeCmdk(); setUiTheme('light'); } },
