@@ -844,7 +844,6 @@
         <button class="libseg-item" data-kind="video" role="tab" aria-selected="false">视频</button>
         <button class="libseg-item" data-kind="image" role="tab" aria-selected="false">图文</button>
       </div>
-      <button class="lib-back" id="subsMgmtBtn" onclick="switchPage('rss')" style="display:none" title="检查频率/回溯/分组/批量操作"><svg class="ico" style="width:13px;height:13px" aria-hidden="true"><use href="#i-gear"></use></svg> 管理</button>
     </div>
     <div id="libList"><div class="empty">还没有下载任何媒体——用工具栏「粘贴链接下载」单独收一条，或添加订阅自动追更</div></div>
     <div class="lib-footnote">只读展示，任何情况下都不会自动删除你的文件 · 点卡片直接打开内容，点右上角的信息按钮看档案与操作（转写/AI/删除检测）</div>
@@ -3215,7 +3214,6 @@ function syncLibHead() {
   if (!t || !s2) return;
   const seg = $('libKindSeg'); if (seg) seg.style.display = (libView === 'subs' && !libKw && !libGroup) ? 'none' : '';   // 订阅主页顶层藏类型分段；搜索/下钻穿透后恢复
   const bk = $('libBackBtn'); if (bk) bk.style.display = (libGroup && !libKw && libKind === 'all') ? '' : 'none';
-  const mg = $('subsMgmtBtn'); if (mg) mg.style.display = (libView === 'subs' && !libGroup) ? '' : 'none';   // 管理入口只在订阅主页顶层显示
   if (libView === 'subs' && !libGroup) { t.textContent = '订阅主页'; s2.textContent = (subsItems || []).length + ' 个订阅主页 · 点击卡片查看 TA 的归档'; return; }
   // 组内视图：页头切组名 + 统计副标题（订阅主页下钻与其他归档进入共用）
   if (libGroup && !libKw && libKind === 'all' && libData && Array.isArray(libData.groups)) {
@@ -3704,7 +3702,7 @@ const CK_ICONS = {
 };
 const CK_ACTIONS = [
   { ic: 'tasks',    label: '任务队列',     hint: '切换到任务页',              run: () => { closeCmdk(); switchPage('tasks'); } },
-  { ic: 'rss',      label: '订阅归档',     hint: '切换到订阅页',              run: () => { closeCmdk(); switchPage('rss'); } },
+  { ic: 'rss',      label: '订阅管理',     hint: '检查频率/回溯/删帖清单',      run: () => { closeCmdk(); switchPage('rss'); } },
   { ic: 'lib',      label: '媒体库',       hint: '浏览本地已归档媒体',        run: () => { closeCmdk(); switchPage('lib'); } },
   { ic: 'lib',      label: '手动添加',     hint: '单独下载的内容都收在这里',  run: () => { closeCmdk(); libOriginGo('manual'); } },
   { ic: 'strategy', label: '风控策略',     hint: '查看限流与学习状态',        run: () => { closeCmdk(); switchPage('strategy'); } },

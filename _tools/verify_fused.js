@@ -111,8 +111,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const sideShell = await page.evaluate(() => !!document.querySelector('.sidebar .nav[data-nav="manual"]') && !!document.querySelector('.sidebar .nav[data-nav="subs"]') && !!document.getElementById('sideSubCnt') && !document.getElementById('sideSubList'));
   const smartGroup = await page.evaluate(() => [...document.querySelectorAll('.sidebar .nav')].some(n => n.textContent.includes('仅文件名')) && [...document.querySelectorAll('.sidebar .nav')].some(n => n.textContent.includes('手动保存')) && !document.getElementById('l-fileAll') && !!document.getElementById('l-fileOnly') && !!document.getElementById('l-fileManual'));
   ok('第五批：「仅文件名/手动保存」在媒体库组内 + 「所有归档」入口确已移除', () => assert(smartGroup));
-  const manageLink = await page.evaluate(() => !document.querySelector('.side-manage') && !!document.getElementById('subsMgmtBtn') && document.getElementById('subsMgmtBtn').style.display !== 'none');
-  ok('侧栏不再带「管理」二字；默认订阅主页视图页头带 ⚙管理入口', () => assert(manageLink));
+  const manageLink = await page.evaluate(() => !document.querySelector('.side-manage') && !document.getElementById('subsMgmtBtn'));
+  ok('侧栏与订阅主页页头均无「管理」入口（2026-11-25 二次拍板撤页头⚙管理）；管理页走 ⌘K「订阅管理」', () => assert(manageLink));
 
   console.log('\n=== B. backdrop-filter 只在 4 个固定面 ===');
   const bf = await page.evaluate(() => {
@@ -244,10 +244,9 @@ document.addEventListener('DOMContentLoaded', () => {
     title: (document.getElementById('libTitle') || {}).textContent,
     cards: document.querySelectorAll('#libList .subgcard').length,
     names: [...document.querySelectorAll('#libList .sg-name')].map(x => x.textContent),
-    segHidden: (document.getElementById('libKindSeg') || {}).style.display === 'none',
-    mgmtShown: document.getElementById('subsMgmtBtn').style.display !== 'none'
+    segHidden: (document.getElementById('libKindSeg') || {}).style.display === 'none'
   }));
-  ok('订阅主页视图：右侧出详细名称（2 张订阅卡 + 页头标题 + 类型分段隐藏 + ⚙管理入口出现）', () => assert(subsView.title === '订阅主页' && subsView.cards === 2 && subsView.names.length === 2 && subsView.segHidden && subsView.mgmtShown, JSON.stringify(subsView)));
+  ok('订阅主页视图：右侧出详细名称（2 张订阅卡 + 页头标题 + 类型分段隐藏 + 无⚙管理钮）', () => assert(subsView.title === '订阅主页' && subsView.cards === 2 && subsView.names.length === 2 && subsView.segHidden, JSON.stringify(subsView)));
   // 订阅卡单一智能按钮（2026-11-25 二次拍板：检查/下载/暂停/恢复四个功能合并成一个按钮，按状态出对应动作）
   const subOps = await page.evaluate(() => {
     const btns = [...document.querySelectorAll('#libList .subgcard .sg-act')];
