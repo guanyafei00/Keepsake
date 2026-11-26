@@ -556,7 +556,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const kpiCols = getComputedStyle(document.querySelector('.kpi2')).gridTemplateColumns.split(' ').length;
     return { pasteBtn: h('#kpiHost .kpi-paste .btn-dl'), kpi: h('#kpiHost .kc'), kpiCols };
   });
-  ok('主操作按钮 ≥40px；KPI 卡恒 4 列一行且高 ≤60px（瘦身+不随窗口折行）', () => assert(touch.pasteBtn >= 40 && touch.kpi > 0 && touch.kpi <= 60 && touch.kpiCols === 4, JSON.stringify(touch)));
+  ok('主操作按钮 ≥40px；KPI 卡恒 4 列一行且高 ≤64px（2026-11-26 拍板与订阅主页同规格放大，不再瘦身版）', () => assert(touch.pasteBtn >= 40 && touch.kpi > 0 && touch.kpi <= 64 && touch.kpiCols === 4, JSON.stringify(touch)));
 
   console.log('\n=== H. 响应式无横向溢出（1440/1024/390）===');
   for (const w of [1440, 1024, 390]) {
