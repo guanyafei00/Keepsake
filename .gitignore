@@ -87,3 +87,7 @@ Keepsake竞品代码级对比报告.md
 *.exe
 SHA256SUMS*.txt
 _gdl_test/Keepsake.Setup.*
+
+# 测试 profile 凭据残留（2026-11-26 硬闸）
+_tools/dev-profile/
+_tools/staging-sidebar2/lib/browsercookies.js
