@@ -604,7 +604,7 @@ app.whenReady().then(() => {
   queue.onDone = it => {
     const files = (Array.isArray(it._files) && it._files.length) ? it._files : (it.filePath ? [it.filePath] : []);
     if (!files.length) return;
-    source.record(files, { url: it.url, via: it._subs ? 'sub' : 'task', subId: it._subId || null, title: it.title });
+    source.record(files, { url: it.url, via: it._subId ? 'sub' : 'task', subId: it._subId || null, title: it.title });   // via 按 _subId 判定（_subs 是字幕选项，此前误用导致订阅内容混进手动添加视图）
     log.info('source', `来源记录 ${files.length} 个文件 ← ${it.url}`);
   };
 

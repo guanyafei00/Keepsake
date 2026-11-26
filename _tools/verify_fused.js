@@ -574,6 +574,17 @@ document.addEventListener('DOMContentLoaded', () => {
   const occ = (src.match(/公众号|视频号|weread|weixin|Channels/g) || []).length;
   ok('公众号/视频号坑位出现次数 = 79（102 基线 - 管理页 weread 区块随页删除）', () => assert(occ === 79, 'occ=' + occ));
 
+  // 来源索引 via 判定（2026-11-26 修复：_subs 是字幕选项，误用导致订阅内容混进手动添加视图）
+  const mainSrc = require('fs').readFileSync(require('path').join(__dirname, '..', 'app', 'main.js'), 'utf8');
+  ok('source.record via 按 _subId 判定（非 _subs 字幕标志）', () => {
+    assert(/via:\s*it\._subId \? 'sub' : 'task'/.test(mainSrc), 'via 判定未按 _subId');
+    assert(!/via:\s*it\._subs \?/.test(mainSrc), 'via 仍误用 _subs');
+  });
+  const srcSrc = require('fs').readFileSync(require('path').join(__dirname, '..', 'app', 'lib', 'source.js'), 'utf8');
+  ok('source.js configure 含 via 自愈迁移（按 subId 纠正存量）', () => {
+    assert(/自愈迁移/.test(srcSrc) && /r\.subId \? 'sub' : 'task'/.test(srcSrc), '迁移缺失');
+  });
+
   console.log('\n=== J. 运行时无 JS 报错 ===');
   ok('pageerror 为空', () => assert(errors.length === 0, errors.slice(0, 3).join(' | ')));
 

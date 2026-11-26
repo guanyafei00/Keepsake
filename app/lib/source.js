@@ -11,6 +11,16 @@ const MAX = 20000;   // 上限防无限膨胀：超过时淘汰最旧的记录
 function configure({ file }) {
   FILE = file;
   map = readJson(FILE, {}, v => v && typeof v === 'object' && !Array.isArray(v));
+  // 自愈迁移（2026-11-26）：历史上 via 误用字幕标志 _subs 判定，导致订阅内容标成 task、
+  // 开转写的手动内容标成 sub。存量记录里 subId 是可靠字段（订阅任务入队必带），据此纠正。
+  let fixed = 0;
+  for (const k of Object.keys(map)) {
+    const r = map[k];
+    if (!r || typeof r !== 'object') continue;
+    const want = r.subId ? 'sub' : 'task';
+    if (r.via !== want) { r.via = want; fixed++; }
+  }
+  if (fixed) { try { save(); } catch (e) {} }
 }
 
 function save() {
