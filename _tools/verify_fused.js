@@ -556,7 +556,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const kpiCols = getComputedStyle(document.querySelector('.kpi2')).gridTemplateColumns.split(' ').length;
     return { pasteBtn: h('#kpiHost .kpi-paste .btn-dl'), kpi: h('#kpiHost .kc'), kpiCols };
   });
-  ok('主操作按钮 ≥40px；KPI 卡恒 4 列一行且高 ≤64px（2026-11-26 拍板与订阅主页同规格放大，不再瘦身版）', () => assert(touch.pasteBtn >= 40 && touch.kpi > 0 && touch.kpi <= 64 && touch.kpiCols === 4, JSON.stringify(touch)));
+  ok('主操作按钮 ≥40px；KPI 卡恒 4 列一行且高 70~80px（2026-11-26 二轮拍板：状态卡/粘贴框 75px 与订阅主页 paste-box 像素级同高）', () => assert(touch.pasteBtn >= 40 && touch.kpi > 0 && touch.kpi >= 70 && touch.kpi <= 80 && touch.kpiCols === 4, JSON.stringify(touch)));
 
   console.log('\n=== H. 响应式无横向溢出（1440/1024/390）===');
   for (const w of [1440, 1024, 390]) {
@@ -570,9 +570,9 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   console.log('\n=== I. 坑位静态计数 ===');
-  // 102 基线 -23（订阅管理页已撤 2026-11-25：weread 隐藏区块/批量补文章/公众号文案随页删，历史区块 git 可找回）
+  // 102 基线 -23（订阅管理页已撤 2026-11-25）-1（任务队列 placeholder 精简删「公众号」罗列 2026-11-26，非坑位语义）
   const occ = (src.match(/公众号|视频号|weread|weixin|Channels/g) || []).length;
-  ok('公众号/视频号坑位出现次数 = 79（102 基线 - 管理页 weread 区块随页删除）', () => assert(occ === 79, 'occ=' + occ));
+  ok('公众号/视频号坑位出现次数 = 78（102 基线 - 管理页 weread 区块随页删除 - placeholder 精简）', () => assert(occ === 78, 'occ=' + occ));
 
   // 来源索引 via 判定（2026-11-26 修复：_subs 是字幕选项，误用导致订阅内容混进手动添加视图）
   const mainSrc = require('fs').readFileSync(require('path').join(__dirname, '..', 'app', 'main.js'), 'utf8');
