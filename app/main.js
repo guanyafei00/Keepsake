@@ -227,13 +227,20 @@ function createWindow() {
         p,
         new Promise((_res, rej) => setTimeout(() => rej(new Error(tag + ' 超时' + ms + 'ms')), ms))
       ]);
-      const shots = [['keepsake-library.png', 'lib'], ['keepsake-subs.png', 'rss'], ['keepsake-home.png', 'tasks']];
+      // 2026-11-27：rss 页已撤（page-rss 删除），订阅内容在 lib 页订阅视图——shots 改存完整 JS 表达式
+      // library 图下钻文件数最多的归档组（展示内容卡墙，避免手动添加视图空态）
+      const shots = [
+        // libData 是顶层 let（不挂 window）：用 typeof 探测；轮询等待归档组就绪再下钻
+        ['keepsake-library.png', `switchPage('lib');libViewGo('subs');new Promise(r=>{let n=0;const t=setInterval(()=>{n++;let gs=[];try{gs=(typeof libData!=='undefined'&&libData.groups)||[]}catch(e){}if(gs.length||n>20){clearInterval(t);const g=gs.slice().sort((a,b)=>(b.fileCount||0)-(a.fileCount||0))[0];if(g){try{enterLibGroup(g.key)}catch(e){}}r()}},200)})`],
+        ['keepsake-subs.png', `switchPage('lib');libViewGo('subs')`],
+        ['keepsake-home.png', `switchPage('tasks')`],
+      ];
       (async () => {
         try {
           await new Promise(r2 => setTimeout(r2, 2500));   // 等首屏数据渲染
-          for (const [file, page] of shots) {
-            console.log('[capture] 切页 →', page);
-            await withTimeout(win.webContents.executeJavaScript(`switchPage('${page}')`), 10000, 'switchPage(' + page + ')');
+          for (const [file, jsExpr] of shots) {
+            console.log('[capture] 切页 →', jsExpr);
+            await withTimeout(win.webContents.executeJavaScript(jsExpr), 10000, 'capture 切页');
             await new Promise(r2 => setTimeout(r2, 1800));   // 等该页数据加载
             let img = null;
             try {

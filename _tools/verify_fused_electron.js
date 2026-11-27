@@ -49,7 +49,7 @@ function assert(c, m) { if (!c) throw new Error(m || 'assertion failed'); }
     drawer: !!document.getElementById('libDrawer'),
     ipc: typeof window.keepsake === 'object' && typeof window.keepsake.snapshot === 'function' && typeof window.keepsake.subsList === 'function'
   }));
-  ok('骨架四件套 + 真实 preload IPC 桥', () => assert(st.app && st.toolbar && st.sidebar && st.navs === 4 && st.cmdk && st.drawer && st.ipc, JSON.stringify(st)));
+  ok('骨架四件套 + 真实 preload IPC 桥', () => assert(st.app && st.toolbar && st.sidebar && st.navs === 5 && st.cmdk && st.drawer && st.ipc, JSON.stringify(st)));   // navs 4→5（设置拆分后侧栏多「高级」入口）
 
   console.log('\n=== B. Ctrl+K / > 指令 / 粘贴框（真实渲染层）===');
   await win.keyboard.press('Control+k');
